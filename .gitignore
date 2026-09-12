@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Large media and raw course files (keep repo under 10MB for fast Streamlit cloud build)
+課程/
+盤前分析/
+App截圖/
+轉折圖/
+*.docx
+scratch/
+scratch_test.py
+test_screener_verify.py
+
+# System
+.DS_Store
+Thumbs.db

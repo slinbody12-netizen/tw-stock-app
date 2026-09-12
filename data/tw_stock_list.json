@@ -1,0 +1,1418 @@
+[
+  {
+    "code": "1101",
+    "name": "台泥",
+    "market": "TW",
+    "industry": "水泥工業"
+  },
+  {
+    "code": "1102",
+    "name": "亞泥",
+    "market": "TW",
+    "industry": "水泥工業"
+  },
+  {
+    "code": "1301",
+    "name": "台塑",
+    "market": "TW",
+    "industry": "塑膠工業"
+  },
+  {
+    "code": "1303",
+    "name": "南亞",
+    "market": "TW",
+    "industry": "塑膠工業",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "1309",
+    "name": "台達化",
+    "market": "TW",
+    "industry": "塑膠原料"
+  },
+  {
+    "code": "1312",
+    "name": "國喬",
+    "market": "TW",
+    "industry": "塑膠工業",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "1528",
+    "name": "恩德",
+    "market": "TW",
+    "industry": "電機機械",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "1569",
+    "name": "濱川",
+    "market": "TWO",
+    "industry": "電腦機殼",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "1587",
+    "name": "宣得",
+    "market": "TWO",
+    "industry": "電子零組件",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "1609",
+    "name": "大亞",
+    "market": "TW",
+    "industry": "電線電纜",
+    "has_futures": true,
+    "has_cb": true
+  },
+  {
+    "code": "1709",
+    "name": "和益",
+    "market": "TW",
+    "industry": "化學工業",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "1810",
+    "name": "和成",
+    "market": "TW",
+    "industry": "玻陶"
+  },
+  {
+    "code": "1815",
+    "name": "富喬",
+    "market": "TWO",
+    "industry": "玻纖布",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2002",
+    "name": "中鋼",
+    "market": "TW",
+    "industry": "鋼鐵工業"
+  },
+  {
+    "code": "2006",
+    "name": "東和鋼鐵",
+    "market": "TW",
+    "industry": "鋼鐵工業",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2033",
+    "name": "佳大",
+    "market": "TW",
+    "industry": "鋼鐵線材",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2059",
+    "name": "川湖",
+    "market": "TW",
+    "industry": "伺服器導軌"
+  },
+  {
+    "code": "2069",
+    "name": "運錩",
+    "market": "TW",
+    "industry": "不鏽鋼加工",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2104",
+    "name": "國際中橡",
+    "market": "TW",
+    "industry": "橡膠工業",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "2201",
+    "name": "裕隆",
+    "market": "TW",
+    "industry": "汽車工業",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2221",
+    "name": "大甲",
+    "market": "TWO",
+    "industry": "不鏽鋼產品",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "2241",
+    "name": "艾姆勒",
+    "market": "TW",
+    "industry": "汽車工業",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2243",
+    "name": "宏旭-KY",
+    "market": "TW",
+    "industry": "汽車零組件",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2303",
+    "name": "聯電",
+    "market": "TW",
+    "industry": "半導體業",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2305",
+    "name": "全友",
+    "market": "TW",
+    "industry": "掃描器",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2308",
+    "name": "台達電",
+    "market": "TW",
+    "industry": "電子零組件",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2317",
+    "name": "鴻海",
+    "market": "TW",
+    "industry": "其他電子",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2329",
+    "name": "華泰",
+    "market": "TW",
+    "industry": "封測與EMS"
+  },
+  {
+    "code": "2330",
+    "name": "台積電",
+    "market": "TW",
+    "industry": "晶圓代工",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2332",
+    "name": "友訊",
+    "market": "TW",
+    "industry": "網路設備",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2338",
+    "name": "光罩",
+    "market": "TW",
+    "industry": "IC製造",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2344",
+    "name": "華邦電",
+    "market": "TW",
+    "industry": "記憶體"
+  },
+  {
+    "code": "2354",
+    "name": "鴻準",
+    "market": "TW",
+    "industry": "電子零組件",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2357",
+    "name": "華碩",
+    "market": "TW",
+    "industry": "電腦及週邊設備業"
+  },
+  {
+    "code": "2363",
+    "name": "矽統",
+    "market": "TW",
+    "industry": "IC設計"
+  },
+  {
+    "code": "2367",
+    "name": "燿華",
+    "market": "TW",
+    "industry": "PCB板"
+  },
+  {
+    "code": "2368",
+    "name": "金像電",
+    "market": "TW",
+    "industry": "PCB伺服器"
+  },
+  {
+    "code": "2382",
+    "name": "廣達",
+    "market": "TW",
+    "industry": "伺服器代工",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2385",
+    "name": "群光",
+    "market": "TW",
+    "industry": "電子零組件",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2395",
+    "name": "研華",
+    "market": "TW",
+    "industry": "工業電腦",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2408",
+    "name": "南亞科",
+    "market": "TW",
+    "industry": "記憶體"
+  },
+  {
+    "code": "2417",
+    "name": "圓剛",
+    "market": "TW",
+    "industry": "影音擷取"
+  },
+  {
+    "code": "2421",
+    "name": "建準",
+    "market": "TW",
+    "industry": "散熱模組",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2444",
+    "name": "兆勁",
+    "market": "TW",
+    "industry": "通訊設備",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2449",
+    "name": "京元電子",
+    "market": "TW",
+    "industry": "IC測試"
+  },
+  {
+    "code": "2454",
+    "name": "聯發科",
+    "market": "TW",
+    "industry": "IC設計",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2455",
+    "name": "全新",
+    "market": "TW",
+    "industry": "砷化鎵代工",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2460",
+    "name": "建通",
+    "market": "TW",
+    "industry": "連接器",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2466",
+    "name": "冠西電",
+    "market": "TW",
+    "industry": "電子零組件",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "2468",
+    "name": "華經",
+    "market": "TW",
+    "industry": "系統整合",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2477",
+    "name": "美隆電",
+    "market": "TW",
+    "industry": "電子零組件",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2489",
+    "name": "瑞軒",
+    "market": "TW",
+    "industry": "顯示器"
+  },
+  {
+    "code": "2548",
+    "name": "華固",
+    "market": "TW",
+    "industry": "營造工程",
+    "has_futures": true,
+    "has_cb": true
+  },
+  {
+    "code": "2603",
+    "name": "長榮",
+    "market": "TW",
+    "industry": "貨櫃航運",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2605",
+    "name": "新興",
+    "market": "TW",
+    "industry": "散裝航運",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2606",
+    "name": "裕民",
+    "market": "TW",
+    "industry": "散裝航運",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2609",
+    "name": "陽明",
+    "market": "TW",
+    "industry": "貨櫃航運"
+  },
+  {
+    "code": "2612",
+    "name": "中航",
+    "market": "TW",
+    "industry": "散裝航運",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2615",
+    "name": "萬海",
+    "market": "TW",
+    "industry": "貨櫃航運"
+  },
+  {
+    "code": "2617",
+    "name": "台航",
+    "market": "TW",
+    "industry": "散裝航運",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2637",
+    "name": "慧洋-KY",
+    "market": "TW",
+    "industry": "散裝航運",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2723",
+    "name": "美食-KY",
+    "market": "TW",
+    "industry": "餐飲連鎖",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2801",
+    "name": "彰銀",
+    "market": "TW",
+    "industry": "銀行",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2812",
+    "name": "台中銀",
+    "market": "TW",
+    "industry": "銀行",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2816",
+    "name": "旺旺保",
+    "market": "TW",
+    "industry": "保險",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2820",
+    "name": "華票",
+    "market": "TW",
+    "industry": "金融",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2838",
+    "name": "聯邦銀",
+    "market": "TW",
+    "industry": "銀行",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2845",
+    "name": "遠東銀",
+    "market": "TW",
+    "industry": "銀行",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2849",
+    "name": "安泰銀",
+    "market": "TW",
+    "industry": "銀行",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2851",
+    "name": "中再保",
+    "market": "TW",
+    "industry": "保險",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2855",
+    "name": "統一證",
+    "market": "TW",
+    "industry": "證券",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2880",
+    "name": "華南金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2881",
+    "name": "富邦金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2882",
+    "name": "國泰金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2883",
+    "name": "凱基金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2884",
+    "name": "玉山金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2885",
+    "name": "元大金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2886",
+    "name": "兆豐金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2887",
+    "name": "台新金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2890",
+    "name": "永豐金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2891",
+    "name": "中信金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2892",
+    "name": "第一金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "2897",
+    "name": "王道銀行",
+    "market": "TW",
+    "industry": "銀行",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "2949",
+    "name": "欣新網",
+    "market": "TWO",
+    "industry": "電子商務",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3006",
+    "name": "晶豪科",
+    "market": "TW",
+    "industry": "IC設計",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "3008",
+    "name": "大立光",
+    "market": "TW",
+    "industry": "光學鏡頭"
+  },
+  {
+    "code": "3013",
+    "name": "晟銘電",
+    "market": "TW",
+    "industry": "伺服器機殼"
+  },
+  {
+    "code": "3016",
+    "name": "嘉晶",
+    "market": "TW",
+    "industry": "矽晶圓",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "3017",
+    "name": "奇鋐",
+    "market": "TW",
+    "industry": "散熱模組",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "3023",
+    "name": "信邦",
+    "market": "TW",
+    "industry": "連接線材",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3029",
+    "name": "零壹",
+    "market": "TW",
+    "industry": "軟體其他",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3034",
+    "name": "聯詠",
+    "market": "TW",
+    "industry": "驅動IC",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "3044",
+    "name": "健鼎",
+    "market": "TW",
+    "industry": "PCB",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "3045",
+    "name": "台灣大",
+    "market": "TW",
+    "industry": "電信業",
+    "has_futures": true,
+    "has_cb": true
+  },
+  {
+    "code": "3094",
+    "name": "聯傑",
+    "market": "TW",
+    "industry": "IC設計",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3105",
+    "name": "穩懋",
+    "market": "TWO",
+    "industry": "砷化鎵代工",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "3141",
+    "name": "晶宏",
+    "market": "TWO",
+    "industry": "驅動IC",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "3149",
+    "name": "正達",
+    "market": "TW",
+    "industry": "玻璃加工",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "3219",
+    "name": "信紘科",
+    "market": "TWO",
+    "industry": "廠務設備",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "3229",
+    "name": "晟鈦",
+    "market": "TWO",
+    "industry": "PCB硬板",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3231",
+    "name": "緯創",
+    "market": "TW",
+    "industry": "電腦及週邊設備業"
+  },
+  {
+    "code": "3234",
+    "name": "光環",
+    "market": "TWO",
+    "industry": "光通訊",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3306",
+    "name": "鼎天",
+    "market": "TW",
+    "industry": "GPS/車聯網"
+  },
+  {
+    "code": "3324",
+    "name": "雙鴻",
+    "market": "TW",
+    "industry": "散熱模組"
+  },
+  {
+    "code": "3338",
+    "name": "泰碩",
+    "market": "TW",
+    "industry": "散熱模組",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3363",
+    "name": "上緯投控",
+    "market": "TW",
+    "industry": "綠能材料",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3376",
+    "name": "新日興",
+    "market": "TW",
+    "industry": "軸承樞紐"
+  },
+  {
+    "code": "3406",
+    "name": "玉晶光",
+    "market": "TW",
+    "industry": "光學鏡頭"
+  },
+  {
+    "code": "3441",
+    "name": "聯一光",
+    "market": "TW",
+    "industry": "光學鏡片",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3443",
+    "name": "創意",
+    "market": "TW",
+    "industry": "ASIC設計"
+  },
+  {
+    "code": "3479",
+    "name": "安勤",
+    "market": "TWO",
+    "industry": "工業電腦",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "3483",
+    "name": "力致",
+    "market": "TWO",
+    "industry": "散熱模組",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "3498",
+    "name": "陽程",
+    "market": "TW",
+    "industry": "自動化設備",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3532",
+    "name": "台勝科",
+    "market": "TW",
+    "industry": "矽晶圓",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "6515",
+    "name": "穎崴",
+    "market": "TW",
+    "industry": "IC測試探針",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3623",
+    "name": "富晶通",
+    "market": "TWO",
+    "industry": "觸控面板",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3624",
+    "name": "光頡",
+    "market": "TWO",
+    "industry": "電阻",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3628",
+    "name": "盈正",
+    "market": "TWO",
+    "industry": "機電工程",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3653",
+    "name": "雙鴻",
+    "market": "TW",
+    "industry": "散熱模組",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "3661",
+    "name": "世芯-KY",
+    "market": "TW",
+    "industry": "ASIC/AI"
+  },
+  {
+    "code": "3702",
+    "name": "大聯大",
+    "market": "TW",
+    "industry": "IC通路",
+    "has_futures": true,
+    "has_cb": true
+  },
+  {
+    "code": "3704",
+    "name": "合勤控",
+    "market": "TW",
+    "industry": "網通設備",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "3711",
+    "name": "日月光投控",
+    "market": "TW",
+    "industry": "半導體封測",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "3714",
+    "name": "富采",
+    "market": "TW",
+    "industry": "LED光電",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "4104",
+    "name": "佳醫",
+    "market": "TW",
+    "industry": "醫療器材",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "4113",
+    "name": "聯上",
+    "market": "TWO",
+    "industry": "建材營造",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "4119",
+    "name": "旭富",
+    "market": "TW",
+    "industry": "製藥業",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "4556",
+    "name": "旭然",
+    "market": "TWO",
+    "industry": "過濾設備",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "4577",
+    "name": "達航科技",
+    "market": "TW",
+    "industry": "設備工具",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "4714",
+    "name": "永捷",
+    "market": "TWO",
+    "industry": "合成樹脂",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "4770",
+    "name": "上品",
+    "market": "TW",
+    "industry": "化學材料",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "4915",
+    "name": "致伸",
+    "market": "TW",
+    "industry": "電子零組件",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "4916",
+    "name": "事欣科",
+    "market": "TW",
+    "industry": "航太與博弈"
+  },
+  {
+    "code": "4951",
+    "name": "精拓科",
+    "market": "TWO",
+    "industry": "MCU",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "4961",
+    "name": "天鈺",
+    "market": "TW",
+    "industry": "驅動IC",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "5209",
+    "name": "新鼎",
+    "market": "TWO",
+    "industry": "系統整合",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "5289",
+    "name": "宜鼎",
+    "market": "TWO",
+    "industry": "工業電腦",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "5314",
+    "name": "世紀",
+    "market": "TWO",
+    "industry": "應用生技"
+  },
+  {
+    "code": "5340",
+    "name": "建榮",
+    "market": "TWO",
+    "industry": "玻纖布",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "5347",
+    "name": "世界",
+    "market": "TWO",
+    "industry": "晶圓代工",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "5386",
+    "name": "青雲",
+    "market": "TWO",
+    "industry": "主機板/記憶體"
+  },
+  {
+    "code": "5876",
+    "name": "上海商銀",
+    "market": "TW",
+    "industry": "銀行",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "5880",
+    "name": "合庫金",
+    "market": "TW",
+    "industry": "金控",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "6005",
+    "name": "群益證",
+    "market": "TW",
+    "industry": "證券",
+    "has_futures": true,
+    "has_cb": false
+  },
+  {
+    "code": "6021",
+    "name": "美好證",
+    "market": "TWO",
+    "industry": "證券",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "6112",
+    "name": "邁達特",
+    "market": "TW",
+    "industry": "軟體其他",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6133",
+    "name": "金橋",
+    "market": "TW",
+    "industry": "連接線材",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6141",
+    "name": "柏承",
+    "market": "TW",
+    "industry": "PCB硬板",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6148",
+    "name": "驊宏資",
+    "market": "TWO",
+    "industry": "系統整合",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6152",
+    "name": "百一",
+    "market": "TW",
+    "industry": "網通設備",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6199",
+    "name": "天品",
+    "market": "TWO",
+    "industry": "生技醫藥",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "6214",
+    "name": "精誠",
+    "market": "TW",
+    "industry": "軟體其他",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6218",
+    "name": "泰詠",
+    "market": "TWO",
+    "industry": "網通設備",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6224",
+    "name": "聚鼎",
+    "market": "TW",
+    "industry": "電阻",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6226",
+    "name": "元展",
+    "market": "TWO",
+    "industry": "電子零組件",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6227",
+    "name": "茂綸",
+    "market": "TWO",
+    "industry": "IC通路",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6236",
+    "name": "中湛",
+    "market": "TWO",
+    "industry": "生技醫藥",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6271",
+    "name": "同欣電",
+    "market": "TW",
+    "industry": "CIS封裝"
+  },
+  {
+    "code": "6274",
+    "name": "台燿",
+    "market": "TWO",
+    "industry": "銅箔基板"
+  },
+  {
+    "code": "6290",
+    "name": "良得",
+    "market": "TWO",
+    "industry": "電子零組件",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "6416",
+    "name": "瑞祺電通",
+    "market": "TW",
+    "industry": "工業電腦",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6426",
+    "name": "統新",
+    "market": "TWO",
+    "industry": "光通訊",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6441",
+    "name": "廣錠",
+    "market": "TWO",
+    "industry": "儲能電池",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6510",
+    "name": "精測",
+    "market": "TWO",
+    "industry": "IC測試板",
+    "has_futures": true,
+    "has_cb": true
+  },
+  {
+    "code": "6530",
+    "name": "創威",
+    "market": "TWO",
+    "industry": "光通訊",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6532",
+    "name": "聯穎",
+    "market": "TW",
+    "industry": "電子零組件",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6538",
+    "name": "倉和",
+    "market": "TWO",
+    "industry": "太陽能網版",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "6588",
+    "name": "菱光科技",
+    "market": "TW",
+    "industry": "影像感測",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6657",
+    "name": "華安",
+    "market": "TW",
+    "industry": "新藥研發",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6669",
+    "name": "緯穎",
+    "market": "TW",
+    "industry": "伺服器"
+  },
+  {
+    "code": "6690",
+    "name": "安碁資訊",
+    "market": "TWO",
+    "industry": "雲端服務",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6706",
+    "name": "惠特",
+    "market": "TW",
+    "industry": "LED檢測設備",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "6742",
+    "name": "澤米",
+    "market": "TW",
+    "industry": "光學膜",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6743",
+    "name": "安普新",
+    "market": "TW",
+    "industry": "消費性電子",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6834",
+    "name": "天二科技",
+    "market": "TW",
+    "industry": "電阻",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6861",
+    "name": "睿生光電",
+    "market": "TW",
+    "industry": "醫療器材",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "6885",
+    "name": "全福生技",
+    "market": "TW",
+    "industry": "新藥研發",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "7711",
+    "name": "永擎",
+    "market": "TW",
+    "industry": "伺服器代工",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "7717",
+    "name": "聚德光電-KY",
+    "market": "TW",
+    "industry": "光通訊元件",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "7772",
+    "name": "撼訊",
+    "market": "TWO",
+    "industry": "影像視訊元件",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "8086",
+    "name": "宏捷科",
+    "market": "TWO",
+    "industry": "PA晶圓"
+  },
+  {
+    "code": "8227",
+    "name": "巨有科技",
+    "market": "TWO",
+    "industry": "矽智財ASIC",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
+    "code": "8431",
+    "name": "匯鑽科",
+    "market": "TWO",
+    "industry": "電鍍表面處理"
+  },
+  {
+    "code": "8996",
+    "name": "高力",
+    "market": "TW",
+    "industry": "散熱模組",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "9933",
+    "name": "中鼎",
+    "market": "TW",
+    "industry": "營造工程",
+    "has_futures": false,
+    "has_cb": true
+  },
+  {
+    "code": "9945",
+    "name": "潤泰新",
+    "market": "TW",
+    "industry": "建材營造",
+    "has_futures": false,
+    "has_cb": false
+  }
+]
