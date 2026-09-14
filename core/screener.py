@@ -95,7 +95,7 @@ def load_speedy_chips():
 
 def calculate_quality_score(s):
     """
-    根據朱家泓實戰教學手冊評定「品質分數 (Quality Score)」：
+    根據實戰教學手冊評定「品質分數 (Quality Score)」：
     最佳品質標準：
     1. 安全評級 (🟢 安全首選 優先，排除 🔴 嚴禁追高)
     2. 主力籌碼方向 (大戶大單淨流入)
@@ -339,7 +339,7 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         if strategy == "全部":
             match = True
         elif strategy == "頭高底高" and (signals_dict.get('higher_highs_lows', False) or is_bull):
-            # 朱家泓實戰鐵律：做多買進選股，操盤線(5MA)必須走平或翻揚助漲，且收盤站穩 5MA 之上！
+            # 實戰鐵律：做多買進選股，操盤線(5MA)必須走平或翻揚助漲，且收盤站穩 5MA 之上！
             # 若波段多頭但短線 5MA 下彎破線，屬於多頭拉回回檔中，應歸入鎖股池「回檔等上漲」專區！
             if s.get('is_5ma_rising', True) and s.get('above_5ma', True):
                 match = True

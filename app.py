@@ -293,7 +293,7 @@ def render_stock_card(item, key_prefix="sc"):
 
 def get_market_condition():
     """
-    動態研判台股大盤 (加權指數) 走勢與建議持股水位 (朱家泓心法)
+    動態研判台股大盤 (加權指數) 走勢與建議持股水位 (實戰量化心法)
     """
     try:
         df_tw, info_tw = fetch_stock_kline("^TWII", period="3mo")
@@ -307,15 +307,15 @@ def get_market_condition():
             if c >= sma20 and slope >= 0:
                 status = "🟢 大盤多頭強勢 (指數在月線之上且月線走升)"
                 ratio = 0.75  # 建議 7~8 成
-                reason = "大盤多頭結構健康，指數穩居月線之上！朱老師心法：多頭環境積極做多，建議持股 7~8 成，保留 25% 現金應對突發震盪。"
+                reason = "大盤多頭結構健康，指數穩居月線之上！實戰操盤心法：多頭環境積極做多，建議持股 7~8 成，保留 25% 現金應對突發震盪。"
             elif abs(c - sma20) / sma20 <= 0.018 or (c < sma20 and slope >= 0):
                 status = "🟡 大盤震盪整理 (指數在月線附近糾結整理)"
                 ratio = 0.55  # 建議 5~6 成
-                reason = "大盤處於箱型震盪或回測月線，多空拉鋸！朱老師心法：持股降至 5~6 成，精選剛突破型態股，保留 45% 現金觀望。"
+                reason = "大盤處於箱型震盪或回測月線，多空拉鋸！實戰操盤心法：持股降至 5~6 成，精選剛突破型態股，保留 45% 現金觀望。"
             else:
                 status = "🔴 大盤轉弱走空 (指數跌破月線且月線下彎)"
                 ratio = 0.35  # 建議 3~4 成
-                reason = "大盤走弱跌破生命線，覆巢之下無完卵！朱老師心法：嚴控持股在 3~4 成以下或空手觀望，嚴禁盲目加碼攤平！"
+                reason = "大盤走弱跌破生命線，覆巢之下無完卵！實戰操盤心法：嚴控持股在 3~4 成以下或空手觀望，嚴禁盲目加碼攤平！"
             return {
                 "status": status,
                 "ratio": ratio,
@@ -330,7 +330,7 @@ def get_market_condition():
     return {
         "status": "🟢 大盤多頭強勢 (預設評估)",
         "ratio": 0.75,
-        "reason": "大盤多頭趨勢良好，朱老師心法建議持股 7~8 成，保留 2~3 成現金防守。",
+        "reason": "大盤多頭趨勢良好，實戰操盤心法建議持股 7~8 成，保留 2~3 成現金防守。",
         "close": 23000,
         "sma20": 22800,
         "date": "最新交易日"
@@ -340,7 +340,7 @@ MENU_OPTIONS = [
     "📊 個股技術分析 (轉折波主圖)",
     "🎯 全攻略選股池 (多/空策略)",
     "👁️ 晚間盤後功課 (鎖股名冊監控)",
-    "🧑‍🏫 AI 課程助教問答"
+    "🧑‍🏫 AI 實戰操盤助教"
 ]
 
 if 'selected_stock' not in st.session_state:
@@ -355,7 +355,7 @@ elif st.session_state.get('target_nav_menu', None):
     st.session_state.target_nav_menu = None
 
 st.sidebar.title("📈 技術分析全攻略")
-st.sidebar.caption("朱家泓體系 · 轉折波與趨勢分析系統")
+st.sidebar.caption("專業轉折波與波段趨勢操盤系統")
 
 menu = st.sidebar.radio(
     "功能導航",
@@ -542,21 +542,21 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
         # 盤整與高檔警示
         if signals_dict.get('consolidation_breakout_imminent', False):
-            st.success("⏳ **【盤整末端即將表態預警】**：目前均線高度糾結、成交量極度萎縮至窒息量，且收盤逼近箱頂！朱老師心法：耐心等待第一根放量突破長紅棒，即為起漲關鍵進場點！")
+            st.success("⏳ **【盤整末端即將表態預警】**：目前均線高度糾結、成交量極度萎縮至窒息量，且收盤逼近箱頂！實戰操盤心法：耐心等待第一根放量突破長紅棒，即為起漲關鍵進場點！")
         elif signals_dict.get('is_consolidation', False):
-            st.warning("⏸️ **【目前進入箱型盤整】**：尚未走出底底高或頭頭高，無明確多空方向。朱老師心法：盤整期趨勢線與操盤線暫停使用，嚴禁躁進追價，觀望等待突破！")
+            st.warning("⏸️ **【目前進入箱型盤整】**：尚未走出底底高或頭頭高，無明確多空方向。實戰操盤心法：盤整期趨勢線與操盤線暫停使用，嚴禁躁進追價，觀望等待突破！")
         if signals_dict.get('is_multi_bagger', False):
-            st.error(f"⚠️ **【波段暴漲 {signals_dict['bagger_multiple']:.1f} 倍高檔警示】**：本檔股票波段低點至今累計漲幅達 {int((signals_dict['bagger_multiple']-1)*100)}%！朱老師心法：非底部起漲，高檔隨時有獲利了結賣壓，嚴禁長抱，僅限極短線嚴格停損操作！")
+            st.error(f"⚠️ **【波段暴漲 {signals_dict['bagger_multiple']:.1f} 倍高檔警示】**：本檔股票波段低點至今累計漲幅達 {int((signals_dict['bagger_multiple']-1)*100)}%！實戰操盤心法：非底部起漲，高檔隨時有獲利了結賣壓，嚴禁長抱，僅限極短線嚴格停損操作！")
 
         # 買兩張策略指引
         two_tr = signals_dict.get('two_tranches', {})
         if two_tr.get('advice'):
-            st.info(f"💡 **【朱家泓買兩張（長短配）實戰操盤指引】**：{two_tr['advice']}")
+            st.info(f"💡 **【買兩張（長短配）實戰操盤指引】**：{two_tr['advice']}")
 
         # ----------------------------------------------------
-        # 朱家泓心法：大盤強弱動態資金配置計算機
+        # 實戰心法：大盤強弱動態資金配置計算機
         # ----------------------------------------------------
-        with st.expander("💵 【朱家泓資金配置計算機】(依大盤強弱動態調配持股成數 & 均分 3~5 檔)", expanded=False):
+        with st.expander("💵 【動態資金配置計算機】(依大盤強弱動態調配持股成數 & 均分 3~5 檔)", expanded=False):
             mkt = get_market_condition()
             st.markdown(f"**當前大盤評估 ({mkt['date']})**：<span style='font-size:1.05rem; font-weight:bold;'>{mkt['status']}</span><br><span style='color:#AAA; font-size:0.88rem;'>{mkt['reason']}</span>", unsafe_allow_html=True)
 
@@ -588,7 +588,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             with c_m4:
                 st.metric(f"當前標的 ({info['code']}) 建議", f"{suggest_shares} 張", f"成本約 {int(actual_cost):,} 元")
 
-            st.caption("💡 **朱老師操盤心法叮嚀**：「專款專用、切忌單押一檔！透過 3~5 檔均分降低個股風險；大盤弱勢時務必保留現金防守，大盤多頭時放膽賺足大波段！」")
+            st.caption("💡 **實戰操盤心法叮嚀**：「專款專用、切忌單押一檔！透過 3~5 檔均分降低個股風險；大盤弱勢時務必保留現金防守，大盤多頭時放膽賺足大波段！」")
 
         if trend['alerts']:
             for alert in trend['alerts']:
@@ -939,7 +939,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 # ----------------------------------------------------
 elif menu == "🎯 全攻略選股池 (多/空策略)":
     st.header("🎯 全攻略條件選股雷達 (1:1 復刻 App 專業版)")
-    st.caption("完整收錄朱家泓 8 大波段子策略、長抱存股、盤中強勢、一點鐘尾盤進場與助教實戰安全評級")
+    st.caption("完整收錄 8 大波段子策略、長抱存股、盤中強勢、一點鐘尾盤進場與助教實戰安全評級")
 
     # 頂部控制列
     col_t1, col_t2 = st.columns([1.2, 3])
@@ -958,7 +958,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     target_strategy = "全部"
     if "波段" in main_mode:
         sub_strat = st.radio(
-            "波段 8 大子策略 (依 Chu 老師實戰分類)：",
+            "波段 8 大子策略 (實戰量化分類)：",
             [
                 "🎯 回後準進場 (回後買上漲)",
                 "🌱 底部起漲 (低檔首根長紅)",
@@ -1040,7 +1040,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 # ----------------------------------------------------
 elif "鎖股" in menu or "晚間盤後功課" in menu:
     st.header("👁️ 晚間盤後功課 · 鎖股名冊與三階段進場監控")
-    st.caption("🌙 **朱家泓晚間做功課心法**：每晚檢視【🎯 回檔等上漲】與【📌 等突破】名冊，篩選出拉回測線有守的股票，隔日 **12:40 ~ 13:30 尾盤** 只要確認出轉折紅 K 站上 5MA 即刻進場，賺取 3~5 天短線波段價差！")
+    st.caption("🌙 **晚間做功課心法**：每晚檢視【🎯 回檔等上漲】與【📌 等突破】名冊，篩選出拉回測線有守的股票，隔日 **12:40 ~ 13:30 尾盤** 只要確認出轉折紅 K 站上 5MA 即刻進場，賺取 3~5 天短線波段價差！")
 
     stage_tab = st.radio(
         "鎖股進場三階段監控",
@@ -1077,11 +1077,11 @@ elif "鎖股" in menu or "晚間盤後功課" in menu:
         st.info(f"目前無處於【{current_stage}】的追蹤個股。")
 
 # ----------------------------------------------------
-# 功能分頁 4：AI 課程助教問答 (AI Assistant)
+# 功能分頁 4：AI 實戰操盤助教 (AI Assistant)
 # ----------------------------------------------------
-elif menu == "🧑‍🏫 AI 課程助教問答":
-    st.header("🧑‍🏫 《技術分析全攻略》專屬 AI 課程助教")
-    st.caption("內建全套課程講義、學員實戰答疑、高檔爆量黑K排查與歷史覆盤時光機")
+elif "AI" in menu or "助教" in menu:
+    st.header("🧑‍🏫 專業技術分析實戰 AI 助教")
+    st.caption("內建全套實戰技術分析操盤心法、學員實戰答疑、高檔爆量黑K排查與歷史覆盤時光機")
 
     col_sel1, col_sel2 = st.columns([1, 1])
     with col_sel1:
@@ -1182,7 +1182,7 @@ elif menu == "🧑‍🏫 AI 課程助教問答":
         with c_btn2:
             if st.button("📊 載入主圖查看 K 線波段", use_container_width=True):
                 st.session_state.selected_stock = cur_code
-                st.session_state.return_to_menu = "🧑‍🏫 AI 課程助教問答"
+                st.session_state.return_to_menu = "🧑‍🏫 AI 實戰操盤助教"
                 st.session_state.goto_chart = True
                 st.rerun()
 

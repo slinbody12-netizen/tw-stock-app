@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 關鍵訊號與策略偵測核心 (Signal Detector Pro)
-全面升級對標朱家泓官方 App 截圖全套策略：
+全面升級對標專業旗艦 App 全套策略：
 1. 波段 8 大子策略：
    - 頭高底高 (Higher Highs & Higher Lows)
    - 回後準進場 (Pullback Ready for Entry)
@@ -131,7 +131,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     # ----------------------------------------------------
     # 策略 A：頭高底高 (六字訣多頭確認)
-    # 朱家泓心法：必須同時滿足「波段頭頭高」且「波段底底高」，方為多頭架構！
+    # 實戰心法：必須同時滿足「波段頭頭高」且「波段底底高」，方為多頭架構！
     # ----------------------------------------------------
     is_bull = bool(trend_info.get('higher_highs', False) and trend_info.get('higher_lows', False))
     if is_bull:
@@ -140,7 +140,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     # ----------------------------------------------------
     # 策略 B：雙線黃金交叉 (5MA 向上穿過 20MA)
-    # 朱家泓心法鐵律：
+    # 實戰心法鐵律：
     # 1. 5MA 操盤線必須「向上翻揚」(sma5 > prev_sma5)，嚴禁 5MA 向下彎！
     # 2. 必須由下往上實質穿越突破 (昨日 5MA <= 20MA，今日 5MA >= 20MA，或近 2 日剛完成金叉)
     # ----------------------------------------------------
@@ -152,8 +152,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("剛出現雙線黃金交叉 (5MA 向上穿過 20MA)")
 
     # ----------------------------------------------------
-    # 策略 C：回後準進場 (朱家泓經典回後買上漲進場訊號)
-    # 朱家泓心法鐵律：
+    # 策略 C：回後準進場 (經典回後買上漲進場訊號)
+    # 實戰心法鐵律：
     # 1. 前幾天拉回測均線 (5MA/20MA) 有守，支撐未破
     # 2. 今日收轉折紅K站回 5MA 操盤線之上 (c >= sma5)
     # 3. 5MA 操盤線必須「走平或向上翻揚」(is_5ma_rising)，若操盤線仍在下彎，代表短線助跌，嚴禁買進！
@@ -238,7 +238,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             signals.append("長抱 (多頭長線穩健推升)")
 
     # ----------------------------------------------------
-    # 策略 J：一點鐘 (1:00 PM 尾盤選股 - 1:1 對齊朱家泓 App 官方規則)
+    # 策略 J：一點鐘 (1:00 PM 尾盤選股 - 1:1 對齊專業 App 官方規則)
     # ----------------------------------------------------
     if is_red and c >= sma5 and is_5ma_rising and change_pct >= 0.5:
         signals_dict['one_pm_strategy'] = True
@@ -293,7 +293,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     signals_dict['bagger_multiple'] = bagger_multiple
 
     # ----------------------------------------------------
-    # 買兩張（長短配）實戰操盤指引 (朱家泓經典配置)
+    # 買兩張（長短配）實戰操盤指引 (經典配置)
     # ----------------------------------------------------
     signals_dict['two_tranches'] = {
         "long_defend": sma20,     # 長線防守 20MA
