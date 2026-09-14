@@ -972,6 +972,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             horizontal=True,
             key="scr_sub_strat"
         )
+        st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40~13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
         if "回後準進場" in sub_strat:
             target_strategy = "回後準進場"
         elif "底部起漲" in sub_strat:
