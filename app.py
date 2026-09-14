@@ -1186,6 +1186,12 @@ elif "AI" in menu or "助教" in menu:
     col_q1, col_q2 = st.columns([1.5, 1])
     with col_q1:
         st.subheader("💬 向助教提問")
+        ask_mode = st.radio(
+            "請選擇提問方式：",
+            ["✏️ 自行輸入問題 (自由提問 / 觀念諮詢 / 個股診斷)", "💡 常見疑難快速發問 (經典範例一鍵解答)"],
+            horizontal=True,
+            key="qa_ask_mode"
+        )
         preset_options = [
             f"請問 2851 在 8/26 是否為回後買上漲？為什麼不適合進場？",
             f"請問 {cur_code} 目前符合【回後買上漲】嗎？該如何應對？",
@@ -1196,12 +1202,27 @@ elif "AI" in menu or "助教" in menu:
             "實戰操作五步驟的量化紀律是什麼？",
             "均線扣抵原理是什麼？如何預判未來均線助漲或助跌？"
         ]
-        preset_q = st.selectbox("常見疑難快速發問：", preset_options)
-        custom_q = st.text_area("或自行輸入您的問題：", value=preset_q, height=95)
+
+        if "自行輸入" in ask_mode:
+            target_q = st.text_area(
+                "請在下方輸入您的問題：",
+                value=st.session_state.get('custom_qa_text', ''),
+                placeholder="例如：\n• 漲幅過2% 是不是拉回找買點的進場位置呢？\n• 請問 2851 在 8/26 為什麼不適合進場？\n• 跌破 5MA 與虧損 5% 停損有何區別？",
+                height=110,
+                key="custom_qa_text"
+            )
+            btn_text = "🙋 詢問助教"
+        else:
+            target_q = st.selectbox(
+                "請選擇常見實戰疑難快速發問：",
+                preset_options,
+                key="preset_qa_select"
+            )
+            btn_text = "💡 查看助教解答"
         
         c_btn1, c_btn2 = st.columns([1, 1])
         with c_btn1:
-            ask_btn = st.button("🙋 詢問助教", type="primary", use_container_width=True)
+            ask_btn = st.button(btn_text, type="primary", use_container_width=True)
         with c_btn2:
             if st.button("📊 載入主圖查看 K 線波段", use_container_width=True):
                 st.session_state.selected_stock = cur_code
@@ -1234,7 +1255,10 @@ elif "AI" in menu or "助教" in menu:
             """, unsafe_allow_html=True)
 
     if ask_btn:
-        with st.spinner("助教正在翻閱課程講義並診斷技術面中..."):
-            reply = answer_question(custom_q, stock_context, as_of_date=selected_replay_date_str)
-            st.markdown("### 📝 助教解答回覆：")
-            st.markdown(reply)
+        if not target_q.strip():
+            st.warning("⚠️ 請先輸入您的問題後再點擊詢問助教！")
+        else:
+            with st.spinner("助教正在翻閱技術分析講義並深入分析中..."):
+                reply = answer_question(target_q, stock_context, as_of_date=selected_replay_date_str)
+                st.markdown("### 📝 助教解答回覆：")
+                st.markdown(reply)

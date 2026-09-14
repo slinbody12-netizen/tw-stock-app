@@ -60,7 +60,9 @@ def extract_target_symbol(query: str, default_code: str = "2330"):
     從問題文字中自動抽取股票代號或名稱
     回傳 (code, has_explicit_stock)
     """
-    code_matches = re.findall(r'\d{4}', query)
+    code_matches = re.findall(r'\b\d{4}\b', query)
+    if not code_matches:
+        code_matches = re.findall(r'\d{4}', query)
     if code_matches:
         return code_matches[0], True
     
@@ -69,7 +71,8 @@ def extract_target_symbol(query: str, default_code: str = "2330"):
         if s['name'] in query:
             return s['code'], True
 
-    context_keywords = ["這檔", "該股", "這支", "持股", "目前", "符合嗎", "進場", "可以買嗎", "能買嗎", "是否為"]
+    # 只有明確使用代名詞指稱當前畫面上個股時，才判定為針對當前股票診斷
+    context_keywords = ["這檔", "該股", "這支", "手中持股", "這檔股票", "目前這檔", "當前個股", "這檔目前"]
     if any(k in query for k in context_keywords):
         return default_code, True
 
@@ -240,7 +243,113 @@ def answer_conceptual_question(query: str) -> str:
 
 {COURSE_KNOWLEDGE['回後買上漲']}"""
 
+    # 檢查是否詢問「回後買上漲 / 拉回找買點 / 漲幅過2% / 轉折紅K進場」
+    if (("拉回" in q or "回檔" in q or "回後" in q) and ("買" in q or "進場" in q or "買點" in q or "位置" in q)) or \
+       ("漲幅" in q and ("拉回" in q or "買點" in q or "進場" in q or "位置" in q or "買" in q)) or \
+       ("回後買上漲" in q):
+        return """### 🧑‍🏫 【技術分析實戰助教 · 課程觀念精闢解答】
+> 🎯 **【核心疑難：漲幅過 2% 是否算「拉回找買點（回後買上漲）」的進場位置？】**
+
+許多學員在盤中常有疑問：「**股價拉回整理後，當天漲幅超過 2%，是不是就代表拉回找買點的進場位置出現了？**」
+
+#### 💡 助教核心結論：
+> ### 🛑 **「不能單憑漲幅過 2% 就衝動進場！漲幅只是動能表象，必須符合回後買上漲的 4 大核心量化紀律！」**
+
+---
+
+#### 🔍 為什麼「光漲幅過 2%」不等於安全買點？
+1. **可能是均線下彎的「弱勢反彈假動作」**：
+   若 5MA 操盤線仍在快速下彎助跌，股價當天即使上漲 2%，但收盤若仍被下彎的 5MA 壓制在底下，這叫做「反彈碰壁」，隔天極易順著均線下彎慣性再破底！
+2. **可能是拉高解套的長上影線**：
+   若早盤衝高漲 2%~3%，但尾盤拉回留下長上影線（避雷針），代表上方解套賣壓沉重，並非真正主力吃籌碼的轉折長紅。
+
+---
+
+#### 📋 助教標準量化 SOP：標準「回後買上漲」進場 4 大必備要件
+
+想要在 **12:40 - 13:30 尾盤** 穩健進場，必須同時滿足：
+
+1. **【六字訣趨勢：底底高不可破】**：
+   - 拉回整理過程中的最低點，**絕對不能跌破前一波起漲的波段低點（支撐底）**！跌破前低即轉為底底低或盤整，拉回不是買點，而是破線逃命點。
+2. **【回測支撐量縮有守】**：
+   - 股價回測 5MA 或 20MA（月線）時，成交量必須呈現「價跌量縮」的健康洗盤特徵。
+3. **【尾盤實體紅 K 站穩 5MA】（最關鍵進場確認訊號！）**：
+   - 漲幅約在 **+1.5% ~ +3.5%** 以上的實體紅 K，且在 **12:40 - 13:30 尾盤** 必須確認「**收盤價正式站上 5MA（操盤線）**」（或突破前一日高點）！
+   - 同時 5MA 走平或開始微幅翻揚，才代表短線多方攻擊動能正式重啟。
+4. **【上方無重大爆量長黑 K 套牢反壓】**：
+   - 檢視前方 3%~5% 空間內有無剛爆大量留長黑 K 的套牢籌碼。若空間乾淨，進場勝率才高達 8 成以上！
+
+---
+🎯 **助教叮嚀一句話**：
+「**趨勢底不破底 + 量縮測線有守 + 尾盤轉折紅 K 站上 5MA**」才是真正的拉回進場點；切記「只看均線與型態轉折，不單看漲幅數字」！"""
+
+    # 六字訣趨勢
+    if ("六字訣" in q) or ("頭頭高" in q) or ("底底高" in q) or ("趨勢判斷" in q):
+        return """### 🧑‍🏫 【技術分析實戰助教 · 課程觀念精闢解答】
+> 🎯 **【核心疑難：六字訣判斷多空趨勢與實戰紀律】**
+
+《技術分析全攻略》的核心操盤靈魂在於「順勢而為」，六字訣是辨識市場多空趨勢的最高原則：
+
+---
+#### 📈 一、多頭趨勢：【頭頭高、底底高】
+- **特徵**：每一波上漲的高點突破前波高點（頭頭高 ↗），每一波拉回的低點不跌破前波低點（底底高 ↗）。
+- **操作策略**：**只做多、不做空**！利用「回後買上漲」拉回找買點，或「突破起漲」做多，順著多頭浪潮一路賺波段！
+
+#### 📉 二、空頭趨勢：【頭頭低、底底低】
+- **特徵**：每一次反彈的高點比前波低（頭頭低 ↘），每一次下跌的低點跌破前波低點（底底低 ↘）。
+- **操作策略**：**絕不做多、空手或放空**！反彈碰均線下彎反壓即是空點，切忌在空頭趨勢中盲目猜底搶反彈！
+
+#### ⏸️ 三、盤整走勢：【高低未同向突破】
+- **特徵**：股價在箱型或三角形區間內震盪整理，高點不過高、低點不破低。
+- **操作策略**：**觀望不躁進**！將標的納入【等突破】鎖股池，等待帶量長紅突破箱頂時再第一時間進場！"""
+
+    # 尾盤 12:40 - 13:30 一點鐘心法
+    if ("一點鐘" in q) or ("12:40" in q) or ("1:00" in q) or ("13:30" in q) or ("尾盤" in q and ("進場" in q or "策略" in q or "時間" in q)):
+        return """### 🧑‍🏫 【技術分析實戰助教 · 課程觀念精闢解答】
+> 🎯 **【核心疑難：為什麼選在 12:40 - 13:30 尾盤一點鐘進場？】**
+
+#### 💡 助教核心解答：
+1. **避開早盤主力假動作與當沖沖銷**：
+   - 09:00~10:30 早盤震盪劇烈，經常有主力拉高出貨留長上影線、或假突破誘多。
+2. **尾盤方向定調，騙線機率最低**：
+   - 到了 12:40~13:30，當天的成交量與收盤價已大致底定，此時確認收實體紅 K 站上 5MA，代表今日多方主力實質勝出，次日延續上攻慣性機率最高！
+3. **只承擔當晚非交易時間的風險**：
+   - 尾盤買進後，當天立刻鎖定進場成本，隔天開高即可享受獲利，兼具高防守性與高爆發力！"""
+
+    # 短線 3 至 5 天波段價差
+    if ("3至5天" in q) or ("3~5天" in q) or ("3-5天" in q) or ("波段價差" in q) or ("短線波段" in q):
+        return """### 🧑‍🏫 【技術分析實戰助教 · 課程觀念精闢解答】
+> 🎯 **【核心疑難：短線 3 至 5 天波段價差操作與出場 SOP】**
+
+短線 3 至 5 天波段價差是資金週轉率最高、最穩健的實戰打法：
+
+---
+#### 🎯 實戰操作四部曲：
+1. **進場時機**：12:40 - 13:30 尾盤確認轉折紅 K 站上 5MA 進場。
+2. **防守紀律**：以當日進場紅 K 的最低點或 5MA 為防守線，跌破果斷停損，將風險控制在 3% 以內。
+3. **持股奔跑**：只要每日收盤維持在 5MA 之上且 5MA 持續上揚，持股續抱 3 至 5 天。
+4. **停利出場訊號（符合任一即分批停利）**：
+   - 短線獲利達 **5% ~ 8%** 或碰觸前波高點壓力。
+   - 出現**跌破 5MA** 或**高檔爆量留長黑K**。"""
+
     return ""
+
+def answer_general_ta_question(query: str) -> str:
+    """
+    純觀念或未指定個股的技術分析問題指引
+    """
+    q = query.strip()
+    return f"""### 🧑‍🏫 【技術分析實戰助教 · 觀念指引】
+針對您請教的實戰問題：「**{q}**」：
+
+1. **核心技術面把關法則**：
+   - **確認大趨勢（六字訣）**：做多先看「頭頭高、底底高」，多頭拉回測線有守才是高勝率買點。
+   - **觀察均線（5MA 操盤線）**：買進必須站在 5MA 之上且 5MA 翻揚助漲；跌破 5MA 果斷退場。
+   - **量價結構**：攻擊時放量（> 20MA 均量 1.5 倍），拉回整理時量縮。
+   - **風控紀律**：跌破 5MA 或虧損達 5% 立即無條件停損保全本金。
+
+💡 **助教貼心提示**：
+如果您想請助教診斷**具體某檔股票**（例如想知道目前能不能買、支撐壓力在哪裡），請在問題中附上**股票代號或名稱**（例如：「*請問 2330 目前適合進場嗎？*」或「*請問 2851 在 8/26 為什麼不適合買？*」），助教將立即為您重現該股票的詳細技術面診斷與應對劇本！"""
 
 def diagnose_stock_deeply(code: str, query: str = "", as_of_date: str = None):
     """
@@ -419,74 +528,74 @@ def answer_question(user_query: str, stock_context: dict = None, as_of_date: str
     default_code = stock_context.get('code', '2330') if stock_context else '2330'
     target_code, has_explicit_stock = extract_target_symbol(q, default_code)
 
-    # 1. 若為純課程觀念理論提問（無指定個股），優先回覆專業觀念
-    if not has_explicit_stock:
-        concept_reply = answer_conceptual_question(q)
-        if concept_reply:
-            return concept_reply
+    # 1. 若明確指定個股或代號（例如提問中含有 2851、台積電，或明確指稱「這檔」）：
+    # 優先執行深度個股技術面診斷與歷史時光機覆盤
+    if has_explicit_stock:
+        diag = diagnose_stock_deeply(target_code, q, as_of_date=as_of_date)
+        if diag:
+            response_lines = []
+            response_lines.append("### 🧑‍🏫 【技術分析實戰助教 · 實戰解答】")
+            if diag['is_replay']:
+                response_lines.append(f"> ⏳ **【歷史覆盤時光機 · 診斷基準日：{diag['as_of_date']}】**")
+                response_lines.append(f"> *(時光倒流回溯：以 {diag['as_of_date']} 當天盤後收盤視角為您重現技術面與助教決策)*\n")
 
-    # 2. 個股技術診斷 (支援歷史時光機切片)
-    diag = diagnose_stock_deeply(target_code, q, as_of_date=as_of_date)
+            response_lines.append(f"針對 **{diag['name']} ({diag['code']})** 在 **{diag['as_of_date']}** 的技術面與進場研判：")
+            response_lines.append(f"- **當日收盤價**：{diag['close']:.2f} 元 ({'+' if diag['change']>=0 else ''}{diag['change']:.2f} 元, {'+' if diag['change_pct']>=0 else ''}{diag['change_pct']:.2f}%)")
+            response_lines.append(f"- **趨勢架構**：{diag['trend_status']}")
+            response_lines.append("")
+            response_lines.append("#### 🎯 一、助教核心操作結論：")
+            response_lines.append(f"> ### **{diag['decision']}**")
+            response_lines.append(f"> **{diag['advice_summary']}**")
+            response_lines.append("")
 
-    if not diag:
-        concept_reply = answer_conceptual_question(q)
-        if concept_reply:
-            return concept_reply
-        return "抱歉，無法取得該股票的即時或歷史行情數據，請確認股票代號或日期是否正確。"
+            response_lines.append("#### 🔍 二、條件符合點拆解（型態與位置）：")
+            if diag['pros']:
+                for p in diag['pros']:
+                    response_lines.append(f"- ✅ **{p}**")
+            else:
+                response_lines.append("- ⚠️ 尚未具備明顯的多頭攻擊條件。")
+            response_lines.append("")
 
-    response_lines = []
+            response_lines.append("#### ⚠️ 三、關鍵風險與瑕疵排查（助教叮嚀）：")
+            if diag['cons']:
+                for c in diag['cons']:
+                    response_lines.append(f"- ❌ **{c}**")
+            else:
+                response_lines.append("- ✅ 前方無重大爆量黑 K 阻礙，且離前高壓力仍有發揮空間，量價結構相對乾淨。")
+            response_lines.append("")
 
-    response_lines.append("### 🧑‍🏫 【技術分析實戰助教 · 實戰解答】")
-    if diag['is_replay']:
-        response_lines.append(f"> ⏳ **【歷史覆盤時光機 · 診斷基準日：{diag['as_of_date']}】**")
-        response_lines.append(f"> *(時光倒流回溯：以 {diag['as_of_date']} 當天盤後收盤視角為您重現技術面與助教決策)*\n")
+            response_lines.append("#### 📋 四、助教給您的後續應對劇本：")
+            if diag['is_today_heavy_black']:
+                response_lines.append("1. **【絕對觀望不可摸底】**：今日爆出巨量長黑，主力出貨確立，下方支撐均可能被摜破，萬萬不可貪便宜摸底！")
+                response_lines.append("2. **【持股防守紀律】**：手中持有者應於跌破 5MA 或虧損達 5% 時嚴格執行停損，保護本金。")
+            elif diag['heavy_black_ks']:
+                max_bk = max(diag['heavy_black_ks'], key=lambda x: x['high'])
+                response_lines.append("1. **【想進場的安全買點】**：")
+                response_lines.append(f"   - **化解賣壓才買**：必須等待後續出現中長紅 K 棒，且收盤價「**正式放量站上 {max_bk['date']} 的爆量黑 K 高點 {max_bk['high']:.2f} 元**」，代表主力有決心吃掉上面的套牢籌碼，屆時進場才是安全追隨主力的起漲點！")
+                response_lines.append("   - **回測鎖股**：若股價受阻拉回，不要急著去接，先放入鎖股池 **【回檔等上漲】**，等待回測 20MA（月線）量縮有守、再出轉折紅 K 站回 5MA 時再做評估。")
+            elif diag['up_days'] >= 3:
+                response_lines.append(f"1. **【絕不追高原則】**：目前已連漲 {diag['up_days']} 天，寧可錯過也不追高。先將其放入鎖股池 **【高檔等回檔】**，等待拉回測 5MA 或 20MA 不破前低、重新轉折向上時再行切入。")
+            else:
+                response_lines.append("1. **【進場操作策略】**：若符合進場條件且進場，請依實戰五步驟設定好紀律，短線目標 5%~8%，達到目標毫不猶豫分批獲利。")
 
-    response_lines.append(f"針對 **{diag['name']} ({diag['code']})** 在 **{diag['as_of_date']}** 的技術面與進場研判：")
-    response_lines.append(f"- **當日收盤價**：{diag['close']:.2f} 元 ({'+' if diag['change']>=0 else ''}{diag['change']:.2f} 元, {'+' if diag['change_pct']>=0 else ''}{diag['change_pct']:.2f}%)")
-    response_lines.append(f"- **趨勢架構**：{diag['trend_status']}")
-    response_lines.append("")
-    response_lines.append("#### 🎯 一、助教核心操作結論：")
-    response_lines.append(f"> ### **{diag['decision']}**")
-    response_lines.append(f"> **{diag['advice_summary']}**")
-    response_lines.append("")
+            response_lines.append("2. **【防守與停損點】**：")
+            sup_val = diag['support'] if diag['support'] else (diag['close'] * 0.95)
+            response_lines.append(f"   - 若已有持股或強烈想進場，短線停損請嚴格設定在 **5MA 操盤線 ({diag['sma5']:.2f} 元)** 或 **波段前低支撐 ({sup_val:.2f} 元)**，一旦跌破多頭架構即告破壞，請果斷停損出場，絕不凹單套牢！")
 
-    response_lines.append("#### 🔍 二、條件符合點拆解（型態與位置）：")
-    if diag['pros']:
-        for p in diag['pros']:
-            response_lines.append(f"- ✅ **{p}**")
-    else:
-        response_lines.append("- ⚠️ 尚未具備明顯的多頭攻擊條件。")
-    response_lines.append("")
+            for topic, content in COURSE_KNOWLEDGE.items():
+                if topic in q:
+                    response_lines.append(f"\n---\n📘 **【附錄：課程講義標準規範——{topic}】**\n{content}")
+                    break
 
-    response_lines.append("#### ⚠️ 三、關鍵風險與瑕疵排查（助教叮嚀）：")
-    if diag['cons']:
-        for c in diag['cons']:
-            response_lines.append(f"- ❌ **{c}**")
-    else:
-        response_lines.append("- ✅ 前方無重大爆量黑 K 阻礙，且離前高壓力仍有發揮空間，量價結構相對乾淨。")
-    response_lines.append("")
+            return "\n".join(response_lines)
+        else:
+            return f"抱歉，無法取得股票代號 {target_code} 的行情數據，請確認代號是否正確。"
 
-    response_lines.append("#### 📋 四、助教給您的後續應對劇本：")
-    if diag['is_today_heavy_black']:
-        response_lines.append("1. **【絕對觀望不可摸底】**：今日爆出巨量長黑，主力出貨確立，下方支撐均可能被摜破，萬萬不可貪便宜摸底！")
-        response_lines.append("2. **【持股防守紀律】**：手中持有者應於跌破 5MA 或虧損達 5% 時嚴格執行停損，保護本金。")
-    elif diag['heavy_black_ks']:
-        max_bk = max(diag['heavy_black_ks'], key=lambda x: x['high'])
-        response_lines.append("1. **【想進場的安全買點】**：")
-        response_lines.append(f"   - **化解賣壓才買**：必須等待後續出現中長紅 K 棒，且收盤價「**正式放量站上 {max_bk['date']} 的爆量黑 K 高點 {max_bk['high']:.2f} 元**」，代表主力有決心吃掉上面的套牢籌碼，屆時進場才是安全追隨主力的起漲點！")
-        response_lines.append("   - **回測鎖股**：若股價受阻拉回，不要急著去接，先放入鎖股池 **【回檔等上漲】**，等待回測 20MA（月線）量縮有守、再出轉折紅 K 站回 5MA 時再做評估。")
-    elif diag['up_days'] >= 3:
-        response_lines.append(f"1. **【絕不追高原則】**：目前已連漲 {diag['up_days']} 天，寧可錯過也不追高。先將其放入鎖股池 **【高檔等回檔】**，等待拉回測 5MA 或 20MA 不破前低、重新轉折向上時再行切入。")
-    else:
-        response_lines.append("1. **【進場操作策略】**：若符合進場條件且進場，請依實戰五步驟設定好紀律，短線目標 5%~8%，達到目標毫不猶豫分批獲利。")
+    # 2. 若為純課程觀念理論提問（未指定個股）：優先精準回答概念
+    concept_reply = answer_conceptual_question(q)
+    if concept_reply:
+        return concept_reply
 
-    response_lines.append("2. **【防守與停損點】**：")
-    sup_val = diag['support'] if diag['support'] else (diag['close'] * 0.95)
-    response_lines.append(f"   - 若已有持股或強烈想進場，短線停損請嚴格設定在 **5MA 操盤線 ({diag['sma5']:.2f} 元)** 或 **波段前低支撐 ({sup_val:.2f} 元)**，一旦跌破多頭架構即告破壞，請果斷停損出場，絕不凹單套牢！")
+    # 3. 通用技術分析指導
+    return answer_general_ta_question(q)
 
-    for topic, content in COURSE_KNOWLEDGE.items():
-        if topic in q:
-            response_lines.append(f"\n---\n📘 **【附錄：課程講義標準規範——{topic}】**\n{content}")
-            break
-
-    return "\n".join(response_lines)
