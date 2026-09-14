@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 關鍵訊號與策略偵測核心 (Signal Detector Pro)
 全面升級對標朱家泓官方 App 截圖全套策略：
@@ -138,18 +138,19 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("頭高底高 (多頭走勢確認)")
 
     # ----------------------------------------------------
-    # 策略 B：雙線黃金交叉 (5MA 向上突破 20MA)
+    # 策略 B：雙線黃金交叉 (5MA 向上穿過 20MA)
     # ----------------------------------------------------
     is_cross_today = (sma5 >= sma20 and prev_sma5 < prev_sma20)
     is_cross_recent = (sma5 >= sma20 and float(prev2['SMA_5']) < float(prev2['SMA_20'])) if len(df) > 2 else False
     if is_cross_today or is_cross_recent or (sma5 >= sma20 and abs(sma5 - sma20)/sma20 < 0.015 and is_red):
         signals_dict['golden_cross_5_20'] = True
-        signals.append("雙線黃金交叉 (5MA 穿過 20MA)")
+        signals.append("剛出現雙線黃金交叉 (5MA 向上穿過 20MA)")
 
     # ----------------------------------------------------
     # 策略 C：回後準進場 (朱家泓經典回後買上漲進場訊號)
     # ----------------------------------------------------
     support = trend_info.get('support', 0) or (c * 0.93)
+    resistance = trend_info.get('resistance', 0) or (c * 1.08)
     # 前幾天有回測低點，今日收紅K站上 5MA
     recent_lows = df.iloc[-4:-1]['Low'].min() if len(df) >= 4 else l
     tested_ma = (recent_lows <= sma20 * 1.03 or l <= sma5 * 1.015)
@@ -194,7 +195,6 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # 策略 G：N字底 (第二隻腳不破前低，向上推升)
     # ----------------------------------------------------
     if len(df) >= 20:
-        # 尋找前波低點 low1, 反彈高點 peak1, 第二低點 low2
         sub = df.iloc[-25:]
         min_idx = sub['Low'].idxmin()
         if min_idx < sub.index[-5]:
@@ -214,7 +214,6 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # 策略 H：圓弧底 (U型底部走平翻揚)
     # ----------------------------------------------------
     if len(df) >= 25:
-        # 20MA 先降後平再升，收盤連續走高
         ma20_diff_recent = sma20 - prev_sma20
         ma20_diff_old = float(df.iloc[-10]['SMA_20']) - float(df.iloc[-15]['SMA_20'])
         if ma20_diff_old <= 0 and ma20_diff_recent >= -0.05 and c >= sma5 and is_red:
@@ -245,6 +244,76 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("盤中強勢 (量價齊揚強勁攻擊)")
 
     # ----------------------------------------------------
+    # 盤整狀態辨識與盤整末端即將突破預警 (教學手冊重點)
+    # ----------------------------------------------------
+    is_consolidation = False
+    consolidation_breakout_imminent = False
+    if len(df) >= 15:
+        past12 = df.iloc[-12:]
+        box_high = float(past12['High'].max())
+        box_low = float(past12['Low'].min())
+        box_amp = (box_high - box_low) / (box_low + 1e-9)
+        ma_squeeze = abs(sma5 - sma20) / (sma20 + 1e-9)
+        
+        # 無明顯底底高/頭頭高，且振幅小於 7.5%，均線糾結
+        if not is_bull and box_amp <= 0.08 and ma_squeeze <= 0.035:
+            is_consolidation = True
+            # 若量縮至均量 60% 以下 (極致窒息量) 且收在箱頂 2.5% 內
+            if vol_ratio <= 0.65 and c >= box_high * 0.975:
+                consolidation_breakout_imminent = True
+                signals.append("⏳ 盤整末端即將表態 (量縮窒息，逼近箱頂等待放量突破)")
+            else:
+                signals.append("⏸️ 進入箱型盤整 (無頭頭高/底底高，暫勿躁進，等待方向)")
+
+    signals_dict['is_consolidation'] = is_consolidation
+    signals_dict['consolidation_breakout_imminent'] = consolidation_breakout_imminent
+
+    # ----------------------------------------------------
+    # 暴漲 2~3 倍高檔警示 (教學手冊重點：非起漲點，嚴禁長抱)
+    # ----------------------------------------------------
+    is_multi_bagger = False
+    bagger_multiple = 1.0
+    if len(df) >= 60:
+        check_period = df.iloc[-120:] if len(df) >= 120 else df
+        lowest_price = float(check_period['Low'].min())
+        if lowest_price > 0:
+            bagger_multiple = round(c / lowest_price, 2)
+            if bagger_multiple >= 1.95:  # 漲幅達 100% (2倍) 以上
+                is_multi_bagger = True
+
+    signals_dict['is_multi_bagger'] = is_multi_bagger
+    signals_dict['bagger_multiple'] = bagger_multiple
+
+    # ----------------------------------------------------
+    # 買兩張（長短配）實戰操盤指引 (朱家泓經典配置)
+    # ----------------------------------------------------
+    signals_dict['two_tranches'] = {
+        "long_defend": sma20,     # 長線防守 20MA
+        "short_defend": sma5,     # 短線防守 5MA
+        "advice": f"張數 1 (長線)：守 20MA ({sma20:.2f}元)，未跌破一路長抱大波段；張數 2 (短線/波段)：守 5MA ({sma5:.2f}元) 或雙線死亡交叉獲利出場。"
+    }
+
+    # ----------------------------------------------------
+    # 支撐與壓力詳細分類標記
+    # ----------------------------------------------------
+    res_type = "頭壓 (波段前高)"
+    res_price = round(resistance, 2)
+    if unresolved_blacks:
+        res_type = f"爆量黑K壓 ({unresolved_blacks[-1]['date']})"
+        res_price = unresolved_blacks[-1]['high']
+    elif is_consolidation:
+        res_type = "箱型整理上緣壓"
+
+    sup_type = "底撐 (波段前底)"
+    sup_price = round(support, 2)
+    if l <= sma20 * 1.02 and c >= sma20:
+        sup_type = "趨勢線撐 (20MA)"
+        sup_price = sma20
+
+    signals_dict['support_detail'] = {"price": sup_price, "type": sup_type}
+    signals_dict['resistance_detail'] = {"price": res_price, "type": res_type}
+
+    # ----------------------------------------------------
     # 鎖股池 3 階段管理 (等突破 / 高檔等回檔 / 回檔等上漲)
     # ----------------------------------------------------
     bias5 = float(last.get('BIAS_5', 0))
@@ -265,6 +334,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # 助教把關：實戰安全評級 (Safety Rating)
     # ----------------------------------------------------
     safety_reasons = []
+    if is_multi_bagger:
+        safety_reasons.append(f"波段已大漲 {bagger_multiple:.1f} 倍高檔警示！非底部起漲，長線空間已不大，嚴禁長抱，僅限極短線操作")
     if up_days >= 3:
         safety_reasons.append(f"連續上漲 {up_days} 天，短線追高易回檔")
     if unresolved_blacks:
@@ -273,7 +344,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if c < sma60 and sma20 < sma60:
         safety_reasons.append("季線 (60MA) 下彎壓制，屬空方反彈非主升")
 
-    if unresolved_blacks or (up_days >= 3 and bias20 >= 8.0):
+    if is_multi_bagger or unresolved_blacks or (up_days >= 3 and bias20 >= 8.0):
         signals_dict['safety_rating'] = "🟡 警訊注意"
     elif up_days >= 4 or bias20 >= 12.0:
         signals_dict['safety_rating'] = "🔴 嚴禁追高"

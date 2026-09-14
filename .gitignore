@@ -39,3 +39,10 @@ test_screener_verify.py
 # System
 .DS_Store
 Thumbs.db
+
+# Tunnels and local caches
+tools/
+tunnel_url.txt
+data/cache/
+*.log
+*.pkl

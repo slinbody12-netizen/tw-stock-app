@@ -8,6 +8,8 @@ import os
 import json
 import time
 import pickle
+import requests
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -42,7 +44,7 @@ def resolve_ticker(query: str):
     """
     q = query.strip()
     if q == "大盤" or q == "加權指數" or q == "^TWII":
-        return "^TWII", "^TWII", "加權指數", "INDEX", "大盤指數"
+        return "^TWII", "^TWII", "加權指數", "INDEX", "大盤指數", True, False
 
     # 先在清單中查找
     stock_list = load_stock_list()
@@ -117,7 +119,201 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def fetch_stock_kline(query: str, period="1y", force_refresh=False):
+def fetch_realtime_quote(code: str, market: str = "TW") -> dict:
+    """
+    從台灣證券交易所 (TWSE) / 櫃買中心 (TPEx) 官方 MIS 接口取得盤中即時行情
+    """
+    if not code or not code.isdigit():
+        return {}
+
+    ch_candidates = [f"otc_{code}.tw", f"tse_{code}.tw"] if market == "TWO" else [f"tse_{code}.tw", f"otc_{code}.tw"]
+    query_str = "|".join(ch_candidates)
+    url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={query_str}&json=1&delay=0"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Referer': 'https://mis.twse.com.tw/stock/fibest.jsp'
+    }
+
+    try:
+        r = requests.get(url, headers=headers, timeout=4)
+        if r.status_code != 200:
+            return {}
+        data = r.json()
+        items = data.get('msgArray', [])
+        target_item = None
+        for it in items:
+            if it.get('c') == code:
+                target_item = it
+                break
+        if not target_item:
+            return {}
+
+        d_str = target_item.get('d', '')
+        t_str = target_item.get('t', '')
+        if not d_str or len(d_str) != 8:
+            return {}
+
+        today_date = pd.to_datetime(f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}")
+        date_formatted = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}"
+
+        o = float(target_item.get('o', 0)) if target_item.get('o') not in [None, '-', ''] else 0.0
+        h = float(target_item.get('h', 0)) if target_item.get('h') not in [None, '-', ''] else 0.0
+        l = float(target_item.get('l', 0)) if target_item.get('l') not in [None, '-', ''] else 0.0
+        y = float(target_item.get('y', 0)) if target_item.get('y') not in [None, '-', ''] else 0.0
+        v_lots = int(target_item.get('v', 0)) if target_item.get('v') not in [None, '-', ''] else 0
+        v_shares = v_lots * 1000
+
+        z = target_item.get('z', '-')
+        if z == '-' or not z:
+            z = target_item.get('trade', {}).get('z', '-')
+        if z == '-' or not z:
+            b_list = target_item.get('b', '').split('_')
+            a_list = target_item.get('a', '').split('_')
+            if b_list and b_list[0] and b_list[0] != '-':
+                z = b_list[0]
+            elif a_list and a_list[0] and a_list[0] != '-':
+                z = a_list[0]
+            else:
+                z = y
+
+        c = float(z) if z not in [None, '-', ''] else y
+        if c <= 0:
+            return {}
+
+        if o <= 0: o = c
+        if h <= 0: h = max(o, c)
+        if l <= 0: l = min(o, c)
+
+        chg = round(c - y, 2)
+        pct = round((chg / y) * 100, 2) if y > 0 else 0.0
+
+        return {
+            "code": code,
+            "name": target_item.get('n', ''),
+            "date": today_date,
+            "date_str": date_formatted,
+            "time": t_str,
+            "open": o,
+            "high": h,
+            "low": l,
+            "close": c,
+            "prev_close": y,
+            "change": chg,
+            "change_pct": pct,
+            "volume": v_shares,
+            "volume_lots": v_lots,
+            "is_realtime": True
+        }
+    except Exception:
+        return {}
+
+def _fetch_realtime_chunk(chunk):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Referer': 'https://mis.twse.com.tw/stock/fibest.jsp'
+    }
+    ch_list = []
+    for code, market in chunk:
+        if not code or not code.isdigit():
+            continue
+        p = "otc_" if market == "TWO" else "tse_"
+        ch_list.append(f"{p}{code}.tw")
+    if not ch_list:
+        return {}
+
+    url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={'|'.join(ch_list)}&json=1&delay=0"
+    res = {}
+    try:
+        r = requests.get(url, headers=headers, timeout=4)
+        if r.status_code == 200:
+            for it in r.json().get('msgArray', []):
+                code = it.get('c')
+                if not code:
+                    continue
+                d_str = it.get('d', '')
+                t_str = it.get('t', '')
+                if not d_str or len(d_str) != 8:
+                    continue
+                today_date = pd.to_datetime(f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}")
+                date_formatted = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}"
+
+                o = float(it.get('o', 0)) if it.get('o') not in [None, '-', ''] else 0.0
+                h = float(it.get('h', 0)) if it.get('h') not in [None, '-', ''] else 0.0
+                l = float(it.get('l', 0)) if it.get('l') not in [None, '-', ''] else 0.0
+                y = float(it.get('y', 0)) if it.get('y') not in [None, '-', ''] else 0.0
+                v_lots = int(it.get('v', 0)) if it.get('v') not in [None, '-', ''] else 0
+                v_shares = v_lots * 1000
+
+                z = it.get('z', '-')
+                if z == '-' or not z:
+                    z = it.get('trade', {}).get('z', '-')
+                if z == '-' or not z:
+                    b_list = it.get('b', '').split('_')
+                    a_list = it.get('a', '').split('_')
+                    if b_list and b_list[0] and b_list[0] != '-':
+                        z = b_list[0]
+                    elif a_list and a_list[0] and a_list[0] != '-':
+                        z = a_list[0]
+                    else:
+                        z = y
+
+                c = float(z) if z not in [None, '-', ''] else y
+                if c <= 0:
+                    continue
+                if o <= 0: o = c
+                if h <= 0: h = max(o, c)
+                if l <= 0: l = min(o, c)
+                chg = round(c - y, 2)
+                pct = round((chg / y) * 100, 2) if y > 0 else 0.0
+
+                res[code] = {
+                    "code": code,
+                    "name": it.get('n', ''),
+                    "date": today_date,
+                    "date_str": date_formatted,
+                    "time": t_str,
+                    "open": o,
+                    "high": h,
+                    "low": l,
+                    "close": c,
+                    "prev_close": y,
+                    "change": chg,
+                    "change_pct": pct,
+                    "volume": v_shares,
+                    "volume_lots": v_lots,
+                    "is_realtime": True
+                }
+    except Exception:
+        pass
+    return res
+
+def batch_fetch_realtime_quotes(stock_list: list) -> dict:
+    """
+    批次獲取多檔股票之盤中即時行情 (並行請求，1~2秒內完成全市場更新)
+    """
+    if not stock_list:
+        return {}
+
+    items_to_query = []
+    for item in stock_list:
+        if isinstance(item, str):
+            items_to_query.append((item, "TW"))
+        elif isinstance(item, dict):
+            items_to_query.append((item.get('code', ''), item.get('market', 'TW')))
+
+    chunk_size = 35
+    chunks = [items_to_query[i:i+chunk_size] for i in range(0, len(items_to_query), chunk_size)]
+
+    all_results = {}
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        for partial in executor.map(_fetch_realtime_chunk, chunks):
+            all_results.update(partial)
+
+    return all_results
+
+def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realtime=True, realtime_quote=None):
     """
     抓取台股日K線數據，回傳 (df, info_dict)
     """
@@ -198,6 +394,41 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False):
         except Exception:
             pass
 
+    # ---------------- 證交所盤中即時行情無縫拼接 ----------------
+    quote = realtime_quote
+    if quote is None and enable_realtime and code.isdigit() and not df.empty:
+        try:
+            quote = fetch_realtime_quote(code, market=market)
+        except Exception:
+            quote = None
+
+    if quote and quote.get('close', 0) > 0 and not df.empty:
+        q_date = quote['date']
+        df_last_date = df['Date'].iloc[-1]
+        
+        # 若當日日K已存在於最後一列，更新為最新盤中撮合值
+        if df_last_date.date() == q_date.date():
+            idx = df.index[-1]
+            df.loc[idx, 'Open'] = quote['open'] if quote['open'] > 0 else df.loc[idx, 'Open']
+            df.loc[idx, 'High'] = max(quote['high'], quote['close'], df.loc[idx, 'High'])
+            df.loc[idx, 'Low'] = min(quote['low'], quote['close'], df.loc[idx, 'Low']) if quote['low'] > 0 else df.loc[idx, 'Low']
+            df.loc[idx, 'Close'] = quote['close']
+            df.loc[idx, 'Volume'] = max(quote['volume'], df.loc[idx, 'Volume'])
+        elif q_date.date() > df_last_date.date():
+            # 歷史日K只到昨收，將今天盤中長出來的最新K棒拼接上去
+            new_candle = pd.DataFrame([{
+                'Date': q_date,
+                'Open': quote['open'] if quote['open'] > 0 else quote['close'],
+                'High': max(quote['high'], quote['close']),
+                'Low': min(quote['low'], quote['close']) if quote['low'] > 0 else quote['close'],
+                'Close': quote['close'],
+                'Volume': quote['volume']
+            }])
+            df = pd.concat([df, new_candle], ignore_index=True)
+            
+        # 重新計算均線與技術指標 (使5MA/20MA與轉折波完全包含今日即時現價)
+        df = calculate_indicators(df)
+
     # 提取即時摘要資訊
     last_row = df.iloc[-1]
     prev_row = df.iloc[-2] if len(df) > 1 else last_row
@@ -221,7 +452,9 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False):
         "change": round(float(change), 2),
         "change_pct": round(float(change_pct), 2),
         "volume": int(last_row['Volume']),
-        "volume_str": f"{int(last_row['Volume'] / 1000):,} 張" if ticker != "^TWII" else f"{int(last_row['Volume'] / 100000000)} 億"
+        "volume_str": f"{int(last_row['Volume'] / 1000):,} 張" if ticker != "^TWII" else f"{int(last_row['Volume'] / 100000000)} 億",
+        "is_realtime": bool(quote and quote.get('is_realtime')),
+        "quote_time": quote.get('time', '') if quote else ''
     }
 
     return df, info
