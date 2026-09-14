@@ -142,10 +142,12 @@ def render_mini_kline(bars_data):
     fig.update_layout(
         height=135,
         margin=dict(l=2, r=2, t=4, b=4),
-        xaxis=dict(visible=False, rangeslider=dict(visible=False)),
-        yaxis=dict(visible=False, range=[y_min, y_max]),
+        xaxis=dict(visible=False, rangeslider=dict(visible=False), fixedrange=False),
+        yaxis=dict(visible=False, range=[y_min, y_max], fixedrange=True),
         plot_bgcolor='#161824',
-        paper_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor='rgba(0,0,0,0)',
+        dragmode='pan',
+        hovermode=False
     )
     return fig
 
@@ -221,7 +223,13 @@ def render_stock_card(item, key_prefix="sc"):
             
     fig_mini = render_mini_kline(item.get('recent_bars', []))
     if fig_mini:
-        st.plotly_chart(fig_mini, use_container_width=True, key=f"mini_{key_prefix}_{item['code']}")
+        mini_config = {
+            'scrollZoom': False,             # 徹底禁止滾輪/手勢縮放
+            'displayModeBar': False,          # 隱藏工具列，畫面乾淨
+            'doubleClick': 'reset',           # 雙擊瞬間復原置中視角
+            'responsive': True
+        }
+        st.plotly_chart(fig_mini, use_container_width=True, config=mini_config, key=f"mini_{key_prefix}_{item['code']}")
         
     c_btn1, c_btn2 = st.columns([1, 1])
     with c_btn1:

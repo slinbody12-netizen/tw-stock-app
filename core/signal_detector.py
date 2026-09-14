@@ -139,10 +139,14 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     # ----------------------------------------------------
     # 策略 B：雙線黃金交叉 (5MA 向上穿過 20MA)
+    # 朱家泓心法鐵律：
+    # 1. 5MA 操盤線必須「向上翻揚」(sma5 > prev_sma5)，嚴禁 5MA 向下彎！
+    # 2. 必須由下往上實質穿越突破 (昨日 5MA <= 20MA，今日 5MA >= 20MA，或近 2 日剛完成金叉)
     # ----------------------------------------------------
-    is_cross_today = (sma5 >= sma20 and prev_sma5 < prev_sma20)
-    is_cross_recent = (sma5 >= sma20 and float(prev2['SMA_5']) < float(prev2['SMA_20'])) if len(df) > 2 else False
-    if is_cross_today or is_cross_recent or (sma5 >= sma20 and abs(sma5 - sma20)/sma20 < 0.015 and is_red):
+    is_5ma_rising = (sma5 > prev_sma5)
+    is_cross_today = (sma5 >= sma20 and prev_sma5 <= prev_sma20 and is_5ma_rising)
+    is_cross_recent = (sma5 >= sma20 and float(prev2['SMA_5']) <= float(prev2['SMA_20']) and is_5ma_rising) if len(df) > 2 else False
+    if is_cross_today or is_cross_recent:
         signals_dict['golden_cross_5_20'] = True
         signals.append("剛出現雙線黃金交叉 (5MA 向上穿過 20MA)")
 
