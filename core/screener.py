@@ -200,8 +200,8 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
             close_price = info['close']
             stage = signals_dict.get('watchlist_stage', '觀察中')
 
-            # 擷取最近 25 天 K 線縮圖資料
-            sub_recent = df.iloc[-25:].copy()
+            # 擷取最近 60 天 K 線縮圖資料 (支援左右水平滑動平移查看完整波段)
+            sub_recent = df.iloc[-60:].copy() if len(df) >= 60 else df.copy()
             recent_data = []
             for _, r in sub_recent.iterrows():
                 recent_data.append({
@@ -213,6 +213,14 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                     "sma5": round(float(r.get('SMA_5', r['Close'])), 2),
                     "sma20": round(float(r.get('SMA_20', r['Close'])), 2)
                 })
+
+            # 操盤線 5MA 即時狀態
+            last_r = df.iloc[-1]
+            prev_r = df.iloc[-2] if len(df) > 1 else last_r
+            cur_sma5 = float(last_r.get('SMA_5', close_price))
+            prev_sma5 = float(prev_r.get('SMA_5', cur_sma5))
+            is_5ma_rising = cur_sma5 >= prev_sma5
+            above_5ma = close_price >= cur_sma5
 
             # SpeedyAI 官方真實籌碼整合
             real_chips = chips_map.get(code, {})
@@ -257,6 +265,10 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "broker_info": broker_str,
                 "speedy_mf": mf,
                 "recent_bars": recent_data,
+                "sma5": round(cur_sma5, 2),
+                "prev_sma5": round(prev_sma5, 2),
+                "is_5ma_rising": is_5ma_rising,
+                "above_5ma": above_5ma,
                 "is_bull": trend.get('higher_highs', False) and trend.get('higher_lows', False),
                 "is_bear": trend.get('lower_highs', False) and trend.get('lower_lows', False)
             }
@@ -316,7 +328,10 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         if strategy == "全部":
             match = True
         elif strategy == "頭高底高" and (signals_dict.get('higher_highs_lows', False) or is_bull):
-            match = True
+            # 朱家泓實戰鐵律：做多買進選股，操盤線(5MA)必須走平或翻揚助漲，且收盤站穩 5MA 之上！
+            # 若波段多頭但短線 5MA 下彎破線，屬於多頭拉回回檔中，應歸入鎖股池「回檔等上漲」專區！
+            if s.get('is_5ma_rising', True) and s.get('above_5ma', True):
+                match = True
         elif strategy == "回後準進場" and signals_dict.get('pullback_buy', False):
             match = True
         elif strategy == "底部起漲" and signals_dict.get('bottom_breakout', False):

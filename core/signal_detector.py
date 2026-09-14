@@ -131,9 +131,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     # ----------------------------------------------------
     # 策略 A：頭高底高 (六字訣多頭確認)
+    # 朱家泓心法：必須同時滿足「波段頭頭高」且「波段底底高」，方為多頭架構！
     # ----------------------------------------------------
-    is_bull = trend_info.get('higher_highs', False) and trend_info.get('higher_lows', False)
-    if is_bull or (trend_info.get('higher_highs', False) and sma5 >= sma20):
+    is_bull = bool(trend_info.get('higher_highs', False) and trend_info.get('higher_lows', False))
+    if is_bull:
         signals_dict['higher_highs_lows'] = True
         signals.append("頭高底高 (多頭走勢確認)")
 
@@ -143,7 +144,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # 1. 5MA 操盤線必須「向上翻揚」(sma5 > prev_sma5)，嚴禁 5MA 向下彎！
     # 2. 必須由下往上實質穿越突破 (昨日 5MA <= 20MA，今日 5MA >= 20MA，或近 2 日剛完成金叉)
     # ----------------------------------------------------
-    is_5ma_rising = (sma5 > prev_sma5)
+    is_5ma_rising = (sma5 >= prev_sma5)
     is_cross_today = (sma5 >= sma20 and prev_sma5 <= prev_sma20 and is_5ma_rising)
     is_cross_recent = (sma5 >= sma20 and float(prev2['SMA_5']) <= float(prev2['SMA_20']) and is_5ma_rising) if len(df) > 2 else False
     if is_cross_today or is_cross_recent:
@@ -152,25 +153,28 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     # ----------------------------------------------------
     # 策略 C：回後準進場 (朱家泓經典回後買上漲進場訊號)
+    # 朱家泓心法鐵律：
+    # 1. 前幾天拉回測均線 (5MA/20MA) 有守，支撐未破
+    # 2. 今日收轉折紅K站回 5MA 操盤線之上 (c >= sma5)
+    # 3. 5MA 操盤線必須「走平或向上翻揚」(is_5ma_rising)，若操盤線仍在下彎，代表短線助跌，嚴禁買進！
     # ----------------------------------------------------
     support = trend_info.get('support', 0) or (c * 0.93)
     resistance = trend_info.get('resistance', 0) or (c * 1.08)
-    # 前幾天有回測低點，今日收紅K站上 5MA
     recent_lows = df.iloc[-4:-1]['Low'].min() if len(df) >= 4 else l
     tested_ma = (recent_lows <= sma20 * 1.03 or l <= sma5 * 1.015)
     not_broken_support = l >= support * 0.985
-    stand_on_5ma = (c >= sma5) or (c > float(prev['High']))
+    stand_on_5ma = (c >= sma5)
 
-    if (is_bull or signals_dict['golden_cross_5_20'] or sma5 >= sma20) and tested_ma and not_broken_support and is_red and stand_on_5ma:
+    if (is_bull or signals_dict['golden_cross_5_20'] or sma5 >= sma20) and tested_ma and not_broken_support and is_red and stand_on_5ma and is_5ma_rising:
         signals_dict['pullback_buy'] = True
-        signals.append("回後準進場 (拉回測線有守，轉折紅K站回5MA)")
+        signals.append("回後準進場 (拉回測線有守，轉折紅K站回5MA且操盤線翻揚)")
 
     # ----------------------------------------------------
     # 策略 D：底部起漲 (低檔整理首度帶量長紅突破)
     # ----------------------------------------------------
     past20_low = df.iloc[-25:-5]['Low'].min() if len(df) >= 25 else l
     is_near_bottom = (c <= past20_low * 1.15) or (sma20 <= sma60 * 1.02)
-    is_breakout_today = (c >= sma5 and c >= sma20 and is_red and (change_pct >= 0.5 or vol_ratio >= 1.1))
+    is_breakout_today = (c >= sma5 and c >= sma20 and is_red and (change_pct >= 0.5 or vol_ratio >= 1.1) and is_5ma_rising)
     if is_near_bottom and is_breakout_today and not signals_dict['pullback_buy']:
         signals_dict['bottom_breakout'] = True
         signals.append("底部起漲 (低檔放量突破均線)")
@@ -178,7 +182,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # ----------------------------------------------------
     # 策略 E：高檔起漲 (強勢多頭高檔休息後再發動)
     # ----------------------------------------------------
-    if c >= sma60 and sma5 > sma20 and change_pct >= 1.5 and is_red and (c >= df.iloc[-10:-1]['High'].max() * 0.99):
+    if c >= sma60 and sma5 > sma20 and change_pct >= 1.5 and is_red and (c >= df.iloc[-10:-1]['High'].max() * 0.99) and is_5ma_rising:
         signals_dict['high_breakout'] = True
         signals.append("高檔起漲 (多頭高檔突破再創高)")
 
@@ -191,7 +195,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         rng_min = sub_period['Low'].min()
         amplitude = (rng_max - rng_min) / (rng_min + 1e-9)
         ma_squeeze = abs(sma5 - sma20) / (sma20 + 1e-9)
-        if amplitude <= 0.22 and ma_squeeze <= 0.05 and c >= rng_max * 0.985 and is_red:
+        if amplitude <= 0.22 and ma_squeeze <= 0.05 and c >= rng_max * 0.985 and is_red and is_5ma_rising:
             signals_dict['flat_base_breakout'] = True
             signals.append("一字底 (均線高度糾結放量突破)")
 
@@ -210,7 +214,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
                     peak1 = df.loc[peak_idx, 'High']
                     after_peak = after_low1.loc[peak_idx:]
                     low2 = after_peak['Low'].min()
-                    if low2 > low1 and c >= sma5 and is_red and c < peak1 * 1.05:
+                    if low2 > low1 and c >= sma5 and is_red and c < peak1 * 1.05 and is_5ma_rising:
                         signals_dict['n_pattern_bottom'] = True
                         signals.append("N字底 (第二隻腳打樁有守突破)")
 

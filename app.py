@@ -139,10 +139,21 @@ def render_mini_kline(bars_data):
     ))
     y_min = min(lows) * 0.985
     y_max = max(highs) * 1.015
+
+    # 預設展示最新 25 根 K 線，保留歷史資料可左右滑動平移瀏覽
+    start_idx = max(0, len(dates) - 26)
+    end_idx = len(dates) - 0.5
+
     fig.update_layout(
         height=135,
         margin=dict(l=2, r=2, t=4, b=4),
-        xaxis=dict(visible=False, rangeslider=dict(visible=False), fixedrange=False),
+        xaxis=dict(
+            type='category',
+            visible=False,
+            rangeslider=dict(visible=False),
+            fixedrange=False,
+            range=[start_idx, end_idx]
+        ),
         yaxis=dict(visible=False, range=[y_min, y_max], fixedrange=True),
         plot_bgcolor='#161824',
         paper_bgcolor='rgba(0,0,0,0)',
@@ -172,6 +183,18 @@ def render_stock_card(item, key_prefix="sc"):
         badge_html += "<span style='background:#13C2C2; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>期</span>"
     if item.get('has_cb'):
         badge_html += "<span style='background:#1890FF; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>CB</span>"
+
+    # 操盤線 (5MA) 狀態勳章：走升 / 下彎，站上 / 跌破
+    is_5ma_up = item.get('is_5ma_rising', True)
+    is_above_5ma = item.get('above_5ma', True)
+    if is_5ma_up:
+        badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>📈 5MA走升</span>"
+    else:
+        badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>↘️ 5MA下彎</span>"
+    if is_above_5ma:
+        badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>站上5MA</span>"
+    else:
+        badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>破5MA</span>"
 
     sig = item.get('signals_dict', {})
     if sig.get('is_multi_bagger', False):
@@ -224,12 +247,13 @@ def render_stock_card(item, key_prefix="sc"):
     fig_mini = render_mini_kline(item.get('recent_bars', []))
     if fig_mini:
         mini_config = {
-            'scrollZoom': False,             # 徹底禁止滾輪/手勢縮放
+            'scrollZoom': False,             # 徹底禁止滾輪/手勢縮放，防止誤觸變形
             'displayModeBar': False,          # 隱藏工具列，畫面乾淨
             'doubleClick': 'reset',           # 雙擊瞬間復原置中視角
             'responsive': True
         }
         st.plotly_chart(fig_mini, use_container_width=True, config=mini_config, key=f"mini_{key_prefix}_{item['code']}")
+        st.markdown("<div style='text-align:center; color:#6B7280; font-size:0.72rem; margin-top:-6px; margin-bottom:6px;'>↔️ 支援水平滑動查看近 60 日歷史 · 雙擊圖表重置視角</div>", unsafe_allow_html=True)
         
     c_btn1, c_btn2 = st.columns([1, 1])
     with c_btn1:
