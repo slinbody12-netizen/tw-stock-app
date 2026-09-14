@@ -120,6 +120,30 @@ def render_mini_kline(bars_data):
     sma5s = [b['sma5'] for b in bars_data]
     sma20s = [b['sma20'] for b in bars_data]
 
+    # 預設展示最新 25 根 K 線，保留歷史資料可左右滑動平移瀏覽
+    start_idx = max(0, len(dates) - 26)
+    end_idx = len(dates) - 0.5
+
+    # 關鍵優化：縱向自適應縮放 (Vertical Auto-scaling)
+    # 僅依據視野內 25 根 K 棒計算 Y 軸，徹底消除歷史高價將近期 K 棒壓成薄餅的問題
+    vis_bars = bars_data[start_idx:]
+    vis_highs = [b['high'] for b in vis_bars]
+    vis_lows = [b['low'] for b in vis_bars]
+    vis_s5 = [b['sma5'] for b in vis_bars if b.get('sma5')]
+    vis_s20 = [b['sma20'] for b in vis_bars if b.get('sma20')]
+
+    curr_min = min(vis_lows + vis_s5)
+    curr_max = max(vis_highs + vis_s5)
+    # 20MA 若在當前股價合理區間內 (+-12%) 才納入 Y 軸，避免 20MA 在極高處懸成一根孤線干擾視野
+    for s20 in vis_s20:
+        if curr_min * 0.90 <= s20 <= curr_max * 1.12:
+            curr_min = min(curr_min, s20)
+            curr_max = max(curr_max, s20)
+
+    y_pad = max(0.4, (curr_max - curr_min) * 0.08)
+    y_min = curr_min - y_pad
+    y_max = curr_max + y_pad
+
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
         x=dates, open=opens, high=highs, low=lows, close=closes,
@@ -129,7 +153,7 @@ def render_mini_kline(bars_data):
     ))
     fig.add_trace(go.Scatter(
         x=dates, y=sma5s, mode='lines',
-        line=dict(color='#FF3399', width=1.5),
+        line=dict(color='#FF3399', width=1.6),
         showlegend=False
     ))
     fig.add_trace(go.Scatter(
@@ -137,16 +161,10 @@ def render_mini_kline(bars_data):
         line=dict(color='#00CCFF', width=1.5),
         showlegend=False
     ))
-    y_min = min(lows) * 0.985
-    y_max = max(highs) * 1.015
-
-    # 預設展示最新 25 根 K 線，保留歷史資料可左右滑動平移瀏覽
-    start_idx = max(0, len(dates) - 26)
-    end_idx = len(dates) - 0.5
 
     fig.update_layout(
-        height=135,
-        margin=dict(l=2, r=2, t=4, b=4),
+        height=145,
+        margin=dict(l=4, r=4, t=6, b=6),
         xaxis=dict(
             type='category',
             visible=False,
@@ -225,8 +243,34 @@ def render_stock_card(item, key_prefix="sc"):
     per_val = item.get('per', 0.0)
     per_str = f" | EPS：<b>{eps_val}</b> | PE：<b>{per_val:.1f}</b>" if per_val > 0 else (f" | EPS：<b>{eps_val}</b>" if eps_val != 0 else "")
 
+    # 助教把關與長上影線提醒
+    safety_warn_html = ""
+    if item.get('safety_reasons'):
+        reasons_text = " | ".join(item['safety_reasons'])
+        safety_warn_html = f"<div style='font-size:0.78rem; color:#E0A82E; margin-top:4px;'>⚠️ <b>助教把關</b>：{reasons_text}</div>"
+
+    # 短線 3~5 天波段價差專屬戰術區塊
+    sig = item.get('signals_dict', {})
+    swing = sig.get('swing_3_5d', {})
+    swing_html = ""
+    if swing:
+        swing_html = (
+            f"<div style='background:#151824; border-left:3px solid #13C2C2; padding:7px 10px; border-radius:6px; font-size:0.82rem; margin-top:6px; color:#E0E6ED;'>"
+            f"<div style='font-weight:bold; color:#13C2C2; margin-bottom:2px;'>🎯 3~5 天短線波段戰術指引：</div>"
+            f"🛑 <b>嚴格停損</b>：守 <b>{swing.get('stop_loss')}</b> 元 (跌破紅K低點即走，風險 -{swing.get('risk_pct')}%)<br>"
+            f"🛡️ <b>短線生命線</b>：守 <b>5MA ({swing.get('ma5_defend')} 元)</b> 收盤站穩<br>"
+            f"🏁 <b>短線頭壓目標</b>：<b>{swing.get('target_res')}</b> 元 (前波高點，潛在獲利 +{swing.get('reward_pct')}%) | ⚖️ <b>風報比 1 : {swing.get('rr_ratio')}</b>"
+            f"</div>"
+        )
+
+    # 買兩張策略建議
+    two_tr = sig.get('two_tranches', {})
+    two_tr_html = ""
+    if two_tr.get('advice'):
+        two_tr_html = f"<div style='font-size:0.78rem; color:#888; margin-top:4px;'>💡 <b>買兩張配置</b>：{two_tr['advice']}</div>"
+
     card_html = (
-        f'<div style="background:#1E202E; border:1px solid #33364D; border-radius:10px; padding:12px 14px; margin-bottom:8px;">'
+        f'<div style="background:#1E202E; border:1px solid #33364D; border-radius:10px; padding:12px 14px; margin-bottom:4px;">'
         f'<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
         f'<div><span style="font-size:1.15rem; font-weight:bold; color:white;">{item["name"]}</span>'
         f'<span style="color:#888; font-size:0.9rem; margin-left:4px;">{item["code"]}</span>'
@@ -240,33 +284,13 @@ def render_stock_card(item, key_prefix="sc"):
         f'<div style="display:flex; justify-content:space-between; font-size:0.82rem; margin-bottom:4px;">'
         f'<div style="color:#99A;">{item.get("broker_info", "")}</div><div style="color:{safety_color}; font-weight:bold;">{safety}</div>'
         f'</div>'
-        f'<div style="font-size:0.8rem; color:#FFA94D; margin-bottom:4px;">{sup_text} | {res_text}</div>'
+        f'<div style="font-size:0.8rem; color:#FFA94D; margin-bottom:2px;">{sup_text} | {res_text}</div>'
+        f'{safety_warn_html}'
+        f'{swing_html}'
+        f'{two_tr_html}'
         f'</div>'
     )
     st.markdown(card_html, unsafe_allow_html=True)
-    
-    if item.get('safety_reasons'):
-        for r in item['safety_reasons']:
-            st.caption(f"⚠️ **助教把關提醒**：{r}")
-
-    # 短線 3~5 天波段價差專屬戰術卡
-    sig = item.get('signals_dict', {})
-    swing = sig.get('swing_3_5d', {})
-    if swing:
-        st.markdown(
-            f"<div style='background:#151824; border-left:3px solid #13C2C2; padding:7px 12px; border-radius:6px; font-size:0.82rem; margin:6px 0; color:#E0E6ED;'>"
-            f"<div style='font-weight:bold; color:#13C2C2; margin-bottom:2px;'>🎯 3~5 天短線波段戰術指引：</div>"
-            f"🛑 <b>嚴格停損</b>：守 <b>{swing.get('stop_loss')}</b> 元 (跌破紅K低點即走，風險 -{swing.get('risk_pct')}%)<br>"
-            f"🛡️ <b>短線生命線</b>：守 <b>5MA ({swing.get('ma5_defend')} 元)</b> 收盤站穩<br>"
-            f"🏁 <b>短線頭壓目標</b>：<b>{swing.get('target_res')}</b> 元 (前波高點，潛在獲利 +{swing.get('reward_pct')}%) | ⚖️ <b>風報比 1 : {swing.get('rr_ratio')}</b>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-
-    # 買兩張策略建議
-    two_tr = sig.get('two_tranches', {})
-    if two_tr.get('advice'):
-        st.caption(f"💡 **買兩張實戰配置**：{two_tr['advice']}")
             
     fig_mini = render_mini_kline(item.get('recent_bars', []))
     if fig_mini:
@@ -277,7 +301,7 @@ def render_stock_card(item, key_prefix="sc"):
             'responsive': True
         }
         st.plotly_chart(fig_mini, use_container_width=True, config=mini_config, key=f"mini_{key_prefix}_{item['code']}")
-        st.markdown("<div style='text-align:center; color:#6B7280; font-size:0.72rem; margin-top:-6px; margin-bottom:6px;'>↔️ 支援水平滑動查看近 60 日歷史 · 雙擊圖表重置視角</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; color:#6B7280; font-size:0.72rem; margin-top:-6px; margin-bottom:4px;'>↔️ 支援水平滑動查看近 60 日歷史 · 雙擊圖表重置視角</div>", unsafe_allow_html=True)
         
     c_btn1, c_btn2 = st.columns([1, 1])
     with c_btn1:
@@ -289,7 +313,7 @@ def render_stock_card(item, key_prefix="sc"):
     with c_btn2:
         if st.button("👁️ 追蹤鎖股", key=f"btn_watch_{key_prefix}_{item['code']}", use_container_width=True):
             st.toast(f"已將 {item['name']} ({item['code']}) 加入即時追蹤鎖股池！")
-    st.divider()
+    st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
 
 def get_market_condition():
     """
@@ -996,13 +1020,15 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     elif "一點鐘" in main_mode:
         target_strategy = "一點鐘"
 
-    # 價格分級篩選
-    col_p1, col_p2 = st.columns([3, 1])
+    # 價格分級篩選與消除長上影線開關
+    col_p1, col_p2, col_p3 = st.columns([2.2, 1.8, 0.9])
     with col_p1:
         p_filter = st.radio("價格位階篩選", ["全部", "低價 (<30)", "中價 (30-100)", "高價 (100-300)", "超高 (>300)"], horizontal=True, key="scr_price_filter")
         price_val = p_filter.split()[0]
     with col_p2:
         st.write("")
+        filter_shadow = st.checkbox("🛡️ 消除長上影線 (剔除避雷針，只留飽滿收高)", value=True, help="剔除早盤衝高、尾盤拉回留長上影線（避雷針）的股票，確保 1:00~1:30 尾盤買在真正實體飽滿、收在相對高點的強勢股！")
+    with col_p3:
         st.write("")
         refresh_btn = st.button("⚡ 刷新即時行情", help="立即向證交所批次請求全市場最新盤中價量")
 
@@ -1010,9 +1036,9 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
     with st.spinner(f"正在全市場 186 檔標的中精確篩選【{target_strategy}】(證交所盤中即時模式)..."):
         try:
-            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=refresh_btn, enable_realtime=True)
+            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=refresh_btn, enable_realtime=True, filter_no_upper_shadow=filter_shadow)
         except Exception:
-            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=False, enable_realtime=False)
+            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=False, enable_realtime=False, filter_no_upper_shadow=filter_shadow)
 
     # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
     st.session_state.browsing_stock_list = [item['code'] for item in results]

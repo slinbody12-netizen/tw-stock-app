@@ -296,7 +296,7 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
     _LAST_CACHE_TIME = now
     return analyzed
 
-def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True):
+def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True, filter_no_upper_shadow=False):
     """
     高效過濾篩選並按「最佳品質強度 (Quality Score)」由上至下排序 (支援盤中即時行情)
     """
@@ -332,6 +332,10 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         if direction == "多" and is_bear and not signals_dict.get('bottom_breakout', False):
             continue
         elif direction == "空" and is_bull:
+            continue
+
+        # 3.5 長上影線過濾 (實戰尾盤進場關鍵：剔除衝高拉回避雷針，只留收在相對高點的實體紅K)
+        if filter_no_upper_shadow and signals_dict.get('has_long_upper_shadow', False):
             continue
 
         # 4. 策略精準過濾

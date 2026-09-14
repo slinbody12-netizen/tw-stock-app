@@ -71,6 +71,22 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     change_pct = ((c - prev_c) / prev_c) * 100 if prev_c > 0 else 0
     is_red = (c >= o)
 
+    # 實體與上影線分析 (用以精準識別與過濾「避雷針 / 衝高拉回」)
+    body = abs(c - o)
+    upper_shadow = max(0.0, h - max(o, c))
+    total_range = max(0.01, h - l)
+    upper_shadow_ratio = upper_shadow / total_range
+    upper_shadow_pct = round((upper_shadow / c) * 100, 2) if c > 0 else 0.0
+
+    # 長上影線（避雷針）判定：上影線佔全日高低振幅 40% 以上，且相對於收盤價超過 1.2%
+    has_long_upper_shadow = (upper_shadow_ratio >= 0.40 and upper_shadow_pct >= 1.2) or (upper_shadow >= body * 1.4 and upper_shadow_pct >= 1.0)
+    # 實體飽滿收高 (無長上影線)：收在當日最高點 1.5% 內，或上影線小於實體紅K 0.6 倍
+    is_solid_bull = (h - c) <= (c * 0.015) or (upper_shadow <= body * 0.6)
+
+    signals_dict['has_long_upper_shadow'] = has_long_upper_shadow
+    signals_dict['is_solid_bull'] = is_solid_bull
+    signals_dict['upper_shadow_pct'] = upper_shadow_pct
+
     sma5 = round(float(last['SMA_5']), 2)
     sma10 = round(float(last['SMA_10']), 2) if 'SMA_10' in last and not np.isnan(last['SMA_10']) else sma5
     sma20 = round(float(last['SMA_20']), 2) if 'SMA_20' in last and not np.isnan(last['SMA_20']) else sma5
@@ -368,10 +384,12 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if unresolved_blacks:
         latest_bk = unresolved_blacks[-1]
         safety_reasons.append(f"前方 {latest_bk['date']} 有 {latest_bk['ratio']} 倍爆量黑K套牢賣壓 ({latest_bk['high']} 元)")
+    if has_long_upper_shadow:
+        safety_reasons.append(f"今日盤中留長上影線 (+{upper_shadow_pct:.1f}%) 避雷針，高檔遭遇獲利調節或解套賣壓")
     if c < sma60 and sma20 < sma60:
         safety_reasons.append("季線 (60MA) 下彎壓制，屬空方反彈非主升")
 
-    if is_multi_bagger or unresolved_blacks or (up_days >= 3 and bias20 >= 8.0):
+    if is_multi_bagger or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0):
         signals_dict['safety_rating'] = "🟡 警訊注意"
     elif up_days >= 4 or bias20 >= 12.0:
         signals_dict['safety_rating'] = "🔴 嚴禁追高"
