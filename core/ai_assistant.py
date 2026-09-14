@@ -11,7 +11,7 @@ AI 課程助教問答與深度實戰決策核心 (AI Teaching Assistant Pro - �
 import re
 import pandas as pd
 import numpy as np
-from core.data_fetcher import fetch_stock_kline, load_stock_list
+from core.data_fetcher import fetch_stock_kline, load_stock_list, load_full_stock_map
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
@@ -70,6 +70,12 @@ def extract_target_symbol(query: str, default_code: str = "2330"):
     for s in all_stocks:
         if s['name'] in query:
             return s['code'], True
+
+    full_map = load_full_stock_map()
+    for code_k, item in full_map.items():
+        name_k = item.get('name', '')
+        if name_k and len(name_k) >= 2 and name_k in query:
+            return code_k, True
 
     # 只有明確使用代名詞指稱當前畫面上個股時，才判定為針對當前股票診斷
     context_keywords = ["這檔", "該股", "這支", "手中持股", "這檔股票", "目前這檔", "當前個股", "這檔目前"]

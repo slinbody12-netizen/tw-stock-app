@@ -21,7 +21,7 @@ from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
 from core.screener import scan_stocks
-from core.ai_assistant import answer_question
+from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query
 
 st.set_page_config(
     page_title="技術分析全攻略 - 股票趨勢與轉折波系統",
@@ -1145,15 +1145,20 @@ elif "AI" in menu or "助教" in menu:
         with col_tm2:
             st.caption("💡 **自然語言智慧抽取**：您也可以直接在問題中提及日期（例如：「**請問 2851 在 8/26 是否為回後買上漲？**」或「**昨天 2330 符合回後買上漲嗎？**」），助教將智慧自動啟動時光機！")
 
-    # 取得當前或時光機切片之股票技術數據用於右側看板展示
-    stock_context = None
-    if not df.empty and "error" not in info:
-        target_df = df
-        if selected_replay_date_str:
-            target_ts = pd.to_datetime(selected_replay_date_str)
-            sliced = df[df['Date'] <= target_ts].copy().reset_index(drop=True)
+    # 定義股票上下文計算函式 (支援依提問動態跟隨標的)
+    def compute_stock_context(target_code, replay_date_str=None):
+        df_target, info_target = fetch_stock_kline(target_code, period="1y")
+        if df_target.empty or "error" in info_target:
+            return None, df_target, info_target
+        
+        target_df = df_target
+        is_replay = False
+        if replay_date_str:
+            target_ts = pd.to_datetime(replay_date_str)
+            sliced = df_target[df_target['Date'] <= target_ts].copy().reset_index(drop=True)
             if not sliced.empty:
                 target_df = sliced
+                is_replay = (target_ts.strftime('%Y-%m-%d') != df_target.iloc[-1]['Date'].strftime('%Y-%m-%d'))
 
         points, _, _, _ = calculate_turning_points(target_df, ma_period=5)
         trend = analyze_trend(target_df, points)
@@ -1165,9 +1170,9 @@ elif "AI" in menu or "助教" in menu:
         chg = round(c_price - p_price, 2)
         chg_pct = round((chg / p_price) * 100, 2) if p_price > 0 else 0
 
-        stock_context = {
-            "code": info['code'],
-            "name": info['name'],
+        ctx = {
+            "code": info_target['code'],
+            "name": info_target['name'],
             "date": last_row['Date'].strftime('%Y-%m-%d'),
             "close": c_price,
             "change": chg,
@@ -1179,8 +1184,9 @@ elif "AI" in menu or "助教" in menu:
             "target": trend['target'],
             "signals": signals_list,
             "watchlist_stage": signals_dict.get('watchlist_stage', '觀察中'),
-            "is_replay": bool(selected_replay_date_str)
+            "is_replay": is_replay
         }
+        return ctx, target_df, info_target
 
     st.markdown("---")
     col_q1, col_q2 = st.columns([1.5, 1])
@@ -1207,7 +1213,7 @@ elif "AI" in menu or "助教" in menu:
             target_q = st.text_area(
                 "請在下方輸入您的問題：",
                 value=st.session_state.get('custom_qa_text', ''),
-                placeholder="例如：\n• 漲幅過2% 是不是拉回找買點的進場位置呢？\n• 請問 2851 在 8/26 為什麼不適合進場？\n• 跌破 5MA 與虧損 5% 停損有何區別？",
+                placeholder="例如：\n• 強茂 2481 今天9/14爆大量，站上四均過昨天上影線，漲幅過2% 是不是拉回找買點的進場位置？\n• 請問 2851 在 8/26 為什麼不適合進場？\n• 跌破 5MA 與虧損 5% 停損有何區別？",
                 height=110,
                 key="custom_qa_text"
             )
@@ -1219,38 +1225,66 @@ elif "AI" in menu or "助教" in menu:
                 key="preset_qa_select"
             )
             btn_text = "💡 查看助教解答"
+
+        # 智慧動態偵測：提問中是否包含個股（如 強茂 2481 / 2851 / 聯發科 等）
+        active_code, has_explicit_stock = extract_target_symbol(target_q, default_code=cur_code)
         
+        # 智慧偵測提問中是否有指定日期 (例如 9/14, 8/26, 昨天 等)
+        extracted_date = None
+        active_stock_context = None
+        if has_explicit_stock:
+            df_temp, _ = fetch_stock_kline(active_code, period="1y")
+            if not df_temp.empty:
+                extracted_date = extract_date_from_query(target_q, df_temp)
+            target_date = extracted_date if extracted_date else selected_replay_date_str
+            active_stock_context, _, _ = compute_stock_context(active_code, target_date)
+            btn_chart_label = f"📊 載入【{active_stock_context['name'] if active_stock_context else active_code}】主圖看盤"
+        else:
+            btn_chart_label = "📊 載入主圖查看 K 線波段"
+
         c_btn1, c_btn2 = st.columns([1, 1])
         with c_btn1:
             ask_btn = st.button(btn_text, type="primary", use_container_width=True)
         with c_btn2:
-            if st.button("📊 載入主圖查看 K 線波段", use_container_width=True):
-                st.session_state.selected_stock = cur_code
+            if st.button(btn_chart_label, use_container_width=True):
+                st.session_state.selected_stock = active_code if has_explicit_stock else cur_code
                 st.session_state.return_to_menu = "🧑‍🏫 AI 實戰操盤助教"
                 st.session_state.goto_chart = True
                 st.rerun()
 
     with col_q2:
-        if stock_context:
-            title_prefix = f"⏳ 歷史覆盤基準日：{stock_context['date']}" if stock_context['is_replay'] else "📌 當前即時行情狀態"
+        if has_explicit_stock and active_stock_context:
+            title_prefix = f"⏳ 歷史覆盤基準日：{active_stock_context['date']}" if active_stock_context['is_replay'] else f"📌 提問個股即時行情：{active_stock_context['name']} ({active_stock_context['code']})"
             st.subheader(title_prefix)
-            chg_color = '#FF4D4F' if stock_context['change'] >= 0 else '#52C41A'
+            chg_color = '#FF4D4F' if active_stock_context['change'] >= 0 else '#52C41A'
             st.markdown(f"""
             <div class="metric-box" style="text-align:left;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0;">{stock_context['name']} ({stock_context['code']})</h3>
+                    <h3 style="margin:0;">{active_stock_context['name']} ({active_stock_context['code']})</h3>
                     <span style="font-size:1.2rem; font-weight:bold; color:{chg_color};">
-                        {stock_context['close']} ({'+' if stock_context['change']>=0 else ''}{stock_context['change_pct']}%)
+                        {active_stock_context['close']} ({'+' if active_stock_context['change']>=0 else ''}{active_stock_context['change_pct']}%)
                     </span>
                 </div>
                 <div style="margin:6px 0; color:#BBB; font-size:0.9rem;">
-                    基準日期：<b>{stock_context['date']}</b> | 成交量：<b>{stock_context['volume']:,}</b>
+                    基準日期：<b>{active_stock_context['date']}</b> | 成交量：<b>{active_stock_context['volume']:,}</b>
                 </div>
-                <div style="margin:6px 0;">趨勢架構：<b>{stock_context['trend_status']}</b></div>
+                <div style="margin:6px 0;">趨勢架構：<b>{active_stock_context['trend_status']}</b></div>
                 <div style="margin:6px 0; color:#FFA94D;">
-                    波段支撐：<b>{stock_context['support']}</b> | 波段壓力：<b>{stock_context['resistance']}</b>
+                    波段支撐：<b>{active_stock_context['support']}</b> | 波段壓力：<b>{active_stock_context['resistance']}</b>
                 </div>
-                <div style="margin:6px 0;">鎖股監控：<b>【{stock_context['watchlist_stage']}】</b></div>
+                <div style="margin:6px 0;">鎖股監控：<b>【{active_stock_context['watchlist_stage']}】</b></div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.subheader("💡 智慧個股動態連動")
+            st.markdown(f"""
+            <div class="metric-box" style="text-align:left; border:1px dashed #4A5568; background:#161922; padding:16px; border-radius:8px;">
+                <h4 style="margin:0 0 8px 0; color:#4FD1C5;">🔍 個股行情自動跟隨已就緒</h4>
+                <div style="font-size:0.88rem; color:#A0AEC0; line-height:1.7;">
+                    當前為<b>純觀念 / 交易心法提問</b>模式。<br><br>
+                    🎯 <b>自動跟隨功能</b>：<br>
+                    只要在左側輸入或提及任何<b>股票代號或名稱</b>（例如：<code>強茂 2481</code>、<code>聯發科</code>、<code>2851</code>），右側此處將<b>自動切換跟隨您問的個股</b>，同步呈現最新盤中即時行情、多空波段架構與支撐壓力！
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1259,6 +1293,6 @@ elif "AI" in menu or "助教" in menu:
             st.warning("⚠️ 請先輸入您的問題後再點擊詢問助教！")
         else:
             with st.spinner("助教正在翻閱技術分析講義並深入分析中..."):
-                reply = answer_question(target_q, stock_context, as_of_date=selected_replay_date_str)
+                reply = answer_question(target_q, active_stock_context, as_of_date=extracted_date or selected_replay_date_str)
                 st.markdown("### 📝 助教解答回覆：")
                 st.markdown(reply)

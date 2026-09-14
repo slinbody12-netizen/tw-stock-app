@@ -38,6 +38,22 @@ def search_stocks(query: str):
             matches.append(s)
     return matches
 
+FULL_STOCK_MAP_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'tw_full_stock_map.json')
+_FULL_STOCK_MAP = None
+
+def load_full_stock_map():
+    global _FULL_STOCK_MAP
+    if _FULL_STOCK_MAP is not None:
+        return _FULL_STOCK_MAP
+    if os.path.exists(FULL_STOCK_MAP_PATH):
+        try:
+            with open(FULL_STOCK_MAP_PATH, 'r', encoding='utf-8') as f:
+                _FULL_STOCK_MAP = json.load(f)
+                return _FULL_STOCK_MAP
+        except Exception:
+            pass
+    return {}
+
 def resolve_ticker(query: str):
     """
     解析使用者輸入（代碼或名稱），回傳 (ticker, code, name, market, industry)
@@ -46,7 +62,7 @@ def resolve_ticker(query: str):
     if q == "大盤" or q == "加權指數" or q == "^TWII":
         return "^TWII", "^TWII", "加權指數", "INDEX", "大盤指數", True, False
 
-    # 先在清單中查找
+    # 先在精選 186 檔清單中查找
     stock_list = load_stock_list()
     for s in stock_list:
         if q == s['code'] or q == s['name']:
@@ -54,7 +70,19 @@ def resolve_ticker(query: str):
             ticker = f"{s['code']}.{market}"
             return ticker, s['code'], s['name'], market, s.get('industry', ''), s.get('has_futures', False), s.get('has_cb', False)
 
-    # 若是純數字代碼但未在預設清單中
+    # 在全市場 2350 檔完整代碼字典中查找
+    full_map = load_full_stock_map()
+    if q in full_map:
+        item = full_map[q]
+        mkt = item.get('market', 'TW')
+        return f"{q}.{mkt}", q, item.get('name', q), mkt, "台股標的", False, False
+
+    for code_k, item in full_map.items():
+        if q == item.get('name'):
+            mkt = item.get('market', 'TW')
+            return f"{code_k}.{mkt}", code_k, item.get('name', code_k), mkt, "台股標的", False, False
+
+    # 若是純數字代碼但未在字典中
     if q.isdigit():
         return f"{q}.TW", q, q, "TW", "自訂股票", False, False
 
