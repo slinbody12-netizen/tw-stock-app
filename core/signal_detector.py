@@ -322,6 +322,25 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     signals_dict['resistance_detail'] = {"price": res_price, "type": res_type}
 
     # ----------------------------------------------------
+    # 短線 3~5 天波段價差專屬操盤卡 (量身打造風報比與停損停利)
+    # ----------------------------------------------------
+    stop_loss = round(min(l, sup_price), 2)
+    risk = max(0.01, c - stop_loss)
+    reward = max(0.01, res_price - c)
+    rr_ratio = round(reward / risk, 1)
+    risk_pct = round((risk / c) * 100, 1)
+    reward_pct = round((reward / c) * 100, 1)
+
+    signals_dict['swing_3_5d'] = {
+        "stop_loss": stop_loss,
+        "ma5_defend": sma5,
+        "target_res": res_price,
+        "rr_ratio": rr_ratio,
+        "risk_pct": risk_pct,
+        "reward_pct": reward_pct
+    }
+
+    # ----------------------------------------------------
     # 鎖股池 3 階段管理 (等突破 / 高檔等回檔 / 回檔等上漲)
     # ----------------------------------------------------
     bias5 = float(last.get('BIAS_5', 0))

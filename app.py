@@ -249,6 +249,20 @@ def render_stock_card(item, key_prefix="sc"):
         for r in item['safety_reasons']:
             st.caption(f"⚠️ **助教把關提醒**：{r}")
 
+    # 短線 3~5 天波段價差專屬戰術卡
+    sig = item.get('signals_dict', {})
+    swing = sig.get('swing_3_5d', {})
+    if swing:
+        st.markdown(
+            f"<div style='background:#151824; border-left:3px solid #13C2C2; padding:7px 12px; border-radius:6px; font-size:0.82rem; margin:6px 0; color:#E0E6ED;'>"
+            f"<div style='font-weight:bold; color:#13C2C2; margin-bottom:2px;'>🎯 3~5 天短線波段戰術指引：</div>"
+            f"🛑 <b>嚴格停損</b>：守 <b>{swing.get('stop_loss')}</b> 元 (跌破紅K低點即走，風險 -{swing.get('risk_pct')}%)<br>"
+            f"🛡️ <b>短線生命線</b>：守 <b>5MA ({swing.get('ma5_defend')} 元)</b> 收盤站穩<br>"
+            f"🏁 <b>短線頭壓目標</b>：<b>{swing.get('target_res')}</b> 元 (前波高點，潛在獲利 +{swing.get('reward_pct')}%) | ⚖️ <b>風報比 1 : {swing.get('rr_ratio')}</b>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
     # 買兩張策略建議
     two_tr = sig.get('two_tranches', {})
     if two_tr.get('advice'):
@@ -325,7 +339,7 @@ def get_market_condition():
 MENU_OPTIONS = [
     "📊 個股技術分析 (轉折波主圖)",
     "🎯 全攻略選股池 (多/空策略)",
-    "👁️ 鎖股池分階段管理",
+    "👁️ 晚間盤後功課 (鎖股名冊監控)",
     "🧑‍🏫 AI 課程助教問答"
 ]
 
@@ -917,7 +931,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     st.rerun()
             with c_b_watch:
                 if st.button("👁️ 鎖股名冊", use_container_width=True, key="bot_quick_watch"):
-                    st.session_state.target_nav_menu = "👁️ 鎖股池分階段管理"
+                    st.session_state.target_nav_menu = MENU_OPTIONS[2]
                     st.rerun()
 
 # ----------------------------------------------------
@@ -935,7 +949,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     with col_t2:
         main_mode = st.radio(
             "選股大類",
-            ["📈 波段策略 (起漲關鍵)", "💎 長抱標的 (長期多排)", "⚡ 盤中強勢 (量價齊揚)", "⏰ 一點鐘 (尾盤進場)"],
+            ["📈 波段策略 (起漲關鍵)", "⏰ 12:40~13:30 尾盤一點鐘 (短線3~5天首選)", "⚡ 盤中強勢 (量價齊揚)", "💎 長抱標的 (長期多排)"],
             horizontal=True,
             key="scr_main_mode"
         )
@@ -1021,11 +1035,11 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         st.info(f"目前在【{target_strategy}】條件下暫無符合標的，您可以切換其他子策略或放寬價格位階重新掃描。")
 
 # ----------------------------------------------------
-# 功能分頁 3：鎖股池分階段管理 (Watchlist Stages)
+# 功能分頁 3：晚間盤後功課 · 鎖股名冊監控 (Watchlist Stages)
 # ----------------------------------------------------
-elif menu == "👁️ 鎖股池分階段管理":
-    st.header("👁️ 鎖股名冊與進場三階段監控 (App 復刻版)")
-    st.caption("《技術分析全攻略》心法：好股票需先放入鎖股名冊，耐心等待正確時機出現！")
+elif "鎖股" in menu or "晚間盤後功課" in menu:
+    st.header("👁️ 晚間盤後功課 · 鎖股名冊與三階段進場監控")
+    st.caption("🌙 **朱家泓晚間做功課心法**：每晚檢視【🎯 回檔等上漲】與【📌 等突破】名冊，篩選出拉回測線有守的股票，隔日 **12:40 ~ 13:30 尾盤** 只要確認出轉折紅 K 站上 5MA 即刻進場，賺取 3~5 天短線波段價差！")
 
     stage_tab = st.radio(
         "鎖股進場三階段監控",
