@@ -183,6 +183,12 @@ def render_stock_card(item, key_prefix="sc"):
         badge_html += "<span style='background:#13C2C2; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>期</span>"
     if item.get('has_cb'):
         badge_html += "<span style='background:#1890FF; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>CB</span>"
+    if item.get('is_day_trading_forbidden'):
+        badge_html += "<span style='background:#A8071A; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>禁沖</span>"
+    if item.get('in_attention'):
+        badge_html += "<span style='background:#D46B08; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>注</span>"
+    if item.get('in_disposal'):
+        badge_html += "<span style='background:#CF1322; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>關</span>"
 
     # 操盤線 (5MA) 狀態勳章：走升 / 下彎，站上 / 跌破
     is_5ma_up = item.get('is_5ma_rising', True)
@@ -215,6 +221,10 @@ def render_stock_card(item, key_prefix="sc"):
     sup_text = f"{sup_d.get('type', '底撐')}：<b>{sup_d.get('price', item.get('support', 'N/A'))}</b>"
     res_text = f"{res_d.get('type', '頭壓')}：<b>{res_d.get('price', item.get('resistance', 'N/A'))}</b>"
 
+    eps_val = item.get('eps', 0.0)
+    per_val = item.get('per', 0.0)
+    per_str = f" | EPS：<b>{eps_val}</b> | PE：<b>{per_val:.1f}</b>" if per_val > 0 else (f" | EPS：<b>{eps_val}</b>" if eps_val != 0 else "")
+
     card_html = (
         f'<div style="background:#1E202E; border:1px solid #33364D; border-radius:10px; padding:12px 14px; margin-bottom:8px;">'
         f'<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
@@ -225,7 +235,7 @@ def render_stock_card(item, key_prefix="sc"):
         f'<span style="font-size:0.85rem; font-weight:bold; color:{c_color}; margin-left:4px;">{sign}{item["change"]:.2f} ({sign}{item["change_pct"]:.2f}%)</span></div>'
         f'</div>'
         f'<div style="display:flex; justify-content:space-between; font-size:0.82rem; color:#AAA; margin:4px 0;">'
-        f'<div>產業：<b>{item["industry"]}</b> | 成交量：<b>{item["volume_str"]}</b></div><div>{chili_str}</div>'
+        f'<div>產業：<b>{item["industry"]}</b> | 成交量：<b>{item["volume_str"]}</b>{per_str}</div><div>{chili_str}</div>'
         f'</div>'
         f'<div style="display:flex; justify-content:space-between; font-size:0.82rem; margin-bottom:4px;">'
         f'<div style="color:#99A;">{item.get("broker_info", "")}</div><div style="color:{safety_color}; font-weight:bold;">{safety}</div>'

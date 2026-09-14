@@ -175,7 +175,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     past20_low = df.iloc[-25:-5]['Low'].min() if len(df) >= 25 else l
     is_near_bottom = (c <= past20_low * 1.15) or (sma20 <= sma60 * 1.02)
     is_breakout_today = (c >= sma5 and c >= sma20 and is_red and (change_pct >= 0.5 or vol_ratio >= 1.1) and is_5ma_rising)
-    if is_near_bottom and is_breakout_today and not signals_dict['pullback_buy']:
+    if is_near_bottom and is_breakout_today:
         signals_dict['bottom_breakout'] = True
         signals.append("底部起漲 (低檔放量突破均線)")
 
@@ -238,9 +238,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             signals.append("長抱 (多頭長線穩健推升)")
 
     # ----------------------------------------------------
-    # 策略 J：一點鐘 (1:00 PM 尾盤選股)
+    # 策略 J：一點鐘 (1:00 PM 尾盤選股 - 1:1 對齊朱家泓 App 官方規則)
     # ----------------------------------------------------
-    if is_red and c >= sma5 and change_pct >= 0.5 and vol_ratio >= 0.9:
+    if is_red and c >= sma5 and is_5ma_rising and change_pct >= 0.5:
         signals_dict['one_pm_strategy'] = True
         signals.append("一點鐘 (尾盤強勢收紅站上操盤線)")
 

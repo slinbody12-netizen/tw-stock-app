@@ -53,6 +53,9 @@ def load_speedy_chips():
                 fut_idx = col_idx.get('CommodityCode')
                 per_idx = col_idx.get('PER')
                 eps_idx = col_idx.get('EPS')
+                dtf_idx = col_idx.get('DayTradingForbidden')
+                att_idx = col_idx.get('InAttention')
+                disp_idx = col_idx.get('InDisposal')
 
                 for line in f:
                     parts = line.strip().split('\t')
@@ -77,6 +80,9 @@ def load_speedy_chips():
                                 "mf": to_int(mf_idx), # 主力買賣超 (張數)
                                 "has_cb": bool(cb_idx is not None and cb_idx < len(parts) and parts[cb_idx].strip()),
                                 "has_fut": bool(fut_idx is not None and fut_idx < len(parts) and parts[fut_idx].strip()),
+                                "is_day_trading_forbidden": bool(dtf_idx is not None and dtf_idx < len(parts) and parts[dtf_idx].strip() == '1'),
+                                "in_attention": bool(att_idx is not None and att_idx < len(parts) and parts[att_idx].strip() == '1'),
+                                "in_disposal": bool(disp_idx is not None and disp_idx < len(parts) and parts[disp_idx].strip() == '1'),
                                 "per": to_float(per_idx),
                                 "eps": to_float(eps_idx)
                             }
@@ -269,6 +275,11 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "prev_sma5": round(prev_sma5, 2),
                 "is_5ma_rising": is_5ma_rising,
                 "above_5ma": above_5ma,
+                "is_day_trading_forbidden": real_chips.get('is_day_trading_forbidden', False),
+                "in_attention": real_chips.get('in_attention', False),
+                "in_disposal": real_chips.get('in_disposal', False),
+                "per": real_chips.get('per', 0.0),
+                "eps": real_chips.get('eps', 0.0),
                 "is_bull": trend.get('higher_highs', False) and trend.get('higher_lows', False),
                 "is_bear": trend.get('lower_highs', False) and trend.get('lower_lows', False)
             }
