@@ -296,10 +296,12 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
     _LAST_CACHE_TIME = now
     return analyzed
 
-def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True, filter_no_upper_shadow=False):
+def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True, filter_no_upper_shadow=False, *args, **kwargs):
     """
     高效過濾篩選並按「最佳品質強度 (Quality Score)」由上至下排序 (支援盤中即時行情)
     """
+    if 'filter_no_upper_shadow' in kwargs:
+        filter_no_upper_shadow = kwargs['filter_no_upper_shadow']
     all_stocks = get_all_analyzed_stocks(force_refresh=force_refresh, enable_realtime=enable_realtime)
     filtered = []
 

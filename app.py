@@ -256,7 +256,7 @@ def render_stock_card(item, key_prefix="sc"):
     if swing:
         swing_html = (
             f"<div style='background:#151824; border-left:3px solid #13C2C2; padding:7px 10px; border-radius:6px; font-size:0.82rem; margin-top:6px; color:#E0E6ED;'>"
-            f"<div style='font-weight:bold; color:#13C2C2; margin-bottom:2px;'>🎯 3~5 天短線波段戰術指引：</div>"
+            f"<div style='font-weight:bold; color:#13C2C2; margin-bottom:2px;'>🎯 3-5 天短線波段戰術指引：</div>"
             f"🛑 <b>嚴格停損</b>：守 <b>{swing.get('stop_loss')}</b> 元 (跌破紅K低點即走，風險 -{swing.get('risk_pct')}%)<br>"
             f"🛡️ <b>短線生命線</b>：守 <b>5MA ({swing.get('ma5_defend')} 元)</b> 收盤站穩<br>"
             f"🏁 <b>短線頭壓目標</b>：<b>{swing.get('target_res')}</b> 元 (前波高點，潛在獲利 +{swing.get('reward_pct')}%) | ⚖️ <b>風報比 1 : {swing.get('rr_ratio')}</b>"
@@ -973,7 +973,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     with col_t2:
         main_mode = st.radio(
             "選股大類",
-            ["📈 波段策略 (起漲關鍵)", "⏰ 12:40~13:30 尾盤一點鐘 (短線3~5天首選)", "⚡ 盤中強勢 (量價齊揚)", "💎 長抱標的 (長期多排)"],
+            ["📈 波段策略 (起漲關鍵)", "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)", "⚡ 盤中強勢 (量價齊揚)", "💎 長抱標的 (長期多排)"],
             horizontal=True,
             key="scr_main_mode"
         )
@@ -996,7 +996,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             horizontal=True,
             key="scr_sub_strat"
         )
-        st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40~13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
+        st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
         if "回後準進場" in sub_strat:
             target_strategy = "回後準進場"
         elif "底部起漲" in sub_strat:
@@ -1020,15 +1020,12 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     elif "一點鐘" in main_mode:
         target_strategy = "一點鐘"
 
-    # 價格分級篩選與消除長上影線開關
-    col_p1, col_p2, col_p3 = st.columns([2.2, 1.8, 0.9])
+    # 價格分級篩選
+    col_p1, col_p2 = st.columns([3, 1])
     with col_p1:
         p_filter = st.radio("價格位階篩選", ["全部", "低價 (<30)", "中價 (30-100)", "高價 (100-300)", "超高 (>300)"], horizontal=True, key="scr_price_filter")
         price_val = p_filter.split()[0]
     with col_p2:
-        st.write("")
-        filter_shadow = st.checkbox("🛡️ 消除長上影線 (剔除避雷針，只留飽滿收高)", value=True, help="剔除早盤衝高、尾盤拉回留長上影線（避雷針）的股票，確保 1:00~1:30 尾盤買在真正實體飽滿、收在相對高點的強勢股！")
-    with col_p3:
         st.write("")
         refresh_btn = st.button("⚡ 刷新即時行情", help="立即向證交所批次請求全市場最新盤中價量")
 
@@ -1036,9 +1033,9 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
     with st.spinner(f"正在全市場 186 檔標的中精確篩選【{target_strategy}】(證交所盤中即時模式)..."):
         try:
-            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=refresh_btn, enable_realtime=True, filter_no_upper_shadow=filter_shadow)
+            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=refresh_btn, enable_realtime=True)
         except Exception:
-            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=False, enable_realtime=False, filter_no_upper_shadow=filter_shadow)
+            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=False, enable_realtime=False)
 
     # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
     st.session_state.browsing_stock_list = [item['code'] for item in results]
@@ -1066,7 +1063,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 # ----------------------------------------------------
 elif "鎖股" in menu or "晚間盤後功課" in menu:
     st.header("👁️ 晚間盤後功課 · 鎖股名冊與三階段進場監控")
-    st.caption("🌙 **晚間做功課心法**：每晚檢視【🎯 回檔等上漲】與【📌 等突破】名冊，篩選出拉回測線有守的股票，隔日 **12:40 ~ 13:30 尾盤** 只要確認出轉折紅 K 站上 5MA 即刻進場，賺取 3~5 天短線波段價差！")
+    st.caption("🌙 **晚間做功課心法**：每晚檢視【🎯 回檔等上漲】與【📌 等突破】名冊，篩選出拉回測線有守的股票，隔日 **12:40 - 13:30 尾盤** 只要確認出轉折紅 K 站上 5MA 即刻進場，賺取 3 至 5 天短線波段價差！")
 
     stage_tab = st.radio(
         "鎖股進場三階段監控",
