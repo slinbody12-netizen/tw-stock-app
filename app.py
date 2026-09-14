@@ -952,7 +952,10 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     st.caption("🟢 **證交所官方盤中即時模式已啟動**：每日開盤自動串接最新撮合價，所有均線、黃金交叉與一點鐘選股皆以今日最新成交價即時判定！")
 
     with st.spinner(f"正在全市場 186 檔標的中精確篩選【{target_strategy}】(證交所盤中即時模式)..."):
-        results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=refresh_btn, enable_realtime=True)
+        try:
+            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=refresh_btn, enable_realtime=True)
+        except Exception:
+            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=False, enable_realtime=False)
 
     # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
     st.session_state.browsing_stock_list = [item['code'] for item in results]
@@ -996,7 +999,10 @@ elif menu == "👁️ 鎖股池分階段管理":
     current_stage = "回檔等上漲" if "回檔等上漲" in stage_tab else ("等突破" if "等突破" in stage_tab else "高檔等回檔")
 
     with st.spinner(f"正在載入【{current_stage}】名冊 (盤中即時模式)..."):
-        stage_stocks = scan_stocks(strategy="全部", watchlist_stage=current_stage, limit=40, enable_realtime=True)
+        try:
+            stage_stocks = scan_stocks(strategy="全部", watchlist_stage=current_stage, limit=40, enable_realtime=True)
+        except Exception:
+            stage_stocks = scan_stocks(strategy="全部", watchlist_stage=current_stage, limit=40, enable_realtime=False)
 
     # 記錄鎖股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
     st.session_state.browsing_stock_list = [s['code'] for s in stage_stocks]

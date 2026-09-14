@@ -98,8 +98,8 @@ def calculate_quality_score(s):
     5. 扣除暴漲 2~3 倍高檔風險
     """
     score = 50.0
-    sig = s.get('signals_dict', {})
-    safety = s.get('safety_rating', '')
+    sig = s.get('signals_dict') or {}
+    safety = str(s.get('safety_rating', ''))
 
     # 1. 實戰安全權重
     if "安全首選" in safety:
@@ -128,12 +128,24 @@ def calculate_quality_score(s):
         score -= 15.0
 
     # 4. 當日量價表態
-    if s.get('change_pct', 0) > 0:
+    try:
+        chg_pct = float(s.get('change_pct', 0) or 0)
+    except (ValueError, TypeError):
+        chg_pct = 0.0
+    if chg_pct > 0:
         score += 10.0
-    score += s.get('chili_count', 1) * 6.0
+
+    try:
+        chili = int(s.get('chili_count', 1) or 1)
+    except (ValueError, TypeError):
+        chili = 1
+    score += chili * 6.0
 
     # 5. 主力大戶淨流 (SpeedyAI 真實籌碼加分)
-    mf = s.get('speedy_mf', 0)
+    try:
+        mf = float(s.get('speedy_mf', 0) or 0)
+    except (ValueError, TypeError):
+        mf = 0.0
     if mf > 500:
         score += 20.0
     elif mf > 0:
@@ -147,7 +159,7 @@ def calculate_quality_score(s):
     if sig.get('is_multi_bagger', False):
         score -= 35.0
 
-    return round(score, 1)
+    return round(float(score), 1)
 
 def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
     """
@@ -269,18 +281,22 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
     filtered = []
 
     for s in all_stocks:
-        close_price = s['close']
-        stage = s['watchlist_stage']
-        signals_dict = s['signals_dict']
+        try:
+            close_price = float(s.get('close', 0) or 0)
+        except (ValueError, TypeError):
+            close_price = 0.0
+
+        stage = s.get('watchlist_stage', '觀察中')
+        signals_dict = s.get('signals_dict') or {}
 
         # 1. 價格區間篩選
-        if price_filter == "低價" and close_price >= 30:
+        if "低價" in price_filter and close_price >= 30:
             continue
-        elif price_filter == "中價" and not (30 <= close_price < 100):
+        elif "中價" in price_filter and not (30 <= close_price < 100):
             continue
-        elif price_filter == "高價" and not (100 <= close_price < 300):
+        elif "高價" in price_filter and not (100 <= close_price < 300):
             continue
-        elif price_filter == "超高" and close_price < 300:
+        elif "超高" in price_filter and close_price < 300:
             continue
 
         # 2. 鎖股池階段篩選
@@ -288,16 +304,18 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             continue
 
         # 3. 多空方向篩選
-        if direction == "多" and s['is_bear'] and not signals_dict.get('bottom_breakout', False):
+        is_bear = bool(s.get('is_bear', False))
+        is_bull = bool(s.get('is_bull', False))
+        if direction == "多" and is_bear and not signals_dict.get('bottom_breakout', False):
             continue
-        elif direction == "空" and s['is_bull']:
+        elif direction == "空" and is_bull:
             continue
 
         # 4. 策略精準過濾
         match = False
         if strategy == "全部":
             match = True
-        elif strategy == "頭高底高" and (signals_dict.get('higher_highs_lows', False) or s['is_bull']):
+        elif strategy == "頭高底高" and (signals_dict.get('higher_highs_lows', False) or is_bull):
             match = True
         elif strategy == "回後準進場" and signals_dict.get('pullback_buy', False):
             match = True
@@ -330,7 +348,7 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             filtered.append(s)
 
     # 確保符合條件的所有標的依照品質分數排序
-    filtered.sort(key=lambda x: x['quality_score'], reverse=True)
+    filtered.sort(key=lambda x: float(x.get('quality_score', 0) or 0), reverse=True)
 
     # 為排名前列的股票附加榮譽勳章 (Rank Badge)
     for idx, item in enumerate(filtered):
@@ -347,3 +365,4 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             item['rank_badge'] = f"No.{rank}"
 
     return filtered[:limit]
+

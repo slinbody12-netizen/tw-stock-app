@@ -403,31 +403,49 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
             quote = None
 
     if quote and quote.get('close', 0) > 0 and not df.empty:
-        q_date = quote['date']
-        df_last_date = df['Date'].iloc[-1]
-        
-        # 若當日日K已存在於最後一列，更新為最新盤中撮合值
-        if df_last_date.date() == q_date.date():
-            idx = df.index[-1]
-            df.loc[idx, 'Open'] = quote['open'] if quote['open'] > 0 else df.loc[idx, 'Open']
-            df.loc[idx, 'High'] = max(quote['high'], quote['close'], df.loc[idx, 'High'])
-            df.loc[idx, 'Low'] = min(quote['low'], quote['close'], df.loc[idx, 'Low']) if quote['low'] > 0 else df.loc[idx, 'Low']
-            df.loc[idx, 'Close'] = quote['close']
-            df.loc[idx, 'Volume'] = max(quote['volume'], df.loc[idx, 'Volume'])
-        elif q_date.date() > df_last_date.date():
-            # 歷史日K只到昨收，將今天盤中長出來的最新K棒拼接上去
-            new_candle = pd.DataFrame([{
-                'Date': q_date,
-                'Open': quote['open'] if quote['open'] > 0 else quote['close'],
-                'High': max(quote['high'], quote['close']),
-                'Low': min(quote['low'], quote['close']) if quote['low'] > 0 else quote['close'],
-                'Close': quote['close'],
-                'Volume': quote['volume']
-            }])
-            df = pd.concat([df, new_candle], ignore_index=True)
-            
-        # 重新計算均線與技術指標 (使5MA/20MA與轉折波完全包含今日即時現價)
-        df = calculate_indicators(df)
+        try:
+            q_dt = pd.to_datetime(quote['date'])
+            df_last_dt = pd.to_datetime(df['Date'].iloc[-1])
+
+            q_open = float(quote.get('open', 0) or 0)
+            q_close = float(quote.get('close', 0) or 0)
+            q_high = float(quote.get('high', 0) or 0)
+            q_low = float(quote.get('low', 0) or 0)
+            q_vol = int(quote.get('volume', 0) or 0)
+
+            if q_close > 0:
+                if q_open <= 0: q_open = q_close
+                if q_high <= 0: q_high = max(q_open, q_close)
+                if q_low <= 0: q_low = min(q_open, q_close)
+
+                # 若當日日K已存在於最後一列，更新為最新盤中撮合值
+                if df_last_dt.date() == q_dt.date():
+                    idx = df.index[-1]
+                    cur_h = float(df.loc[idx, 'High']) if pd.notnull(df.loc[idx, 'High']) else q_close
+                    cur_l = float(df.loc[idx, 'Low']) if pd.notnull(df.loc[idx, 'Low']) else q_close
+                    cur_v = int(df.loc[idx, 'Volume']) if pd.notnull(df.loc[idx, 'Volume']) else 0
+
+                    df.loc[idx, 'Open'] = q_open if q_open > 0 else float(df.loc[idx, 'Open'])
+                    df.loc[idx, 'High'] = max(q_high, q_close, cur_h)
+                    df.loc[idx, 'Low'] = min(q_low, q_close, cur_l) if q_low > 0 else cur_l
+                    df.loc[idx, 'Close'] = q_close
+                    df.loc[idx, 'Volume'] = max(q_vol, cur_v)
+                elif q_dt.date() > df_last_dt.date():
+                    # 歷史日K只到昨收，將今天盤中長出來的最新K棒拼接上去
+                    new_candle = pd.DataFrame([{
+                        'Date': q_dt,
+                        'Open': q_open,
+                        'High': max(q_high, q_close),
+                        'Low': min(q_low, q_close),
+                        'Close': q_close,
+                        'Volume': q_vol
+                    }])
+                    df = pd.concat([df, new_candle], ignore_index=True)
+
+                # 重新計算均線與技術指標 (使5MA/20MA與轉折波完全包含今日即時現價)
+                df = calculate_indicators(df)
+        except Exception:
+            pass
 
     # 提取即時摘要資訊
     last_row = df.iloc[-1]
