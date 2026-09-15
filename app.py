@@ -1450,103 +1450,105 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
     ])
 
     with tab_copilot1:
-        st.subheader("🎯 今日全市場唯一首選 · 尾盤進場作戰指示")
-        
+        st.subheader("🎯 今日全市場精選 · 尾盤作戰 Top 5 指示")
+
         c_r1, c_r2 = st.columns([3, 1])
         with c_r1:
-            st.caption("🤖 經技術分析全攻略引擎 5 重嚴格濾網（剔除避雷針、剔除高檔暴漲、剔除重套賣壓、風報比 >= 1.5、5MA翻揚收紅）自動嚴選。")
+            st.caption("🤖 經技術分析全攻略引擎 5 重嚴格濾網（剔除避雷針、剔除高檔暴漲、剔除重套賣壓、風報比 >= 1.1、5MA翻揚收紅）自動嚴選綜合品質最高之 Top 5 標的。")
         with c_r2:
             rec_refresh = st.button("⚡ 重新精選推薦", key="btn_rec_refresh", use_container_width=True)
 
         if 'copilot_rec_data' not in st.session_state or rec_refresh:
-            with st.spinner("AI 副駕駛正在全市場 187 檔股票中層層嚴選今日唯一首選標的..."):
+            with st.spinner("AI 副駕駛正在全市場 187 檔股票中層層嚴選今日 Top 5 首選作戰名冊..."):
                 st.session_state.copilot_rec_data = get_copilot_recommendation(force_refresh=rec_refresh, enable_realtime=True)
         rec_data = st.session_state.copilot_rec_data
 
-        if rec_data.get("has_pick"):
-            rec_code = rec_data['code']
-            rec_name = rec_data['name']
-            rec_price = rec_data['close']
-            rec_chg = rec_data['change_pct']
-            rec_stop = rec_data['stop_loss']
-            rec_target = rec_data['target_price']
-            rec_rr = rec_data['rr_ratio']
-            rec_risk = rec_data['risk_pct']
-            rec_reward = rec_data['reward_pct']
-            rec_strat = rec_data['strategy']
-            rec_chili = "🌶️" * rec_data.get('chili_count', 1)
+        picks = rec_data.get("picks", [])
+        if not picks and rec_data.get("has_pick") and rec_data.get("code"):
+            picks = [rec_data]
 
-            chg_sign = "+" if rec_chg >= 0 else ""
-            chg_color = "#FF4D4F" if rec_chg >= 0 else "#52C41A"
+        if picks:
+            st.markdown(f"<div style='color:#A0AEC0; font-size:0.92rem; margin-bottom:14px;'>📊 今日全市場共嚴選出 <b>{len(picks)}</b> 檔符合朱老師黃金買點之優質標的，依品質分數與風報比由高至低排列：</div>", unsafe_allow_html=True)
+            for p_idx, p in enumerate(picks):
+                p_code = p['code']
+                p_name = p['name']
+                p_price = p['close']
+                p_chg = p['change_pct']
+                p_stop = p['stop_loss']
+                p_target = p['target_price']
+                p_rr = p['rr_ratio']
+                p_risk = p['risk_pct']
+                p_reward = p['reward_pct']
+                p_strat = p['strategy']
+                p_badge = p.get('rank_badge', f'No.{p_idx+1}')
+                p_chili = "🌶️" * p.get('chili_count', 1)
 
-            why_buy_html = "".join([f"<div>• {w}</div>" for w in rec_data.get('why_buy', [])])
-            rec_card_html = (
-                f'<div style="background: #181B26; border: 2px solid #3B82F6; border-radius: 12px; padding: 18px; margin-bottom: 16px;">'
-                f'<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px;">'
-                f'<div>'
-                f'<span style="background: linear-gradient(90deg, #FA8C16, #FF4D4F); color:white; padding:3px 10px; border-radius:6px; font-weight:bold; font-size:0.85rem; margin-right:8px;">👑 今日唯一首選</span>'
-                f'<span style="font-size: 1.55rem; font-weight: bold; color: white;">{rec_name} ({rec_code})</span>'
-                f'<span style="color: #A0AEC0; font-size: 0.95rem; margin-left: 8px;">{rec_data.get("industry", "")} · {rec_strat}</span>'
-                f'</div>'
-                f'<div style="text-align:right;">'
-                f'<span style="font-size: 1.75rem; font-weight: bold; color: {chg_color};">{rec_price:.2f}</span>'
-                f'<span style="font-size: 1.05rem; font-weight: bold; color: {chg_color}; margin-left: 6px;">{chg_sign}{rec_chg:.2f}%</span>'
-                f'<div style="margin-top:2px;">{rec_chili}</div>'
-                f'</div>'
-                f'</div>'
-                f'<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px;">'
-                f'<div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;"><div style="color: #8892B0; font-size: 0.8rem;">操盤線 (5MA)</div><div style="font-size: 1.15rem; font-weight: bold; color: #52C41A;">{rec_data.get("ma5", rec_price):.2f} 元</div></div>'
-                f'<div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;"><div style="color: #8892B0; font-size: 0.8rem;">🛑 嚴格停損價</div><div style="font-size: 1.15rem; font-weight: bold; color: #FF4D4F;">{rec_stop:.2f} 元 (-{rec_risk}%)</div></div>'
-                f'<div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;"><div style="color: #8892B0; font-size: 0.8rem;">🏁 波段目標價</div><div style="font-size: 1.15rem; font-weight: bold; color: #FAAD14;">{rec_target:.2f} 元 (+{rec_reward}%)</div></div>'
-                f'<div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;"><div style="color: #8892B0; font-size: 0.8rem;">⚖️ 風報比 (Reward/Risk)</div><div style="font-size: 1.15rem; font-weight: bold; color: #13C2C2;">1 : {rec_rr}</div></div>'
-                f'</div>'
-                f'<div style="background: #151822; padding: 12px 14px; border-radius: 8px; margin-bottom: 12px;">'
-                f'<div style="font-weight: bold; color: #4FD1C5; margin-bottom: 6px; font-size: 0.95rem;">💡 為什麼今天尾盤買這檔？（副駕駛嚴選理由）：</div>'
-                f'<div style="font-size: 0.9rem; color: #E2E8F0; line-height: 1.7;">{why_buy_html}</div>'
-                f'</div>'
-                f'<div style="background: #262014; border-left: 4px solid #FA8C16; padding: 10px 14px; border-radius: 6px; color: #FFE8CC; font-size: 0.92rem; line-height: 1.6;">{rec_data.get("action_plan", "")}</div>'
-                f'</div>'
-            )
-            st.markdown(rec_card_html, unsafe_allow_html=True)
+                chg_sign = "+" if p_chg >= 0 else ""
+                chg_color = "#FF4D4F" if p_chg >= 0 else "#52C41A"
 
-            with st.expander("👉 我在尾盤下單買了！點此將這檔股票交由【持股守護神】自動盯盤", expanded=False):
-                col_b1, col_b2, col_b3 = st.columns(3)
-                with col_b1:
-                    user_buy_price = st.number_input("您的實際成交價 (元)", value=rec_price, step=0.1, key=f"buy_p_{rec_code}")
-                with col_b2:
-                    user_shares = st.number_input("買進張數 (1張=1000股)", value=1, min_value=1, step=1, key=f"buy_s_{rec_code}")
-                with col_b3:
-                    user_stop_p = st.number_input("自訂防守停損價 (元)", value=rec_stop, step=0.1, key=f"buy_sl_{rec_code}")
+                border_color = "#3B82F6" if p_idx == 0 else "#2F3247"
+                card_bg = "#181B26" if p_idx == 0 else "#161824"
+                badge_bg = "linear-gradient(90deg, #FA8C16, #FF4D4F)" if p_idx == 0 else "#2A1B2D"
 
-                if st.button(f"🚀 確認買進【{rec_name} ({rec_code})】並啟動守護神！", type="primary", use_container_width=True, key=f"confirm_buy_{rec_code}"):
-                    reason_str = f"尾盤首選推薦：{rec_strat}，風報比 1:{rec_rr}"
-                    add_holding(
-                        code=rec_code,
-                        name=rec_name,
-                        buy_price=user_buy_price,
-                        stop_loss=user_stop_p,
-                        target_price=rec_target,
-                        strategy=rec_strat,
-                        buy_reason=reason_str,
-                        shares=user_shares * 1000
-                    )
-                    if "copilot_inspected_cache" in st.session_state:
-                        del st.session_state["copilot_inspected_cache"]
-                    st.success(f"🎉 已將【{rec_name} ({rec_code})】納入【我的持股守護神】！副駕駛將每日為您盯盤守護！")
-                    st.rerun()
+                why_buy_html = "".join([f"<div>• {w}</div>" for w in p.get('why_buy', [])])
+                action_plan_html = f'<div style="background: #262014; border-left: 4px solid #FA8C16; padding: 10px 14px; border-radius: 6px; color: #FFE8CC; font-size: 0.92rem; line-height: 1.6; margin-top: 10px;">{p.get("action_plan", "")}</div>' if p.get("action_plan") else ""
 
-            if rec_data.get("alternative_picks"):
-                with st.expander("📌 今日備選標的觀察名單 (Top 2~3)", expanded=False):
-                    alt_cols = st.columns(len(rec_data["alternative_picks"]))
-                    for idx, alt in enumerate(rec_data["alternative_picks"]):
-                        with alt_cols[idx]:
-                            st.markdown(f"""
-                            <div style="background:#1E202E; border:1px solid #33364D; border-radius:8px; padding:10px 12px;">
-                                <div style="font-weight:bold; font-size:1.05rem; color:white;">{alt['name']} ({alt['code']})</div>
-                                <div style="font-size:0.9rem; color:#AAA; margin:4px 0;">收盤：<b>{alt['close']}</b> ({'+' if alt['change_pct']>=0 else ''}{alt['change_pct']}%)</div>
-                                <div style="font-size:0.82rem; color:#4FD1C5;">策略：{alt['strategy']} | 風報比：1:{alt['rr']}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                card_html = (
+                    f'<div style="background: {card_bg}; border: 2px solid {border_color}; border-radius: 12px; padding: 18px; margin-bottom: 14px;">'
+                    f'<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px;">'
+                    f'<div>'
+                    f'<span style="background: {badge_bg}; color:white; padding:3px 10px; border-radius:6px; font-weight:bold; font-size:0.85rem; margin-right:8px;">{p_badge}</span>'
+                    f'<span style="font-size: 1.55rem; font-weight: bold; color: white;">{p_name} ({p_code})</span>'
+                    f'<span style="color: #A0AEC0; font-size: 0.95rem; margin-left: 8px;">{p.get("industry", "")} · {p_strat}</span>'
+                    f'</div>'
+                    f'<div style="text-align:right;">'
+                    f'<span style="font-size: 1.75rem; font-weight: bold; color: {chg_color};">{p_price:.2f}</span>'
+                    f'<span style="font-size: 1.05rem; font-weight: bold; color: {chg_color}; margin-left: 6px;">{chg_sign}{p_chg:.2f}%</span>'
+                    f'<div style="margin-top:2px;">{p_chili}</div>'
+                    f'</div>'
+                    f'</div>'
+                    f'<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px;">'
+                    f'<div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;"><div style="color: #8892B0; font-size: 0.8rem;">操盤線 (5MA)</div><div style="font-size: 1.15rem; font-weight: bold; color: #52C41A;">{p.get("ma5", p_price):.2f} 元</div></div>'
+                    f'<div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;"><div style="color: #8892B0; font-size: 0.8rem;">🛑 嚴格停損價</div><div style="font-size: 1.15rem; font-weight: bold; color: #FF4D4F;">{p_stop:.2f} 元 (-{p_risk}%)</div></div>'
+                    f'<div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;"><div style="color: #8892B0; font-size: 0.8rem;">🏁 波段目標價</div><div style="font-size: 1.15rem; font-weight: bold; color: #FAAD14;">{p_target:.2f} 元 (+{p_reward}%)</div></div>'
+                    f'<div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;"><div style="color: #8892B0; font-size: 0.8rem;">⚖️ 風報比 (Reward/Risk)</div><div style="font-size: 1.15rem; font-weight: bold; color: #13C2C2;">1 : {p_rr}</div></div>'
+                    f'</div>'
+                    f'<div style="background: #151822; padding: 12px 14px; border-radius: 8px; margin-bottom: 12px;">'
+                    f'<div style="font-weight: bold; color: #4FD1C5; margin-bottom: 6px; font-size: 0.95rem;">💡 為什麼今天尾盤買這檔？（副駕駛嚴選理由）：</div>'
+                    f'<div style="font-size: 0.9rem; color: #E2E8F0; line-height: 1.7;">{why_buy_html}</div>'
+                    f'</div>'
+                    f'{action_plan_html}'
+                    f'</div>'
+                )
+                st.markdown(card_html, unsafe_allow_html=True)
+
+                with st.expander(f"👉 我在尾盤下單買了【{p_name}】！點此將這檔交由【持股守護神】自動盯盤", expanded=False):
+                    col_b1, col_b2, col_b3 = st.columns(3)
+                    with col_b1:
+                        user_buy_price = st.number_input("您的實際成交價 (元)", value=p_price, step=0.1, key=f"buy_p_{p_code}_{p_idx}")
+                    with col_b2:
+                        user_shares = st.number_input("買進張數 (1張=1000股)", value=1, min_value=1, step=1, key=f"buy_s_{p_code}_{p_idx}")
+                    with col_b3:
+                        user_stop_p = st.number_input("自訂防守停損價 (元)", value=p_stop, step=0.1, key=f"buy_sl_{p_code}_{p_idx}")
+
+                    if st.button(f"🚀 確認買進【{p_name} ({p_code})】並啟動守護神！", type="primary", use_container_width=True, key=f"confirm_buy_{p_code}_{p_idx}"):
+                        reason_str = f"尾盤 Top {p_idx+1} 精選：{p_strat}，風報比 1:{p_rr}"
+                        add_holding(
+                            code=p_code,
+                            name=p_name,
+                            buy_price=user_buy_price,
+                            stop_loss=user_stop_p,
+                            target_price=p_target,
+                            strategy=p_strat,
+                            buy_reason=reason_str,
+                            shares=user_shares * 1000
+                        )
+                        if "copilot_inspected_cache" in st.session_state:
+                            del st.session_state["copilot_inspected_cache"]
+                        st.success(f"🎉 已將【{p_name} ({p_code})】納入【我的持股守護神】！副駕駛將每日為您盯盤守護！")
+                        st.rerun()
+
+                st.markdown("<div style='margin-bottom: 16px;'></div>", unsafe_allow_html=True)
         else:
             st.warning(rec_data.get("advice_title", "今日建議空手觀望"))
             st.info(rec_data.get("advice_detail", ""))

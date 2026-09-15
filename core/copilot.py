@@ -112,13 +112,14 @@ def delete_holding(holding_id: str) -> bool:
 # ========================================================
 def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: bool = True) -> dict:
     """
-    全自動運算今日 12:40 - 13:30 尾盤作戰唯一首選指示
+    全自動運算今日 12:40 - 13:30 尾盤作戰精選 Top 5 作戰名冊
     嚴格遵循朱家泓實戰鐵律：
-    1. 必須是做多波段之精華（回後準進場首選，或底部放量起漲）
-    2. 操盤線 5MA 必須走平向上，收盤穩穩站上 5MA
-    3. 實體紅K飽滿，剔除長上影線（避雷針）
-    4. 剔除已大漲 2 倍以上高檔風險股
-    5. 前方無未化解爆量黑K重壓，風報比 >= 1.5
+    1. 做多轉折波精華（回後買上漲首選、底部放量起漲、均線糾結突破、多頭排列起跑）
+    2. 操盤線 5MA 走平向上，收盤站穩 5MA
+    3. 拒絕避雷針（長上影線主力出貨）
+    4. 拒絕暴漲 2 倍以上高檔風險股
+    5. 安全評級排除嚴禁追高，風報比健康
+    6. 依品質分數與風報比嚴選 Top 1 ~ Top 5
     """
     candidates = scan_stocks(strategy="全部", direction="多", limit=100, force_refresh=force_refresh, enable_realtime=enable_realtime)
     
@@ -128,10 +129,13 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         swing = sig.get('swing_3_5d', {})
         c = float(s.get('close', 0))
         
-        # 1. 策略必須是回後買進或底部起漲
+        # 1. 策略必須是做多攻擊/轉折型態之一
         is_pullback = sig.get('pullback_buy', False)
-        is_bottom = sig.get('bottom_breakout', False)
-        if not (is_pullback or is_bottom):
+        is_bottom = sig.get('bottom_breakout', False) or sig.get('consolidation_breakout_imminent', False)
+        is_bull_break = (sig.get('higher_highs_lows', False) or s.get('is_bull', False)) and float(s.get('change_pct', 0)) >= 0
+        is_gold_cross = sig.get('golden_cross_5_20', False)
+        
+        if not (is_pullback or is_bottom or is_bull_break or is_gold_cross):
             continue
             
         # 2. 操盤線 5MA 走升且收盤站穩 5MA
@@ -146,100 +150,132 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         if sig.get('is_multi_bagger', False):
             continue
             
-        # 5. 安全評級必須是安全首選
+        # 5. 安全評級排除嚴禁追高
         safety = s.get('safety_rating', '')
         if "嚴禁" in safety:
             continue
             
-        # 6. 風報比檢驗
+        # 6. 風報比檢驗 (至少 1.1 以上)
         rr = float(swing.get('rr_ratio', 0))
-        if rr < 1.3:
+        if rr < 1.1:
             continue
             
         # 優先分數加權
         score = float(s.get('quality_score', 0))
         if is_pullback:
             score += 25  # 回後準進場是尾盤最高勝率型態
+        elif is_bottom:
+            score += 20  # 底部突破
+        elif is_gold_cross:
+            score += 15
         if s.get('chili_count', 1) >= 2:
             score += 15  # 主力動能支持
         if rr >= 2.0:
             score += 20  # 風報比極佳
+        elif rr >= 1.5:
+            score += 10
             
         qualified.append({
             "stock": s,
             "score": score,
             "is_pullback": is_pullback,
+            "is_bottom": is_bottom,
             "rr": rr
         })
         
     if not qualified:
         return {
             "has_pick": False,
+            "picks": [],
             "advice_title": "🛑 今日大盤偏弱或無完美訊號，建議【空手觀望，現金為王】",
-            "advice_detail": "經技術分析全攻略引擎 5 重嚴格濾網檢驗，全市場今日無符合「回後測線有守且風報比 >= 1.5」的極致買點。朱老師心法：『看不懂不買、沒條件不買』，寧可錯過也不要貿然追高！"
+            "advice_detail": "經技術分析全攻略引擎 5 重嚴格濾網檢驗，全市場今日無符合「回後測線有守且風報比合格」之安全買點。朱老師心法：『看不懂不買、沒條件不買』，寧可錯過也不要貿然追高！"
         }
         
     # 依加權分數排序
     qualified.sort(key=lambda x: x['score'], reverse=True)
-    top = qualified[0]['stock']
-    top_sig = top.get('signals_dict', {})
-    top_swing = top_sig.get('swing_3_5d', {})
+    top_items = qualified[:5]
     
-    close_p = float(top['close'])
-    stop_p = float(top_swing.get('stop_loss', close_p * 0.95))
-    target_p = float(top_swing.get('target_res', close_p * 1.10))
-    risk_pct = round(((close_p - stop_p) / close_p) * 100, 1)
-    reward_pct = round(((target_p - close_p) / close_p) * 100, 1)
-    strategy_name = "回後準進場 (回後買上漲)" if qualified[0]['is_pullback'] else "底部起漲 (放量起跑點)"
+    badges = [
+        "👑 No.1 唯一首選",
+        "🥈 No.2 戰術精選",
+        "🥉 No.3 戰術精選",
+        "🎖️ No.4 戰術精選",
+        "🎖️ No.5 戰術精選"
+    ]
     
-    reasons = []
-    if qualified[0]['is_pullback']:
-        reasons.append("🎯 **拉回測線有守**：前幾日回測均線支撐未跌破，今日轉折紅K確認站回 5MA 操盤線。")
-    else:
-        reasons.append("🌱 **低檔首根放量起跑**：橫盤打底完成，首度出量紅K突破均線糾結。")
+    picks = []
+    for idx, item in enumerate(top_items):
+        stk = item['stock']
+        stk_sig = stk.get('signals_dict', {})
+        stk_swing = stk_sig.get('swing_3_5d', {})
+        close_p = float(stk['close'])
+        stop_p = float(stk_swing.get('stop_loss', close_p * 0.95))
+        target_p = float(stk_swing.get('target_res', close_p * 1.10))
+        risk_pct = round(((close_p - stop_p) / close_p) * 100, 1)
+        reward_pct = round(((target_p - close_p) / close_p) * 100, 1)
         
-    reasons.append("📈 **操盤線翻揚助漲**：5MA 正式走平或翻揚向上，短線多頭慣性啟動。")
-    reasons.append(f"⚖️ **絕佳風報比 1 : {top_swing.get('rr_ratio', 2.0)}**：下方防守空間僅 -{risk_pct}%，上方前高頸線潛在報酬 +{reward_pct}%。")
-    if top.get('chili_count', 1) >= 2:
-        reasons.append(f"🌶️ **主力籌碼支持**：獲得主力特定買盤推升，動能評級達 {top.get('chili_count')} 根辣椒。")
+        strat_name = "回後準進場 (回後買上漲)" if item['is_pullback'] else ("底部起漲 (放量起跑點)" if item.get('is_bottom') else "多頭確認 (強勢起漲)")
         
-    action_plan = (
-        f"⏰ **實戰操作指引**：今日 **12:40 - 13:30 尾盤**，若股價維持在 **{close_p} 元附近（收盤站穩 5MA）**，"
-        f"即可於尾盤現價進場；進場後嚴格遵守紀律，以 **{stop_p} 元** 為短線停損點（跌破無條件離場），"
-        f"波段目標先看前波壓力 **{target_p} 元**！"
-    )
-    
-    alt_list = []
-    for item in qualified[1:3]:
-        alt_s = item['stock']
-        alt_list.append({
-            "code": alt_s['code'],
-            "name": alt_s['name'],
-            "close": alt_s['close'],
-            "change_pct": alt_s['change_pct'],
-            "strategy": "回後準進場" if item['is_pullback'] else "底部起漲",
-            "rr": item['rr']
+        reasons = []
+        if item['is_pullback']:
+            reasons.append("🎯 <b>拉回測線有守</b>：前幾日回測均線支撐未跌破，今日轉折紅K確認站回 5MA 操盤線。")
+        elif item.get('is_bottom'):
+            reasons.append("🌱 <b>低檔放量起跑</b>：橫盤打底完成，首度出量紅K突破均線糾結。")
+        else:
+            reasons.append("🔥 <b>多頭排列攻擊</b>：均線多頭排列，股價站穩 5MA 展開波段推升。")
+            
+        reasons.append(f"📈 <b>操盤線翻揚助漲</b>：5MA 走平或翻揚向上，短線多頭慣性強勁。")
+        reasons.append(f"⚖️ <b>絕佳風報比 1 : {stk_swing.get('rr_ratio', item['rr'])}</b>：下方防守空間僅 -{risk_pct}%，上方前高頸線潛在報酬 +{reward_pct}%。")
+        if stk.get('chili_count', 1) >= 2:
+            reasons.append(f"🌶️ <b>主力籌碼支持</b>：獲得主力特定買盤推升，動能評級達 {stk.get('chili_count')} 根辣椒。")
+            
+        action_plan = (
+            f"⏰ <b>實戰操作指引</b>：今日 <b>12:40 - 13:30 尾盤</b>，若股價維持在 <b>{close_p} 元附近（收盤站穩 5MA）</b>，"
+            f"即可於尾盤現價進場；進場後嚴格遵守紀律，以 <b>{stop_p} 元</b> 為短線停損防守點（跌破無條件離場），"
+            f"波段目標先看前波壓力 <b>{target_p} 元</b>！"
+        )
+        
+        picks.append({
+            "rank": idx + 1,
+            "rank_badge": badges[idx] if idx < len(badges) else f"No.{idx+1} 戰術精選",
+            "code": stk['code'],
+            "name": stk['name'],
+            "market": stk.get('market', 'TW'),
+            "industry": stk.get('industry', ''),
+            "close": close_p,
+            "change_pct": stk['change_pct'],
+            "strategy": strat_name,
+            "stop_loss": stop_p,
+            "target_price": target_p,
+            "risk_pct": risk_pct,
+            "reward_pct": reward_pct,
+            "rr_ratio": stk_swing.get('rr_ratio', item['rr']),
+            "ma5": stk.get('sma5', close_p),
+            "chili_count": stk.get('chili_count', 1),
+            "why_buy": reasons,
+            "action_plan": action_plan
         })
         
+    top = picks[0]
     return {
         "has_pick": True,
+        "picks": picks,
         "code": top['code'],
         "name": top['name'],
-        "market": top.get('market', 'TW'),
-        "industry": top.get('industry', ''),
-        "close": close_p,
+        "market": top['market'],
+        "industry": top['industry'],
+        "close": top['close'],
         "change_pct": top['change_pct'],
-        "strategy": strategy_name,
-        "stop_loss": stop_p,
-        "target_price": target_p,
-        "risk_pct": risk_pct,
-        "reward_pct": reward_pct,
-        "rr_ratio": top_swing.get('rr_ratio', 2.0),
-        "ma5": top.get('sma5', close_p),
-        "chili_count": top.get('chili_count', 1),
-        "why_buy": reasons,
-        "action_plan": action_plan,
-        "alternative_picks": alt_list
+        "strategy": top['strategy'],
+        "stop_loss": top['stop_loss'],
+        "target_price": top['target_price'],
+        "risk_pct": top['risk_pct'],
+        "reward_pct": top['reward_pct'],
+        "rr_ratio": top['rr_ratio'],
+        "ma5": top['ma5'],
+        "chili_count": top['chili_count'],
+        "why_buy": top['why_buy'],
+        "action_plan": top['action_plan']
     }
 
 # ========================================================

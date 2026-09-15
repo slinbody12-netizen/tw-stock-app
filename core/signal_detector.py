@@ -406,9 +406,18 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # ----------------------------------------------------
     # 短線 3~5 天波段價差專屬操盤卡 (量身打造風報比與停損停利)
     # ----------------------------------------------------
+    # 若前高壓力小於或等於現價（代表已突破或在歷史高點），目標價依朱家泓「等幅對稱波」或 +10% 測距滿足點
+    if res_price <= c * 1.02:
+        calc_target = round(c + max(c * 0.08, c - sup_price), 2)
+    else:
+        calc_target = res_price
+
     stop_loss = round(min(l, sup_price), 2)
+    if stop_loss >= c:
+        stop_loss = round(c * 0.95, 2)
+
     risk = max(0.01, c - stop_loss)
-    reward = max(0.01, res_price - c)
+    reward = max(0.01, calc_target - c)
     rr_ratio = round(reward / risk, 1)
     risk_pct = round((risk / c) * 100, 1)
     reward_pct = round((reward / c) * 100, 1)
@@ -416,7 +425,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     signals_dict['swing_3_5d'] = {
         "stop_loss": stop_loss,
         "ma5_defend": sma5,
-        "target_res": res_price,
+        "target_res": calc_target,
         "rr_ratio": rr_ratio,
         "risk_pct": risk_pct,
         "reward_pct": reward_pct
