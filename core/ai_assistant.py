@@ -357,11 +357,12 @@ def answer_general_ta_question(query: str) -> str:
 💡 **助教貼心提示**：
 如果您想請助教診斷**具體某檔股票**（例如想知道目前能不能買、支撐壓力在哪裡），請在問題中附上**股票代號或名稱**（例如：「*請問 2330 目前適合進場嗎？*」或「*請問 2851 在 8/26 為什麼不適合買？*」），助教將立即為您重現該股票的詳細技術面診斷與應對劇本！"""
 
-def diagnose_stock_deeply(code: str, query: str = "", as_of_date: str = None):
+def diagnose_stock_deeply(code: str, query: str = "", as_of_date: str = None, df_raw=None, info=None):
     """
     深度診斷股票技術面，支援「歷史覆盤時光機」切片
     """
-    df_raw, info = fetch_stock_kline(code, period="1y")
+    if df_raw is None or info is None:
+        df_raw, info = fetch_stock_kline(code, period="1y")
     if df_raw.empty or "error" in info:
         return None
 
@@ -537,7 +538,9 @@ def answer_question(user_query: str, stock_context: dict = None, as_of_date: str
     # 1. 若明確指定個股或代號（例如提問中含有 2851、台積電，或明確指稱「這檔」）：
     # 優先執行深度個股技術面診斷與歷史時光機覆盤
     if has_explicit_stock:
-        diag = diagnose_stock_deeply(target_code, q, as_of_date=as_of_date)
+        df_ctx = stock_context.get('df') if (stock_context and stock_context.get('code') == target_code) else None
+        info_ctx = stock_context.get('info') if (stock_context and stock_context.get('code') == target_code) else None
+        diag = diagnose_stock_deeply(target_code, q, as_of_date=as_of_date, df_raw=df_ctx, info=info_ctx)
         if diag:
             response_lines = []
             response_lines.append("### 🧑‍🏫 【技術分析實戰助教 · 實戰解答】")

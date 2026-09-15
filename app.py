@@ -20,8 +20,8 @@ from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, 
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
-from core.screener import scan_stocks
-from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query
+from core.screener import scan_stocks, load_speedy_chips
+from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query, diagnose_stock_deeply
 
 st.set_page_config(
     page_title="技術分析全攻略 - 股票趨勢與轉折波系統",
@@ -62,6 +62,49 @@ st.markdown("""
         border-radius: 8px;
         border: 1px solid #2F3247;
         margin-bottom: 12px;
+    }
+    /* 手機優先 Tabs 模組化導航樣式 */
+    div[data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #1A1C29;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid #2F3247;
+        margin-bottom: 14px;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    div[data-baseweb="tab"] {
+        padding: 10px 18px;
+        font-size: 0.98rem;
+        font-weight: 600;
+        color: #A0AEC0;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    div[data-baseweb="tab"]:hover {
+        color: #FFFFFF;
+        background-color: #26293D;
+    }
+    div[data-baseweb="tab"][aria-selected="true"] {
+        background-color: #2D3748 !important;
+        color: #FFFFFF !important;
+        border-bottom: 3px solid #FF4D4F;
+    }
+    .chip-card {
+        background: #202231;
+        border: 1px solid #33364D;
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 12px;
+        text-align: center;
+    }
+    .ai-card {
+        background: #1E2235;
+        border-left: 5px solid #3B82F6;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 14px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -313,7 +356,49 @@ def render_stock_card(item, key_prefix="sc"):
     with c_btn2:
         if st.button("👁️ 追蹤鎖股", key=f"btn_watch_{key_prefix}_{item['code']}", use_container_width=True):
             st.toast(f"已將 {item['name']} ({item['code']}) 加入即時追蹤鎖股池！")
-    st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
+def compute_ta_indicators(df_in):
+    """為重採樣之週K/月K計算標準均線與技術指標"""
+    d = df_in.copy()
+    d['SMA_5'] = d['Close'].rolling(5).mean()
+    d['SMA_10'] = d['Close'].rolling(10).mean()
+    d['SMA_20'] = d['Close'].rolling(20).mean()
+    d['SMA_60'] = d['Close'].rolling(60).mean()
+    d['Vol_MA20'] = d['Volume'].rolling(20).mean()
+
+    # KD (9, 3, 3)
+    low_9 = d['Low'].rolling(9).min()
+    high_9 = d['High'].rolling(9).max()
+    rsv = ((d['Close'] - low_9) / (high_9 - low_9 + 1e-8) * 100).fillna(50)
+    k_vals = []
+    d_vals = []
+    k_prev, d_prev = 50.0, 50.0
+    for r in rsv:
+        k_curr = (2/3) * k_prev + (1/3) * r
+        d_curr = (2/3) * d_prev + (1/3) * k_curr
+        k_vals.append(k_curr)
+        d_vals.append(d_curr)
+        k_prev, d_prev = k_curr, d_curr
+    d['K'] = k_vals
+    d['D'] = d_vals
+
+    # MACD (12, 26, 9)
+    ema12 = d['Close'].ewm(span=12, adjust=False).mean()
+    ema26 = d['Close'].ewm(span=26, adjust=False).mean()
+    d['DIF'] = ema12 - ema26
+    d['MACD'] = d['DIF'].ewm(span=9, adjust=False).mean()
+    d['MACD_Hist'] = (d['DIF'] - d['MACD']) * 2
+
+    # RSI (3, 6)
+    delta = d['Close'].diff()
+    up = delta.clip(lower=0)
+    down = -1 * delta.clip(upper=0)
+    ema_up3 = up.ewm(com=2, adjust=False).mean()
+    ema_down3 = down.ewm(com=2, adjust=False).mean()
+    d['RSI_3'] = 100 - (100 / (1 + (ema_up3 / (ema_down3 + 1e-8))))
+    ema_up6 = up.ewm(com=5, adjust=False).mean()
+    ema_down6 = down.ewm(com=5, adjust=False).mean()
+    d['RSI_6'] = 100 - (100 / (1 + (ema_up6 / (ema_down6 + 1e-8))))
+    return d
 
 def get_market_condition():
     """
@@ -478,30 +563,14 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
     st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
-    c_ctrl1, c_ctrl2, c_ctrl3, c_ctrl4, c_ctrl5 = st.columns([2, 1.8, 1.8, 1.8, 1.2])
-    with c_ctrl1:
-        ma_mode = st.radio("轉折基準均線", ["5MA (短線)", "10MA (中線)", "20MA (長線)"], horizontal=True)
-        ma_period = 5 if "5MA" in ma_mode else (10 if "10MA" in ma_mode else 20)
-    with c_ctrl2:
-        filter_opt = st.selectbox("轉折波濾網", ["主要波段 (清爽推薦)", "完整細微轉折"], index=0)
-        filter_mode = "standard" if "主要波段" in filter_opt else "all"
-    with c_ctrl3:
-        view_bars = st.selectbox("每屏顯示K棒數", ["45日 (最佳比例，最清晰)", "70日", "全區間"], index=0)
-    with c_ctrl4:
-        sub_chart_type = st.selectbox("副圖指標", ["成交量 + 20MA量線", "KD (9,3,3)", "MACD (12,26,9)", "RSI (3,6,14)"], index=0)
-    with c_ctrl5:
-        st.write("")
-        st.write("")
-        if st.button("⚡ 刷新即時", use_container_width=True, help="立即向證交所請求最新盤中撮合價量"):
-            st.rerun()
-
     with st.spinner(f"正在分析 {query} ..."):
         df, info = fetch_stock_kline(query, period="1y")
 
     if df.empty or "error" in info:
         st.error(f"❌ 無法讀取股票數據: {info.get('error', '未知錯誤')}，請確認代碼或名稱是否正確。")
     else:
-        points, lines, highest_peak, lowest_trough = calculate_turning_points(df, ma_period=ma_period, filter_mode=filter_mode)
+        # 初始計算：以 5MA 短線轉折標準為基準
+        points, lines, highest_peak, lowest_trough = calculate_turning_points(df, ma_period=5, filter_mode="standard")
         trend = analyze_trend(df, points)
         signals_dict, signals_list = detect_signals(df, trend)
 
@@ -526,21 +595,22 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             bagger_m = signals_dict.get('bagger_multiple', 2.0)
             extra_badges += f"<span class='tag-badge' style='background:#EB2F96;'>⚠️ 波段已大漲 {bagger_m} 倍</span>"
 
+        # 頂部個股精緻大卡片 (手機自適應排版)
         header_html = (
             f'<div class="main-header">'
-            f'<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">'
+            f'<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
             f'<div>'
-            f'<h2 style="margin: 0; display: inline-block;">{info["name"]} ({info["code"]})</h2> '
-            f'<span class="tag-badge" style="background: #3B5998; margin-left: 8px;">{info["industry"]}</span> '
+            f'<h2 style="margin: 0; display: inline-block; font-size: 1.65rem;">{info["name"]} ({info["code"]})</h2> '
+            f'<span class="tag-badge" style="background: #3B5998; margin-left: 6px;">{info["industry"]}</span> '
             f'<span class="tag-badge" style="background: {trend["trend_color"]};">{trend["trend_badge"]}</span> '
             f'{rt_badge} '
             f'{extra_badges}'
-            f'<div style="margin-top: 6px;">'
-            f'<span style="font-size: 2.2rem; font-weight: bold; color: {price_color};">{info["close"]}</span> '
-            f'<span style="font-size: 1.15rem; font-weight: bold; color: {price_color}; margin-left: 8px;">{sign}{info["change"]} ({sign}{info["change_pct"]}%)</span>'
+            f'<div style="margin-top: 4px;">'
+            f'<span style="font-size: 2.1rem; font-weight: bold; color: {price_color};">{info["close"]}</span> '
+            f'<span style="font-size: 1.1rem; font-weight: bold; color: {price_color}; margin-left: 8px;">{sign}{info["change"]} ({sign}{info["change_pct"]}%)</span>'
             f'</div>'
             f'</div>'
-            f'<div style="text-align: right; font-size: 0.92rem; color: #BBB;">'
+            f'<div style="text-align: right; font-size: 0.88rem; color: #BBB;">'
             f'<div>最高：<b style="color: #FF4D4F;">{info["high"]}</b> | 最低：<b style="color: #52C41A;">{info["low"]}</b></div>'
             f'<div>開盤：{info["open"]} | 昨收：{info["prev_close"]}</div>'
             f'<div>成交量：<b>{info["volume_str"]}</b> | 日期：{info["latest_date"]}</div>'
@@ -550,399 +620,416 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
         )
         st.markdown(header_html, unsafe_allow_html=True)
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1:
-            st.markdown(f"<div class='metric-box'><div style='color:#AAA;'>趨勢架構</div><div style='font-size:1.05rem; font-weight:bold; color:{trend['trend_color']};'>{trend['trend_status']}</div></div>", unsafe_allow_html=True)
-        with c2:
-            st.markdown(f"<div class='metric-box'><div style='color:#AAA;'>壓力線 (前高)</div><div style='font-size:1.25rem; font-weight:bold; color:#FF922B;'>{trend['resistance']}</div></div>", unsafe_allow_html=True)
-        with c3:
-            st.markdown(f"<div class='metric-box'><div style='color:#AAA;'>支撐線 (前低)</div><div style='font-size:1.25rem; font-weight:bold; color:#FFA94D;'>{trend['support']}</div></div>", unsafe_allow_html=True)
-        with c4:
-            hp_text = f"{highest_peak['price']} ({highest_peak['date'].strftime('%m/%d')})" if highest_peak else "無"
-            st.markdown(f"<div class='metric-box'><div style='color:#AAA;'>🏆 區間最高頭</div><div style='font-size:1.2rem; font-weight:bold; color:#FF4D4F;'>{hp_text}</div></div>", unsafe_allow_html=True)
-        with c5:
-            lt_text = f"{lowest_trough['price']} ({lowest_trough['date'].strftime('%m/%d')})" if lowest_trough else "無"
-            st.markdown(f"<div class='metric-box'><div style='color:#AAA;'>⚓ 區間最低底</div><div style='font-size:1.2rem; font-weight:bold; color:#52C41A;'>{lt_text}</div></div>", unsafe_allow_html=True)
+        # 📱 手機優先：4 大模組化分頁切換 (一頁只專注一件事，告別無限滾動)
+        tab_tech, tab_kline, tab_chips, tab_ai = st.tabs([
+            "🎯 技術分析 (頭底/壓力支撐)",
+            "📈 K線全指標 (多週期/副圖)",
+            "💼 主力籌碼 (法人/扣抵)",
+            "🧑‍🏫 AI 助教 (深度診斷/提問)"
+        ])
 
-        # 盤整與高檔警示
-        if signals_dict.get('consolidation_breakout_imminent', False):
-            st.success("⏳ **【盤整末端即將表態預警】**：目前均線高度糾結、成交量極度萎縮至窒息量，且收盤逼近箱頂！實戰操盤心法：耐心等待第一根放量突破長紅棒，即為起漲關鍵進場點！")
-        elif signals_dict.get('is_consolidation', False):
-            st.warning("⏸️ **【目前進入箱型盤整】**：尚未走出底底高或頭頭高，無明確多空方向。實戰操盤心法：盤整期趨勢線與操盤線暫停使用，嚴禁躁進追價，觀望等待突破！")
-        if signals_dict.get('is_multi_bagger', False):
-            st.error(f"⚠️ **【波段暴漲 {signals_dict['bagger_multiple']:.1f} 倍高檔警示】**：本檔股票波段低點至今累計漲幅達 {int((signals_dict['bagger_multiple']-1)*100)}%！實戰操盤心法：非底部起漲，高檔隨時有獲利了結賣壓，嚴禁長抱，僅限極短線嚴格停損操作！")
+        # =========================================================================
+        # TAB 1: 🎯 技術分析 (頭底/壓力支撐) - 老朱 App 1:1 核心視覺
+        # =========================================================================
+        with tab_tech:
+            # 5 大核心技術面指標盒
+            c1, c2, c3, c4, c5 = st.columns(5)
+            with c1:
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>趨勢架構</div><div style='font-size:1.05rem; font-weight:bold; color:{trend['trend_color']};'>{trend['trend_status']}</div></div>", unsafe_allow_html=True)
+            with c2:
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>壓力線 (前高)</div><div style='font-size:1.25rem; font-weight:bold; color:#FF922B;'>{trend['resistance']}</div></div>", unsafe_allow_html=True)
+            with c3:
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>支撐線 (前低)</div><div style='font-size:1.25rem; font-weight:bold; color:#FFA94D;'>{trend['support']}</div></div>", unsafe_allow_html=True)
+            with c4:
+                hp_text = f"{highest_peak['price']} ({highest_peak['date'].strftime('%m/%d')})" if highest_peak else "無"
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>🏆 區間最高頭</div><div style='font-size:1.15rem; font-weight:bold; color:#FF4D4F;'>{hp_text}</div></div>", unsafe_allow_html=True)
+            with c5:
+                lt_text = f"{lowest_trough['price']} ({lowest_trough['date'].strftime('%m/%d')})" if lowest_trough else "無"
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>⚓ 區間最低底</div><div style='font-size:1.15rem; font-weight:bold; color:#52C41A;'>{lt_text}</div></div>", unsafe_allow_html=True)
 
-        # 買兩張策略指引
-        two_tr = signals_dict.get('two_tranches', {})
-        if two_tr.get('advice'):
-            st.info(f"💡 **【買兩張（長短配）實戰操盤指引】**：{two_tr['advice']}")
+            # 老朱 App 目標價機制判斷 (未突破前高壓力前暫不啟動，過壓才啟動滿足點)
+            has_broken_res = (info['close'] >= trend['resistance']) if trend.get('resistance') else False
+            if trend.get('target'):
+                if has_broken_res:
+                    st.success(f"🚀 **【目標價已正式啟動！】** 收盤價 ({info['close']} 元) 已成功站上壓力線 ({trend['resistance']} 元)！波段 N 字等距對稱目標價上看：**{trend['target']}** 元！")
+                else:
+                    st.info(f"🔒 **【目標價機制】** 目前股價 ({info['close']} 元) 尚未突破壓力線 ({trend['resistance']} 元)，波段等距目標價 ({trend['target']} 元) 暫未啟動。（老朱心法：過壓才算起漲，未過壓前依箱型區間操作，嚴禁預設立場！）")
 
-        # ----------------------------------------------------
-        # 實戰心法：大盤強弱動態資金配置計算機
-        # ----------------------------------------------------
-        with st.expander("💵 【動態資金配置計算機】(依大盤強弱動態調配持股成數 & 均分 3~5 檔)", expanded=False):
-            mkt = get_market_condition()
-            st.markdown(f"**當前大盤評估 ({mkt['date']})**：<span style='font-size:1.05rem; font-weight:bold;'>{mkt['status']}</span><br><span style='color:#AAA; font-size:0.88rem;'>{mkt['reason']}</span>", unsafe_allow_html=True)
+            # 盤整與警示訊息
+            if signals_dict.get('consolidation_breakout_imminent', False):
+                st.success("⏳ **【盤整末端即將表態預警】**：目前均線高度糾結、成交量極度萎縮至窒息量，收盤逼近箱頂！實戰操盤心法：等待第一根放量突破長紅棒進場！")
+            elif signals_dict.get('is_consolidation', False):
+                st.warning("⏸️ **【目前進入箱型盤整】**：尚未走出底底高或頭頭高。實戰操盤心法：盤整期不躁進追價，觀望等待放量突破！")
+            if signals_dict.get('is_multi_bagger', False):
+                st.error(f"⚠️ **【波段暴漲 {signals_dict['bagger_multiple']:.1f} 倍高檔警示】**：累積漲幅達 {int((signals_dict['bagger_multiple']-1)*100)}%！高檔隨時有獲利賣壓，嚴禁長抱！")
+            two_tr = signals_dict.get('two_tranches', {})
+            if two_tr.get('advice'):
+                st.info(f"💡 **【買兩張（長短配）實戰操盤指引】**：{two_tr['advice']}")
+            if trend['alerts']:
+                for alert in trend['alerts']:
+                    st.warning(alert)
+            if signals_list:
+                st.success(" | ".join(signals_list))
 
-            col_cap1, col_cap2, col_cap3 = st.columns([2, 1.3, 1.3])
-            with col_cap1:
-                user_capital = st.number_input("請輸入您的可用總投資資金 (新台幣元，自由輸入)：", min_value=10000, max_value=1000000000, value=1000000, step=100000, format="%d")
-            with col_cap2:
-                div_count = st.radio("建議分散檔數 (均分 3~5 檔)：", [3, 4, 5], index=0, horizontal=True)
-            with col_cap3:
-                override_ratio = st.slider("手動微調持股水位 (%)：", min_value=10, max_value=100, value=int(mkt['ratio']*100), step=5)
+            # 轉折控制列
+            col_t_ctrl1, col_t_ctrl2, col_t_ctrl3, col_t_ctrl4 = st.columns([1.6, 1.8, 2.4, 1.4])
+            with col_t_ctrl1:
+                t1_view_bars = st.selectbox("顯示範圍", ["45日 (最佳比例，最清晰)", "70日", "全區間"], index=0, key=f"t1_vb_{query}")
+            with col_t_ctrl2:
+                t1_filter_opt = st.selectbox("轉折波濾網", ["主要波段 (清爽推薦)", "完整細微轉折"], index=0, key=f"t1_fo_{query}")
+                t1_filter_mode = "standard" if "主要波段" in t1_filter_opt else "all"
+            with col_t_ctrl3:
+                t1_touch_mode = st.radio("📱 觸控模式", ["🔒 鎖定視角 (防誤觸)", "✋ 自由拖曳"], horizontal=True, key=f"t1_tm_{query}")
+            with col_t_ctrl4:
+                st.write("")
+                st.write("")
+                if st.button("🔄 恢復標準全貌", use_container_width=True, key=f"t1_rst_{query}", help="點擊瞬間還原標準波段圖"):
+                    st.session_state[f"chart_reset_{query}"] = st.session_state.get(f"chart_reset_{query}", 0) + 1
+                    st.rerun()
 
-            calc_ratio = override_ratio / 100.0
-            total_invest = user_capital * calc_ratio
-            cash_reserve = user_capital - total_invest
-            per_stock_budget = total_invest / div_count
+            # 依使用者選擇重新計算轉折波
+            t1_points, t1_lines, t1_hp, t1_lt = calculate_turning_points(df, ma_period=5, filter_mode=t1_filter_mode)
 
-            c_price = float(info['close']) if float(info['close']) > 0 else 1.0
-            suggest_shares = int(per_stock_budget / (c_price * 1000)) if c_price > 0 else 0
-            actual_cost = suggest_shares * c_price * 1000
+            st.markdown("<div class='checkbox-panel'>", unsafe_allow_html=True)
+            r1_c1, r1_c2, r1_c3, r1_c4, r1_c5, r1_c6, r1_c7 = st.columns(7)
+            show_5ma = r1_c1.checkbox("5MA 操盤線", value=True, key=f"t1_5ma_{query}")
+            show_20ma = r1_c2.checkbox("20MA 趨勢線", value=True, key=f"t1_20ma_{query}")
+            show_wave = r1_c3.checkbox("轉折波折線", value=True, key=f"t1_wave_{query}")
+            show_labels = r1_c4.checkbox("頭/暫高/底/暫底", value=True, key=f"t1_lbl_{query}")
+            show_res = r1_c5.checkbox("壓力線 (橘)", value=True, key=f"t1_res_{query}")
+            show_sup = r1_c6.checkbox("支撐線 (橘)", value=True, key=f"t1_sup_{query}")
+            show_target = r1_c7.checkbox("目標價 (金黃)", value=has_broken_res, key=f"t1_tgt_{query}")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-            st.markdown("---")
-            c_m1, c_m2, c_m3, c_m4 = st.columns(4)
-            with c_m1:
-                st.metric("建議總持股金額", f"{int(total_invest):,} 元", f"{int(calc_ratio*100)}% 水位")
-            with c_m2:
-                st.metric("建議保留防守現金", f"{int(cash_reserve):,} 元", f"{int((1-calc_ratio)*100)}% 現金")
-            with c_m3:
-                st.metric(f"每檔平均分配 (共{div_count}檔)", f"{int(per_stock_budget):,} 元", "專款專用均分")
-            with c_m4:
-                st.metric(f"當前標的 ({info['code']}) 建議", f"{suggest_shares} 張", f"成本約 {int(actual_cost):,} 元")
+            # 繪製 Tab 1 專屬轉折波與支撐壓力圖
+            if "45日" in t1_view_bars and len(df) > 45:
+                init_x = [df['Date'].iloc[-45], df['Date'].iloc[-1]]
+                vis_df = df.iloc[-45:]
+            elif "70日" in t1_view_bars and len(df) > 70:
+                init_x = [df['Date'].iloc[-70], df['Date'].iloc[-1]]
+                vis_df = df.iloc[-70:]
+            else:
+                init_x = [df['Date'].iloc[0], df['Date'].iloc[-1]]
+                vis_df = df
 
-            st.caption("💡 **實戰操盤心法叮嚀**：「專款專用、切忌單押一檔！透過 3~5 檔均分降低個股風險；大盤弱勢時務必保留現金防守，大盤多頭時放膽賺足大波段！」")
-
-        if trend['alerts']:
-            for alert in trend['alerts']:
-                st.warning(alert)
-        if signals_list:
-            st.success(" | ".join(signals_list))
-
-        st.markdown("<div class='checkbox-panel'>", unsafe_allow_html=True)
-        st.markdown("<b>線圖顯示開關：</b>", unsafe_allow_html=True)
-        
-        row1_cols = st.columns(4)
-        show_5ma = row1_cols[0].checkbox("5MA 操盤線 (桃紅)", value=True)
-        show_10ma = row1_cols[1].checkbox("10MA 短線 (鮮黃)", value=False)
-        show_20ma = row1_cols[2].checkbox("20MA 趨勢線 (天藍)", value=True)
-        show_60ma = row1_cols[3].checkbox("60MA 季線 (亮紫)", value=False)
-
-        row2_cols = st.columns(6)
-        show_labels = row2_cols[0].checkbox("頭、底氣泡", value=True)
-        show_wave = row2_cols[1].checkbox("轉折波折線", value=True)
-        show_res = row2_cols[2].checkbox("壓力線 (橘)", value=True)
-        show_sup = row2_cols[3].checkbox("支撐線 (橘)", value=True)
-        show_target = row2_cols[4].checkbox("目標價 (金黃)", value=False)
-        show_all_prices = row2_cols[5].checkbox("標示所有頭底價位", value=False)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # 📱 手機觸控防誤觸與圖表縮放控制
-        c_touch1, c_touch2 = st.columns([3, 2])
-        with c_touch1:
-            touch_mode = st.radio(
-                "📱 手機觸控模式：",
-                ["🔒 鎖定視角 (滑動防誤觸放大，最穩定推薦)", "✋ 自由拖曳移動 (Pan)"],
-                index=0,
-                horizontal=True,
-                key=f"touch_mode_{query}"
-            )
-        with c_touch2:
-            if st.button("🔄 恢復標準全貌 (重置頭底視角)", use_container_width=True, key=f"btn_reset_zoom_{query}", help="手機不小心滑動放大時，點擊即可瞬間還原完整波段圖"):
-                st.session_state[f"chart_reset_{query}"] = st.session_state.get(f"chart_reset_{query}", 0) + 1
-                st.rerun()
-
-        # 縱向自適應縮放
-        if "45日" in view_bars and len(df) > 45:
-            init_x_range = [df['Date'].iloc[-45], df['Date'].iloc[-1]]
-            visible_df = df.iloc[-45:]
-        elif "70日" in view_bars and len(df) > 70:
-            init_x_range = [df['Date'].iloc[-70], df['Date'].iloc[-1]]
-            visible_df = df.iloc[-70:]
-        else:
-            init_x_range = [df['Date'].iloc[0], df['Date'].iloc[-1]]
-            visible_df = df
-
-        y_mins = [visible_df['Low'].min()]
-        y_maxs = [visible_df['High'].max()]
-
-        if show_5ma and 'SMA_5' in visible_df:
-            s5 = visible_df['SMA_5'].dropna()
-            if not s5.empty:
-                y_mins.append(s5.min()); y_maxs.append(s5.max())
-        if show_10ma and 'SMA_10' in visible_df:
-            s10 = visible_df['SMA_10'].dropna()
-            if not s10.empty:
-                y_mins.append(s10.min()); y_maxs.append(s10.max())
-        if show_20ma and 'SMA_20' in visible_df:
-            s20 = visible_df['SMA_20'].dropna()
-            if not s20.empty:
-                y_mins.append(s20.min()); y_maxs.append(s20.max())
-        if show_60ma and 'SMA_60' in visible_df:
-            s60 = visible_df['SMA_60'].dropna()
-            if not s60.empty:
-                y_mins.append(s60.min()); y_maxs.append(s60.max())
-
-        if show_res and trend.get('resistance'):
-            if trend['resistance'] <= max(y_maxs) * 1.25:
+            y_mins = [vis_df['Low'].min()]
+            y_maxs = [vis_df['High'].max()]
+            if show_5ma and 'SMA_5' in vis_df:
+                s5 = vis_df['SMA_5'].dropna()
+                if not s5.empty: y_mins.append(s5.min()); y_maxs.append(s5.max())
+            if show_20ma and 'SMA_20' in vis_df:
+                s20 = vis_df['SMA_20'].dropna()
+                if not s20.empty: y_mins.append(s20.min()); y_maxs.append(s20.max())
+            if show_res and trend.get('resistance') and trend['resistance'] <= max(y_maxs) * 1.25:
                 y_maxs.append(trend['resistance'])
-        if show_sup and trend.get('support'):
-            if trend['support'] >= min(y_mins) * 0.75:
+            if show_sup and trend.get('support') and trend['support'] >= min(y_mins) * 0.75:
                 y_mins.append(trend['support'])
-        if show_target and trend.get('target'):
-            if trend['target'] <= max(y_maxs) * 1.35:
+            if show_target and trend.get('target') and trend['target'] <= max(y_maxs) * 1.35:
                 y_maxs.append(trend['target'])
 
-        curr_ymin = min(y_mins)
-        curr_ymax = max(y_maxs)
-        y_padding = (curr_ymax - curr_ymin) * 0.075
-        auto_y_range = [curr_ymin - y_padding, curr_ymax + y_padding]
+            curr_ymin, curr_ymax = min(y_mins), max(y_maxs)
+            y_pad = (curr_ymax - curr_ymin) * 0.075
+            auto_y = [curr_ymin - y_pad, curr_ymax + y_pad]
 
-        fig = make_subplots(
-            rows=2, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.03,
-            row_heights=[0.74, 0.26]
-        )
-
-        fig.add_trace(go.Candlestick(
-            x=df['Date'],
-            open=df['Open'],
-            high=df['High'],
-            low=df['Low'],
-            close=df['Close'],
-            name="K線",
-            increasing_line_color='#FF4D4F', increasing_fillcolor='#FF4D4F',
-            decreasing_line_color='#2F9E44', decreasing_fillcolor='#2F9E44',
-            showlegend=False
-        ), row=1, col=1)
-
-        if show_5ma:
-            fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_5'], name="5MA (操盤線)", line=dict(color='#FF3366', width=2.0)), row=1, col=1)
-        if show_10ma:
-            fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_10'], name="10MA", line=dict(color='#FFD700', width=1.8)), row=1, col=1)
-        if show_20ma:
-            fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], name="20MA (趨勢線)", line=dict(color='#00BFFF', width=2.2)), row=1, col=1)
-        if show_60ma:
-            fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_60'], name="60MA (季線)", line=dict(color='#A855F7', width=2.0)), row=1, col=1)
-
-        if show_wave and lines:
-            wave_x = [lines[0]['x0']] + [l['x1'] for l in lines]
-            wave_y = [lines[0]['y0']] + [l['y1'] for l in lines]
-            fig.add_trace(go.Scatter(
-                x=wave_x, y=wave_y,
-                mode='lines',
-                name="轉折波",
-                line=dict(color='#CBD5E1', width=1.8, dash='solid')
+            fig1 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.75, 0.25])
+            fig1.add_trace(go.Candlestick(
+                x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
+                name="K線",
+                increasing_line_color='#FF4D4F', increasing_fillcolor='#FF4D4F',
+                decreasing_line_color='#2F9E44', decreasing_fillcolor='#2F9E44',
+                showlegend=False
             ), row=1, col=1)
 
-        peaks = [p for p in points if p['type'] == 'PEAK']
-        troughs = [p for p in points if p['type'] == 'TROUGH']
-        offset_val = (curr_ymax - curr_ymin) * 0.028
+            if show_5ma:
+                fig1.add_trace(go.Scatter(x=df['Date'], y=df['SMA_5'], name="5MA (操盤線)", line=dict(color='#FF3366', width=2.0)), row=1, col=1)
+            if show_20ma:
+                fig1.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], name="20MA (趨勢線)", line=dict(color='#00BFFF', width=2.2)), row=1, col=1)
 
-        if show_labels and peaks:
-            conf_peaks = [p for p in peaks if not p.get('is_tentative', False)]
-            tent_peaks = [p for p in peaks if p.get('is_tentative', False)]
+            if show_wave and t1_lines:
+                wave_x = [t1_lines[0]['x0']] + [l['x1'] for l in t1_lines]
+                wave_y = [t1_lines[0]['y0']] + [l['y1'] for l in t1_lines]
+                fig1.add_trace(go.Scatter(x=wave_x, y=wave_y, mode='lines', name="轉折波", line=dict(color='#CBD5E1', width=1.8)), row=1, col=1)
 
-            # 1. 已確認轉折之【頭】(正紅色實心，白色邊框)
-            if conf_peaks:
-                fig.add_trace(go.Scatter(
-                    x=[p['date'] for p in conf_peaks],
-                    y=[p['price'] + offset_val for p in conf_peaks],
-                    mode='markers+text',
-                    name="頭 (已確認)",
-                    marker=dict(symbol='circle', size=16, color='#E03131', line=dict(color='white', width=1.2)),
-                    text=[f"頭 {p['price']:.1f}" if show_all_prices else "頭" for p in conf_peaks],
-                    textfont=dict(color='white', size=8, family='Arial Black'),
-                    textposition='middle center',
-                    hovertext=[f"波段高點【頭】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [已跌破5MA確認]" for p in conf_peaks],
-                    hoverinfo='text',
-                    showlegend=False
-                ), row=1, col=1)
+            t1_peaks = [p for p in t1_points if p['type'] == 'PEAK']
+            t1_troughs = [p for p in t1_points if p['type'] == 'TROUGH']
+            offset_v = (curr_ymax - curr_ymin) * 0.028
 
-            # 2. 行進中暫定之【暫高】(醒目暖橘色，尺寸稍大容納兩字，標示「暫高」)
-            if tent_peaks:
-                fig.add_trace(go.Scatter(
-                    x=[p['date'] for p in tent_peaks],
-                    y=[p['price'] + offset_val for p in tent_peaks],
-                    mode='markers+text',
-                    name="暫高 (行進中)",
-                    marker=dict(symbol='circle', size=19, color='#FD7E14', line=dict(color='white', width=1.5)),
-                    text=[f"暫高 {p['price']:.1f}" if show_all_prices else "暫高" for p in tent_peaks],
-                    textfont=dict(color='white', size=7, family='Arial Black'),
-                    textposition='middle center',
-                    hovertext=[f"行進間高點【暫高】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [尚未收跌破5MA，隨時可能創新高]" for p in tent_peaks],
-                    hoverinfo='text',
-                    showlegend=False
-                ), row=1, col=1)
+            if show_labels and t1_peaks:
+                conf_p = [p for p in t1_peaks if not p.get('is_tentative', False)]
+                tent_p = [p for p in t1_peaks if p.get('is_tentative', False)]
+                if conf_p:
+                    fig1.add_trace(go.Scatter(
+                        x=[p['date'] for p in conf_p], y=[p['price'] + offset_v for p in conf_p],
+                        mode='markers+text', name="頭 (已確認)",
+                        marker=dict(symbol='circle', size=16, color='#E03131', line=dict(color='white', width=1.2)),
+                        text=["頭" for _ in conf_p],
+                        textfont=dict(color='white', size=8, family='Arial Black'), textposition='middle center',
+                        hovertext=[f"波段高點【頭】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [已跌破5MA確認]" for p in conf_p],
+                        hoverinfo='text', showlegend=False
+                    ), row=1, col=1)
+                if tent_p:
+                    fig1.add_trace(go.Scatter(
+                        x=[p['date'] for p in tent_p], y=[p['price'] + offset_v for p in tent_p],
+                        mode='markers+text', name="暫高 (行進中)",
+                        marker=dict(symbol='circle', size=19, color='#FD7E14', line=dict(color='white', width=1.5)),
+                        text=["暫高" for _ in tent_p],
+                        textfont=dict(color='white', size=7, family='Arial Black'), textposition='middle center',
+                        hovertext=[f"行進間高點【暫高】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [尚未收跌破5MA]" for p in tent_p],
+                        hoverinfo='text', showlegend=False
+                    ), row=1, col=1)
 
-        if show_labels and troughs:
-            conf_troughs = [p for p in troughs if not p.get('is_tentative', False)]
-            tent_troughs = [p for p in troughs if p.get('is_tentative', False)]
+            if show_labels and t1_troughs:
+                conf_t = [p for p in t1_troughs if not p.get('is_tentative', False)]
+                tent_t = [p for p in t1_troughs if p.get('is_tentative', False)]
+                if conf_t:
+                    fig1.add_trace(go.Scatter(
+                        x=[p['date'] for p in conf_t], y=[p['price'] - offset_v for p in conf_t],
+                        mode='markers+text', name="底 (已確認)",
+                        marker=dict(symbol='circle', size=16, color='#2F9E44', line=dict(color='white', width=1.2)),
+                        text=["底" for _ in conf_t],
+                        textfont=dict(color='white', size=8, family='Arial Black'), textposition='middle center',
+                        hovertext=[f"波段低點【底】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [已站上5MA確認]" for p in conf_t],
+                        hoverinfo='text', showlegend=False
+                    ), row=1, col=1)
+                if tent_t:
+                    fig1.add_trace(go.Scatter(
+                        x=[p['date'] for p in tent_t], y=[p['price'] - offset_v for p in tent_t],
+                        mode='markers+text', name="暫底 (行進中)",
+                        marker=dict(symbol='circle', size=19, color='#20C997', line=dict(color='white', width=1.5)),
+                        text=["暫底" for _ in tent_t],
+                        textfont=dict(color='white', size=7, family='Arial Black'), textposition='middle center',
+                        hovertext=[f"行進間低點【暫底】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [尚未收站上5MA]" for p in tent_t],
+                        hoverinfo='text', showlegend=False
+                    ), row=1, col=1)
 
-            # 1. 已確認轉折之【底】(正綠色實心，白色邊框)
-            if conf_troughs:
-                fig.add_trace(go.Scatter(
-                    x=[p['date'] for p in conf_troughs],
-                    y=[p['price'] - offset_val for p in conf_troughs],
-                    mode='markers+text',
-                    name="底 (已確認)",
-                    marker=dict(symbol='circle', size=16, color='#2F9E44', line=dict(color='white', width=1.2)),
-                    text=[f"底 {p['price']:.1f}" if show_all_prices else "底" for p in conf_troughs],
-                    textfont=dict(color='white', size=8, family='Arial Black'),
-                    textposition='middle center',
-                    hovertext=[f"波段低點【底】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [已站上5MA確認]" for p in conf_troughs],
-                    hoverinfo='text',
-                    showlegend=False
-                ), row=1, col=1)
+            annos1, shapes1 = [], []
+            if t1_hp:
+                annos1.append(dict(x=t1_hp['date'], y=t1_hp['price'], xref="x", yref="y", text=f" 🏆 最高頭 {t1_hp['price']:.2f} ({t1_hp['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, ax=0, ay=-34, bgcolor="#B91C1C", bordercolor="white", borderwidth=1.2, font=dict(color="white", size=10)))
+            if t1_lt:
+                annos1.append(dict(x=t1_lt['date'], y=t1_lt['price'], xref="x", yref="y", text=f" ⚓ 最低底 {t1_lt['price']:.2f} ({t1_lt['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, ax=0, ay=34, bgcolor="#15803D", bordercolor="white", borderwidth=1.2, font=dict(color="white", size=10)))
 
-            # 2. 行進中暫定之【暫底】(青碧綠色，標示「暫底」)
-            if tent_troughs:
-                fig.add_trace(go.Scatter(
-                    x=[p['date'] for p in tent_troughs],
-                    y=[p['price'] - offset_val for p in tent_troughs],
-                    mode='markers+text',
-                    name="暫底 (行進中)",
-                    marker=dict(symbol='circle', size=19, color='#20C997', line=dict(color='white', width=1.5)),
-                    text=[f"暫底 {p['price']:.1f}" if show_all_prices else "暫底" for p in tent_troughs],
-                    textfont=dict(color='white', size=7, family='Arial Black'),
-                    textposition='middle center',
-                    hovertext=[f"行進間低點【暫底】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [尚未收站上5MA，隨時可能創新低]" for p in tent_troughs],
-                    hoverinfo='text',
-                    showlegend=False
-                ), row=1, col=1)
+            x_min, x_max = df['Date'].iloc[0], df['Date'].iloc[-1]
+            if show_res and trend.get('resistance'):
+                shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trend['resistance'], y1=trend['resistance'], line=dict(color="#FF922B", width=1.5, dash="dash")))
+                annos1.append(dict(x=x_max, y=trend['resistance'], xref="x", yref="y", text=f" 壓力 {trend['resistance']} ", showarrow=False, bgcolor="#FF922B", font=dict(color="white", size=10), xanchor="left"))
+            if show_sup and trend.get('support'):
+                shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trend['support'], y1=trend['support'], line=dict(color="#FFA94D", width=1.5, dash="dash")))
+                annos1.append(dict(x=x_max, y=trend['support'], xref="x", yref="y", text=f" 支撐 {trend['support']} ", showarrow=False, bgcolor="#FFA94D", font=dict(color="white", size=10), xanchor="left"))
+            if show_target and trend.get('target'):
+                shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trend['target'], y1=trend['target'], line=dict(color="#FFD43B", width=1.5, dash="dot")))
+                annos1.append(dict(x=x_max, y=trend['target'], xref="x", yref="y", text=f" 目標 {trend['target']} ", showarrow=False, bgcolor="#D97706", font=dict(color="white", size=10), xanchor="left"))
 
-        annotations = []
-        if highest_peak:
-            annotations.append(dict(
-                x=highest_peak['date'],
-                y=highest_peak['price'],
-                xref="x", yref="y",
-                text=f" 🏆 最高頭 {highest_peak['price']:.2f} ({highest_peak['date'].strftime('%m/%d')}) ",
-                showarrow=True,
-                arrowhead=2,
-                arrowsize=1,
-                ax=0, ay=-36,
-                bgcolor="#B91C1C",
-                bordercolor="white",
-                borderwidth=1.2,
-                borderpad=4,
-                font=dict(color="white", size=10, family="Arial")
-            ))
-        if lowest_trough:
-            annotations.append(dict(
-                x=lowest_trough['date'],
-                y=lowest_trough['price'],
-                xref="x", yref="y",
-                text=f" ⚓ 最低底 {lowest_trough['price']:.2f} ({lowest_trough['date'].strftime('%m/%d')}) ",
-                showarrow=True,
-                arrowhead=2,
-                arrowsize=1,
-                ax=0, ay=36,
-                bgcolor="#15803D",
-                bordercolor="white",
-                borderwidth=1.2,
-                borderpad=4,
-                font=dict(color="white", size=10, family="Arial")
-            ))
-
-        shapes = []
-        x_min = df['Date'].iloc[0]
-        x_max = df['Date'].iloc[-1]
-
-        if show_res and trend.get('resistance'):
-            shapes.append(dict(
-                type="line", x0=x_min, x1=x_max, y0=trend['resistance'], y1=trend['resistance'],
-                line=dict(color="#FF922B", width=1.5, dash="dash")
-            ))
-            annotations.append(dict(
-                x=x_max, y=trend['resistance'], xref="x", yref="y",
-                text=f" 壓力 {trend['resistance']} ", showarrow=False,
-                bgcolor="#FF922B", font=dict(color="white", size=10), xanchor="left"
-            ))
-
-        if show_sup and trend.get('support'):
-            shapes.append(dict(
-                type="line", x0=x_min, x1=x_max, y0=trend['support'], y1=trend['support'],
-                line=dict(color="#FFA94D", width=1.5, dash="dash")
-            ))
-            annotations.append(dict(
-                x=x_max, y=trend['support'], xref="x", yref="y",
-                text=f" 支撐 {trend['support']} ", showarrow=False,
-                bgcolor="#FFA94D", font=dict(color="white", size=10), xanchor="left"
-            ))
-
-        if show_target and trend.get('target'):
-            shapes.append(dict(
-                type="line", x0=x_min, x1=x_max, y0=trend['target'], y1=trend['target'],
-                line=dict(color="#FFD43B", width=1.5, dash="dot")
-            ))
-            annotations.append(dict(
-                x=x_max, y=trend['target'], xref="x", yref="y",
-                text=f" 目標 {trend['target']} ", showarrow=False,
-                bgcolor="#D97706", font=dict(color="white", size=10), xanchor="left"
-            ))
-
-        if "成交量" in sub_chart_type:
+            # 副圖：成交量 + 20MA量線
             vol_colors = ['#FF4D4F' if df.loc[k, 'Close'] >= df.loc[k, 'Open'] else '#2F9E44' for k in range(len(df))]
-            fig.add_trace(go.Bar(
-                x=df['Date'], y=df['Volume'],
-                name="成交量", marker_color=vol_colors, showlegend=False
-            ), row=2, col=1)
-            fig.add_trace(go.Scatter(
-                x=df['Date'], y=df['Vol_MA20'],
-                name="20日均量", line=dict(color='#FCC419', width=1.5)
-            ), row=2, col=1)
+            fig1.add_trace(go.Bar(x=df['Date'], y=df['Volume'], name="成交量", marker_color=vol_colors, showlegend=False), row=2, col=1)
+            fig1.add_trace(go.Scatter(x=df['Date'], y=df['Vol_MA20'], name="20日均量", line=dict(color='#FCC419', width=1.5)), row=2, col=1)
 
-        elif "KD" in sub_chart_type:
-            fig.add_trace(go.Scatter(x=df['Date'], y=df['K'], name="K (9)", line=dict(color='#FF4D4F', width=1.5)), row=2, col=1)
-            fig.add_trace(go.Scatter(x=df['Date'], y=df['D'], name="D (9)", line=dict(color='#1C7ED6', width=1.5)), row=2, col=1)
+            drag1 = 'pan' if "自由拖曳" in t1_touch_mode else False
+            fig1.update_layout(
+                height=650, margin=dict(l=15, r=75, t=15, b=15),
+                template="plotly_dark", annotations=annos1, shapes=shapes1,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                dragmode=drag1, hovermode="x unified"
+            )
+            fig1.update_xaxes(rangeslider_visible=False, range=init_x)
+            fig1.update_yaxes(range=auto_y, row=1, col=1)
 
-        elif "MACD" in sub_chart_type:
-            fig.add_trace(go.Scatter(x=df['Date'], y=df['DIF'], name="DIF", line=dict(color='#FFA94D', width=1.5)), row=2, col=1)
-            fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD'], name="MACD", line=dict(color='#339AF0', width=1.5)), row=2, col=1)
-            hist_colors = ['#FF4D4F' if h >= 0 else '#2F9E44' for h in df['MACD_Hist']]
-            fig.add_trace(go.Bar(x=df['Date'], y=df['MACD_Hist'], name="Hist", marker_color=hist_colors), row=2, col=1)
+            chart_config = {
+                'scrollZoom': False, 'displayModeBar': True,
+                'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+                'displaylogo': False, 'doubleClick': 'reset+autosize', 'responsive': True
+            }
+            c_key1 = f"t1_plot_{query}_{st.session_state.get(f'chart_reset_{query}', 0)}"
+            st.plotly_chart(fig1, use_container_width=True, config=chart_config, key=c_key1)
 
-        elif "RSI" in sub_chart_type:
-            fig.add_trace(go.Scatter(x=df['Date'], y=df['RSI_3'], name="RSI(3)", line=dict(color='#FF4D4F', width=1.5)), row=2, col=1)
-            fig.add_trace(go.Scatter(x=df['Date'], y=df['RSI_6'], name="RSI(6)", line=dict(color='#1C7ED6', width=1.5)), row=2, col=1)
+            # 動態資金配置計算機
+            with st.expander("💵 【動態資金配置計算機】(依大盤強弱調配持股成數 & 均分 3~5 檔)", expanded=False):
+                mkt = get_market_condition()
+                st.markdown(f"**當前大盤評估 ({mkt['date']})**：<span style='font-size:1.05rem; font-weight:bold;'>{mkt['status']}</span><br><span style='color:#AAA; font-size:0.88rem;'>{mkt['reason']}</span>", unsafe_allow_html=True)
+                col_cap1, col_cap2, col_cap3 = st.columns([2, 1.3, 1.3])
+                with col_cap1:
+                    user_capital = st.number_input("可用總投資資金 (新台幣元)：", min_value=10000, max_value=1000000000, value=1000000, step=100000, format="%d", key=f"t1_cap_{query}")
+                with col_cap2:
+                    div_count = st.radio("建議分散檔數：", [3, 4, 5], index=0, horizontal=True, key=f"t1_div_{query}")
+                with col_cap3:
+                    override_ratio = st.slider("微調持股水位 (%)：", min_value=10, max_value=100, value=int(mkt['ratio']*100), step=5, key=f"t1_ratio_{query}")
 
-        chosen_dragmode = 'pan' if "自由拖曳" in touch_mode else False
-        fig.update_layout(
-            height=680,
-            margin=dict(l=20, r=80, t=15, b=15),
-            template="plotly_dark",
-            annotations=annotations,
-            shapes=shapes,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            dragmode=chosen_dragmode,
-            hovermode="x unified"
-        )
+                calc_ratio = override_ratio / 100.0
+                total_invest = user_capital * calc_ratio
+                cash_reserve = user_capital - total_invest
+                per_stock_budget = total_invest / div_count
+                c_price = float(info['close']) if float(info['close']) > 0 else 1.0
+                suggest_shares = int(per_stock_budget / (c_price * 1000)) if c_price > 0 else 0
+                actual_cost = suggest_shares * c_price * 1000
 
-        fig.update_xaxes(
-            rangeslider_visible=False,
-            range=init_x_range
-        )
+                st.markdown("---")
+                c_m1, c_m2, c_m3, c_m4 = st.columns(4)
+                with c_m1: st.metric("建議總持股金額", f"{int(total_invest):,} 元", f"{int(calc_ratio*100)}% 水位")
+                with c_m2: st.metric("建議保留防守現金", f"{int(cash_reserve):,} 元", f"{int((1-calc_ratio)*100)}% 現金")
+                with c_m3: st.metric(f"每檔分配 ({div_count}檔)", f"{int(per_stock_budget):,} 元", "專款專用均分")
+                with c_m4: st.metric(f"本標的 ({info['code']}) 建議", f"{suggest_shares} 張", f"成本約 {int(actual_cost):,} 元")
+                st.caption("💡 **實戰心法叮嚀**：「專款專用、切忌單押一檔！透過 3~5 檔均分降低個股風險；大盤弱勢時務必保留現金防守，大盤多頭時放膽賺足大波段！」")
 
-        fig.update_yaxes(
-            range=auto_y_range,
-            row=1, col=1
-        )
+        # =========================================================================
+        # TAB 2: 📈 K線全指標 (多週期/副圖切換) - 專為手機快速切換設計
+        # =========================================================================
+        with tab_kline:
+            col_k_c1, col_k_c2, col_k_c3 = st.columns([1.8, 2.4, 1.8])
+            with col_k_c1:
+                k_period = st.radio("K線週期", ["日K (標準)", "週K (波段)", "月K (長線)"], horizontal=True, key=f"k_per_{query}")
+            with col_k_c2:
+                k_sub_chart = st.radio("🎛️ 副圖指標 (單鍵直切)", ["📊 成交量", "⚡ KD (9,3,3)", "🌊 MACD", "🎯 RSI (3,6)"], horizontal=True, key=f"k_sub_{query}")
+            with col_k_c3:
+                k_view_bars = st.selectbox("每屏顯示K棒數", ["45根 (清晰放大)", "70根", "全區間"], index=0, key=f"k_vb_{query}")
 
-        chart_config = {
-            'scrollZoom': False,             # 徹底避免手指滑動時誤觸縮放
-            'displayModeBar': True,           # 保留控制選單
-            'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
-            'displaylogo': False,
-            'doubleClick': 'reset+autosize',  # 連點兩下瞬間還原
-            'responsive': True
-        }
-        chart_key = f"main_plot_{query}_{st.session_state.get(f'chart_reset_{query}', 0)}"
-        st.plotly_chart(fig, use_container_width=True, config=chart_config, key=chart_key)
+            st.markdown("<div class='checkbox-panel'>", unsafe_allow_html=True)
+            k_ma1, k_ma2, k_ma3, k_ma4 = st.columns(4)
+            show_k_5ma = k_ma1.checkbox("5MA (桃紅)", value=True, key=f"k_5ma_{query}")
+            show_k_10ma = k_ma2.checkbox("10MA (鮮黃)", value=True, key=f"k_10ma_{query}")
+            show_k_20ma = k_ma3.checkbox("20MA (天藍)", value=True, key=f"k_20ma_{query}")
+            show_k_60ma = k_ma4.checkbox("60MA (亮紫)", value=True, key=f"k_60ma_{query}")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        with st.expander("🔍 均線扣抵與未來走勢預判 (CH3 均線力量)", expanded=False):
+            # 依週期重採樣數據
+            if "週K" in k_period:
+                df_k = df.set_index('Date').resample('W-FRI').agg({
+                    'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'
+                }).dropna().reset_index()
+                df_k = compute_ta_indicators(df_k)
+            elif "月K" in k_period:
+                df_k = df.set_index('Date').resample('ME').agg({
+                    'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'
+                }).dropna().reset_index()
+                df_k = compute_ta_indicators(df_k)
+            else:
+                df_k = df.copy()
+
+            if "45根" in k_view_bars and len(df_k) > 45:
+                k_init_x = [df_k['Date'].iloc[-45], df_k['Date'].iloc[-1]]
+                k_vis_df = df_k.iloc[-45:]
+            elif "70根" in k_view_bars and len(df_k) > 70:
+                k_init_x = [df_k['Date'].iloc[-70], df_k['Date'].iloc[-1]]
+                k_vis_df = df_k.iloc[-70:]
+            else:
+                k_init_x = [df_k['Date'].iloc[0], df_k['Date'].iloc[-1]]
+                k_vis_df = df_k
+
+            k_ymins = [k_vis_df['Low'].min()]
+            k_ymaxs = [k_vis_df['High'].max()]
+            for ma_c, ma_f in [('SMA_5', show_k_5ma), ('SMA_10', show_k_10ma), ('SMA_20', show_k_20ma), ('SMA_60', show_k_60ma)]:
+                if ma_f and ma_c in k_vis_df:
+                    s_tmp = k_vis_df[ma_c].dropna()
+                    if not s_tmp.empty: k_ymins.append(s_tmp.min()); k_ymaxs.append(s_tmp.max())
+            k_ymin, k_ymax = min(k_ymins), max(k_ymaxs)
+            k_ypad = (k_ymax - k_ymin) * 0.07
+            k_auto_y = [k_ymin - k_ypad, k_ymax + k_ypad]
+
+            fig2 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.74, 0.26])
+            fig2.add_trace(go.Candlestick(
+                x=df_k['Date'], open=df_k['Open'], high=df_k['High'], low=df_k['Low'], close=df_k['Close'],
+                name=f"{k_period[:2]}",
+                increasing_line_color='#FF4D4F', increasing_fillcolor='#FF4D4F',
+                decreasing_line_color='#2F9E44', decreasing_fillcolor='#2F9E44',
+                showlegend=False
+            ), row=1, col=1)
+
+            if show_k_5ma and 'SMA_5' in df_k:
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_5'], name="5MA", line=dict(color='#FF3366', width=1.8)), row=1, col=1)
+            if show_k_10ma and 'SMA_10' in df_k:
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_10'], name="10MA", line=dict(color='#FFD700', width=1.6)), row=1, col=1)
+            if show_k_20ma and 'SMA_20' in df_k:
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_20'], name="20MA", line=dict(color='#00BFFF', width=2.0)), row=1, col=1)
+            if show_k_60ma and 'SMA_60' in df_k:
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_60'], name="60MA", line=dict(color='#A855F7', width=1.8)), row=1, col=1)
+
+            if "成交量" in k_sub_chart:
+                v_cols = ['#FF4D4F' if df_k.loc[k, 'Close'] >= df_k.loc[k, 'Open'] else '#2F9E44' for k in range(len(df_k))]
+                fig2.add_trace(go.Bar(x=df_k['Date'], y=df_k['Volume'], name="成交量", marker_color=v_cols, showlegend=False), row=2, col=1)
+                if 'Vol_MA20' in df_k:
+                    fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['Vol_MA20'], name="20均量", line=dict(color='#FCC419', width=1.5)), row=2, col=1)
+            elif "KD" in k_sub_chart and 'K' in df_k:
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['K'], name="K (9)", line=dict(color='#FF4D4F', width=1.6)), row=2, col=1)
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['D'], name="D (9)", line=dict(color='#1C7ED6', width=1.6)), row=2, col=1)
+                fig2.add_hline(y=80, line_dash="dot", line_color="#E03131", row=2, col=1)
+                fig2.add_hline(y=20, line_dash="dot", line_color="#2F9E44", row=2, col=1)
+            elif "MACD" in k_sub_chart and 'DIF' in df_k:
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['DIF'], name="DIF", line=dict(color='#FFA94D', width=1.6)), row=2, col=1)
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['MACD'], name="MACD", line=dict(color='#339AF0', width=1.6)), row=2, col=1)
+                h_cols = ['#FF4D4F' if h >= 0 else '#2F9E44' for h in df_k['MACD_Hist'].fillna(0)]
+                fig2.add_trace(go.Bar(x=df_k['Date'], y=df_k['MACD_Hist'], name="Hist", marker_color=h_cols), row=2, col=1)
+            elif "RSI" in k_sub_chart and 'RSI_3' in df_k:
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['RSI_3'], name="RSI (3)", line=dict(color='#FF4D4F', width=1.6)), row=2, col=1)
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['RSI_6'], name="RSI (6)", line=dict(color='#1C7ED6', width=1.6)), row=2, col=1)
+                fig2.add_hline(y=80, line_dash="dot", line_color="#E03131", row=2, col=1)
+                fig2.add_hline(y=20, line_dash="dot", line_color="#2F9E44", row=2, col=1)
+
+            fig2.update_layout(
+                height=650, margin=dict(l=15, r=60, t=15, b=15),
+                template="plotly_dark",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                dragmode=False, hovermode="x unified"
+            )
+            fig2.update_xaxes(rangeslider_visible=False, range=k_init_x)
+            fig2.update_yaxes(range=k_auto_y, row=1, col=1)
+
+            st.plotly_chart(fig2, use_container_width=True, config=chart_config, key=f"k_plot_{query}_{k_period}_{k_sub_chart}")
+
+        # =========================================================================
+        # TAB 3: 💼 主力籌碼 (法人/扣抵) - SpeedyAI 官方真實籌碼整合
+        # =========================================================================
+        with tab_chips:
+            chips_map = load_speedy_chips()
+            c_data = chips_map.get(info['code'], {})
+
+            mf = c_data.get('mf', 0)
+            fi = c_data.get('fi', 0)
+            it = c_data.get('it', 0)
+            per = c_data.get('per', 0.0)
+            eps = c_data.get('eps', 0.0)
+
+            mf_str = f"+{mf:,} 張" if mf > 0 else (f"{mf:,} 張" if mf < 0 else "-- 張")
+            mf_color = "#FF4D4F" if mf > 0 else ("#2F9E44" if mf < 0 else "#888")
+            mf_note = "🔴 主力大單吸籌吃貨" if mf > 0 else ("🟢 主力大單調節賣出" if mf < 0 else "⚪ 中性 / 無顯著大單")
+
+            fi_str = f"+{fi:,} 張" if fi > 0 else (f"{fi:,} 張" if fi < 0 else "-- 張")
+            fi_color = "#FF4D4F" if fi > 0 else ("#2F9E44" if fi < 0 else "#888")
+            fi_note = "🔴 外資買超" if fi > 0 else ("🟢 外資賣超" if fi < 0 else "⚪ 無資料")
+
+            it_str = f"+{it:,} 張" if it > 0 else (f"{it:,} 張" if it < 0 else "-- 張")
+            it_color = "#FF4D4F" if it > 0 else ("#2F9E44" if it < 0 else "#888")
+            it_note = "🔴 投信作帳認養" if it > 0 else ("🟢 投信結帳出場" if it < 0 else "⚪ 無資料")
+
+            st.markdown("#### 💼 SpeedyAI 官方真實主力籌碼監控")
+            col_ch1, col_ch2, col_ch3, col_ch4 = st.columns(4)
+            with col_ch1:
+                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.88rem;'>主力大單淨流 (MF)</div><div style='font-size:1.4rem; font-weight:bold; color:{mf_color}; margin:4px 0;'>{mf_str}</div><div style='font-size:0.8rem; color:{mf_color};'>{mf_note}</div></div>", unsafe_allow_html=True)
+            with col_ch2:
+                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.88rem;'>外資法人買賣超 (FI)</div><div style='font-size:1.4rem; font-weight:bold; color:{fi_color}; margin:4px 0;'>{fi_str}</div><div style='font-size:0.8rem; color:{fi_color};'>{fi_note}</div></div>", unsafe_allow_html=True)
+            with col_ch3:
+                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.88rem;'>投信法人買賣超 (IT)</div><div style='font-size:1.4rem; font-weight:bold; color:{it_color}; margin:4px 0;'>{it_str}</div><div style='font-size:0.8rem; color:{it_color};'>{it_note}</div></div>", unsafe_allow_html=True)
+            with col_ch4:
+                per_str = f"{per:.1f} 倍" if per > 0 else "--"
+                eps_str = f"{eps:.2f} 元" if eps != 0 else "--"
+                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.88rem;'>基本面估值</div><div style='font-size:1.2rem; font-weight:bold; color:#E0E0E0; margin:4px 0;'>PER: {per_str}</div><div style='font-size:0.85rem; color:#A0AEC0;'>EPS: {eps_str}</div></div>", unsafe_allow_html=True)
+
+            # 籌碼與交易警示標籤
+            badge_html = "<div style='margin-bottom:14px;'>"
+            if c_data.get('has_cb'):
+                badge_html += "<span class='tag-badge' style='background:#7048E8;'>🏷️ 發行可轉債 (CB) - 主力控盤標的</span>"
+            if c_data.get('has_fut'):
+                badge_html += "<span class='tag-badge' style='background:#1098AD;'>⚡ 具股票期貨 (流動性佳 / 波動加速)</span>"
+            if c_data.get('is_day_trading_forbidden'):
+                badge_html += "<span class='tag-badge' style='background:#E03131;'>⚠️ 禁止現股當沖</span>"
+            if c_data.get('in_attention'):
+                badge_html += "<span class='tag-badge' style='background:#F59F00;'>🚨 證交所注意股票</span>"
+            if c_data.get('in_disposal'):
+                badge_html += "<span class='tag-badge' style='background:#C92A2A;'>⛔ 處置股票 (分盤撮合)</span>"
+            badge_html += "</div>"
+            st.markdown(badge_html, unsafe_allow_html=True)
+
+            st.markdown("---")
+            # 均線扣抵走勢預判 (CH3 均線力量)
+            st.markdown("#### 🔍 均線扣抵與未來走勢預判 (CH3 均線力量)")
             deduct = signals_dict.get('deduction', {})
             d_cols = st.columns(3)
             with d_cols[0]:
@@ -954,6 +1041,84 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             with d_cols[2]:
                 d60 = deduct.get('60MA', {})
                 st.metric("60MA 扣抵價", f"{d60.get('deduct_price', 'N/A')} 元", d60.get('status', ''))
+
+            with st.expander("📘 【均線扣抵心法教學】為什麼扣抵決定均線方向？", expanded=False):
+                st.markdown("""
+                - **扣低助漲**：當均線未來即將扣抵的價位低於當前收盤價，均線每天會自動加速向上揚升，成為強大的多方推升動能！
+                - **扣高助跌**：當均線未來即將扣抵的價位高於當前收盤價，股價若未大漲，均線就會被迫下彎形成蓋頭反壓！
+                - **實戰要訣**：買進前確認 20MA（月線）與 60MA（季線）皆在扣低位置，持股續抱最安心！
+                """)
+
+        # =========================================================================
+        # TAB 4: 🧑‍🏫 AI 助教 (深度診斷/提問) - 今日盤前 + 個股深度健檢 + 即時提問
+        # =========================================================================
+        with tab_ai:
+            # 1. 今日 2026.09.15 盤前大盤解盤卡片 (老朱最新音檔與講義)
+            st.markdown("""
+            <div class='ai-card'>
+                <div style='display:flex; justify-content:space-between; align-items:center;'>
+                    <h4 style='margin:0; color:#60A5FA;'>📢 今日 (2026.09.15) 盤前大盤實戰精要 (老朱音檔速報)</h4>
+                    <span class='tag-badge' style='background:#2563EB;'>晨間 08:45 定調</span>
+                </div>
+                <div style='margin-top:8px; font-size:0.92rem; line-height:1.6; color:#E2E8F0;'>
+                    • <b>大盤定位</b>：加權指數 45,862 點，昨收雙 T 字棒測試季線支撐。<br>
+                    • <b>美股衝擊</b>：費城半導體大跌 <b>5.86%</b>，早盤台股電子股開低面臨考驗。<br>
+                    • <b>關鍵防守線</b>：開低先看前低 <b>45,839 點</b> 支撐防線；<b>必須收盤拉出長下影線或收紅，才算正式止跌！</b><br>
+                    • <b>實戰紀律叮嚀</b>：早盤急跌嚴禁衝動接刀摸底，等待 <b>12:40 尾盤一點鐘</b> 主力表態，確認轉折紅 K 站上 5MA 才是安全買點！
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # 2. 本檔個股深度技術面健檢報告 (Deep TA Checklist)
+            diag = diagnose_stock_deeply(info['code'], df_raw=df, info=info)
+            if diag:
+                st.markdown(f"#### 📋 {diag['name']} ({diag['code']}) 深度技術面健檢報告")
+                st.markdown(f"> ### {diag['decision']}")
+                st.markdown(f"> **助教評語**：{diag['advice_summary']}")
+
+                col_diag1, col_diag2 = st.columns(2)
+                with col_diag1:
+                    st.markdown("##### 🟢 多方優勢要件 (符合項)")
+                    if diag['pros']:
+                        for p in diag['pros']:
+                            st.markdown(f"- ✅ **{p}**")
+                    else:
+                        st.markdown("- ⚠️ 目前尚未具備顯著的多方發動要件。")
+
+                with col_diag2:
+                    st.markdown("##### ⚠️ 關鍵風險與瑕疵排查")
+                    if diag['cons']:
+                        for c in diag['cons']:
+                            st.markdown(f"- ❌ **{c}**")
+                    else:
+                        st.markdown("- ✅ 前方無重大爆量長黑K套牢，距離前高壓力仍有足夠空間，量價結構相對健康！")
+
+                col_d_m1, col_d_m2, col_d_m3, col_d_m4 = st.columns(4)
+                col_d_m1.metric("5MA 操盤線", f"{diag['sma5']} 元", "站上" if diag['close'] >= diag['sma5'] else "跌破")
+                col_d_m2.metric("20MA 趨勢線", f"{diag['sma20']} 元", "多頭" if diag['close'] >= diag['sma20'] else "空頭")
+                col_d_m3.metric("成交量比 (量/20均量)", f"{diag['vol_ratio']} 倍", "放量攻擊" if diag['vol_ratio'] >= 1.5 else "量縮整理")
+                col_d_m4.metric("連漲天數", f"{diag['up_days']} 天", "⚠️ 追高風險" if diag['up_days'] >= 3 else "安全區間")
+
+            st.markdown("---")
+            # 3. AI 助教即時互動問答 (Inline Q&A)
+            st.markdown("#### 💬 向 AI 助教即時請教（個股疑難、操作策略、技術面觀念）")
+            
+            cq1, cq2, cq3, cq4 = st.columns(4)
+            quick_prompt = None
+            if cq1.button("👉 這檔現在可以買嗎？", use_container_width=True, key=f"qp1_{query}"):
+                quick_prompt = f"請問 {info['name']} ({info['code']}) 現在適合進場買進嗎？"
+            if cq2.button("👉 支撐壓力和停損點在哪？", use_container_width=True, key=f"qp2_{query}"):
+                quick_prompt = f"請問 {info['name']} ({info['code']}) 的支撐壓力與停損點應該怎麼設定？"
+            if cq3.button("👉 什麼是一字底突破？", use_container_width=True, key=f"qp3_{query}"):
+                quick_prompt = "請詳細解說一字底飆股型態的四個標準條件與進場點？"
+            if cq4.button("👉 回後買上漲四大要件？", use_container_width=True, key=f"qp4_{query}"):
+                quick_prompt = "請問回後買上漲的四大必備要件是什麼？"
+
+            user_q = st.text_input("輸入您的問題：", value=quick_prompt if quick_prompt else "", placeholder=f"例如：{info['name']} 跌破 5MA 要停損嗎？ 或是 均線扣抵怎麼看？", key=f"ai_input_{query}")
+            if user_q:
+                with st.spinner("🧑‍🏫 AI 助教正在分析講義規範與盤面結構 ..."):
+                    ai_reply = answer_question(user_q, stock_context={"code": info['code'], "df": df, "info": info})
+                st.markdown(f"<div style='background:#1E2235; border:1px solid #3B82F6; border-radius:10px; padding:18px 20px; margin-top:12px;'>{ai_reply}</div>", unsafe_allow_html=True)
 
         # 底部快捷返回列 (看完圖表後不必滑回最上方)
         st.markdown("---")
