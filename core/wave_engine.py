@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 轉折波演算核心 (升級版：雜訊過濾與微波平滑)
 依據《技術分析全攻略》CH1 講義規範，並提供波段雜訊平滑模式，
@@ -42,7 +42,8 @@ def calculate_turning_points(df: pd.DataFrame, ma_period=5, filter_mode="standar
                     "date": peak_row['Date'],
                     "price": round(float(peak_row['High']), 2),
                     "index": int(max_high_idx),
-                    "label": "頭"
+                    "label": "頭",
+                    "is_tentative": False
                 }
                 
                 if raw_points and raw_points[-1]['type'] == 'PEAK':
@@ -65,7 +66,8 @@ def calculate_turning_points(df: pd.DataFrame, ma_period=5, filter_mode="standar
                     "date": trough_row['Date'],
                     "price": round(float(trough_row['Low']), 2),
                     "index": int(min_low_idx),
-                    "label": "底"
+                    "label": "底",
+                    "is_tentative": False
                 }
                 
                 if raw_points and raw_points[-1]['type'] == 'TROUGH':
@@ -77,7 +79,7 @@ def calculate_turning_points(df: pd.DataFrame, ma_period=5, filter_mode="standar
                 state = 1
                 seg_start_idx = min_low_idx
 
-    # 處理最後行進中波段
+    # 處理最後行進中波段 (尚未經 5MA 轉折確認，標註為暫高/暫底)
     if seg_start_idx < len(valid_df):
         sub = valid_df.iloc[seg_start_idx:]
         if state == 1:
@@ -87,7 +89,7 @@ def calculate_turning_points(df: pd.DataFrame, ma_period=5, filter_mode="standar
                 "date": valid_df.loc[max_idx, 'Date'],
                 "price": round(float(valid_df.loc[max_idx, 'High']), 2),
                 "index": int(max_idx),
-                "label": "頭",
+                "label": "暫高",
                 "is_tentative": True
             }
             if not raw_points or raw_points[-1]['type'] != 'PEAK':
@@ -101,7 +103,7 @@ def calculate_turning_points(df: pd.DataFrame, ma_period=5, filter_mode="standar
                 "date": valid_df.loc[min_idx, 'Date'],
                 "price": round(float(valid_df.loc[min_idx, 'Low']), 2),
                 "index": int(min_idx),
-                "label": "底",
+                "label": "暫底",
                 "is_tentative": True
             }
             if not raw_points or raw_points[-1]['type'] != 'TROUGH':

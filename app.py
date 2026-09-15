@@ -739,42 +739,79 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
         peaks = [p for p in points if p['type'] == 'PEAK']
         troughs = [p for p in points if p['type'] == 'TROUGH']
+        offset_val = (curr_ymax - curr_ymin) * 0.028
 
         if show_labels and peaks:
-            peak_x = [p['date'] for p in peaks]
-            offset_val = (curr_ymax - curr_ymin) * 0.028
-            peak_y = [p['price'] + offset_val for p in peaks]
-            peak_texts = [f"頭 {p['price']:.1f}" if show_all_prices else "頭" for p in peaks]
-            fig.add_trace(go.Scatter(
-                x=peak_x, y=peak_y,
-                mode='markers+text',
-                name="頭 (高點)",
-                marker=dict(symbol='circle', size=16, color='#E03131', line=dict(color='white', width=1.2)),
-                text=peak_texts,
-                textfont=dict(color='white', size=8, family='Arial Black'),
-                textposition='middle center',
-                hovertext=[f"波段高點【頭】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')})" for p in peaks],
-                hoverinfo='text',
-                showlegend=False
-            ), row=1, col=1)
+            conf_peaks = [p for p in peaks if not p.get('is_tentative', False)]
+            tent_peaks = [p for p in peaks if p.get('is_tentative', False)]
+
+            # 1. 已確認轉折之【頭】(正紅色實心，白色邊框)
+            if conf_peaks:
+                fig.add_trace(go.Scatter(
+                    x=[p['date'] for p in conf_peaks],
+                    y=[p['price'] + offset_val for p in conf_peaks],
+                    mode='markers+text',
+                    name="頭 (已確認)",
+                    marker=dict(symbol='circle', size=16, color='#E03131', line=dict(color='white', width=1.2)),
+                    text=[f"頭 {p['price']:.1f}" if show_all_prices else "頭" for p in conf_peaks],
+                    textfont=dict(color='white', size=8, family='Arial Black'),
+                    textposition='middle center',
+                    hovertext=[f"波段高點【頭】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [已跌破5MA確認]" for p in conf_peaks],
+                    hoverinfo='text',
+                    showlegend=False
+                ), row=1, col=1)
+
+            # 2. 行進中暫定之【暫高】(醒目暖橘色，尺寸稍大容納兩字，標示「暫高」)
+            if tent_peaks:
+                fig.add_trace(go.Scatter(
+                    x=[p['date'] for p in tent_peaks],
+                    y=[p['price'] + offset_val for p in tent_peaks],
+                    mode='markers+text',
+                    name="暫高 (行進中)",
+                    marker=dict(symbol='circle', size=19, color='#FD7E14', line=dict(color='white', width=1.5)),
+                    text=[f"暫高 {p['price']:.1f}" if show_all_prices else "暫高" for p in tent_peaks],
+                    textfont=dict(color='white', size=7, family='Arial Black'),
+                    textposition='middle center',
+                    hovertext=[f"行進間高點【暫高】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [尚未收跌破5MA，隨時可能創新高]" for p in tent_peaks],
+                    hoverinfo='text',
+                    showlegend=False
+                ), row=1, col=1)
 
         if show_labels and troughs:
-            trough_x = [p['date'] for p in troughs]
-            offset_val = (curr_ymax - curr_ymin) * 0.028
-            trough_y = [p['price'] - offset_val for p in troughs]
-            trough_texts = [f"底 {p['price']:.1f}" if show_all_prices else "底" for p in troughs]
-            fig.add_trace(go.Scatter(
-                x=trough_x, y=trough_y,
-                mode='markers+text',
-                name="底 (低點)",
-                marker=dict(symbol='circle', size=16, color='#2F9E44', line=dict(color='white', width=1.2)),
-                text=trough_texts,
-                textfont=dict(color='white', size=8, family='Arial Black'),
-                textposition='middle center',
-                hovertext=[f"波段低點【底】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')})" for p in troughs],
-                hoverinfo='text',
-                showlegend=False
-            ), row=1, col=1)
+            conf_troughs = [p for p in troughs if not p.get('is_tentative', False)]
+            tent_troughs = [p for p in troughs if p.get('is_tentative', False)]
+
+            # 1. 已確認轉折之【底】(正綠色實心，白色邊框)
+            if conf_troughs:
+                fig.add_trace(go.Scatter(
+                    x=[p['date'] for p in conf_troughs],
+                    y=[p['price'] - offset_val for p in conf_troughs],
+                    mode='markers+text',
+                    name="底 (已確認)",
+                    marker=dict(symbol='circle', size=16, color='#2F9E44', line=dict(color='white', width=1.2)),
+                    text=[f"底 {p['price']:.1f}" if show_all_prices else "底" for p in conf_troughs],
+                    textfont=dict(color='white', size=8, family='Arial Black'),
+                    textposition='middle center',
+                    hovertext=[f"波段低點【底】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [已站上5MA確認]" for p in conf_troughs],
+                    hoverinfo='text',
+                    showlegend=False
+                ), row=1, col=1)
+
+            # 2. 行進中暫定之【暫底】(青碧綠色，標示「暫底」)
+            if tent_troughs:
+                fig.add_trace(go.Scatter(
+                    x=[p['date'] for p in tent_troughs],
+                    y=[p['price'] - offset_val for p in tent_troughs],
+                    mode='markers+text',
+                    name="暫底 (行進中)",
+                    marker=dict(symbol='circle', size=19, color='#20C997', line=dict(color='white', width=1.5)),
+                    text=[f"暫底 {p['price']:.1f}" if show_all_prices else "暫底" for p in tent_troughs],
+                    textfont=dict(color='white', size=7, family='Arial Black'),
+                    textposition='middle center',
+                    hovertext=[f"行進間低點【暫底】：{p['price']} 元 ({p['date'].strftime('%Y/%m/%d')}) [尚未收站上5MA，隨時可能創新低]" for p in tent_troughs],
+                    hoverinfo='text',
+                    showlegend=False
+                ), row=1, col=1)
 
         annotations = []
         if highest_peak:
