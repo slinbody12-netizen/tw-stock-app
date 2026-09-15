@@ -1414,5 +1414,11 @@
     "industry": "建材營造",
     "has_futures": false,
     "has_cb": false
+  },
+  {
+    "code": "5251",
+    "name": "天鉞電",
+    "market": "TWO",
+    "industry": "光電/安控"
   }
 ]

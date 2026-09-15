@@ -1211,37 +1211,28 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     target_strategy = "全部"
     if "波段" in main_mode:
         sub_strat = st.radio(
-            "波段 8 大子策略 (實戰量化分類)：",
+            "波段子策略 (與老朱 APP 1:1 對齊)：",
             [
-                "🎯 回後準進場 (回後買上漲)",
-                "🌱 底部起漲 (低檔首根長紅)",
-                "🚀 高檔起漲 (突破續攻)",
-                "⚔️ 剛出現雙線黃金交叉 (5MA 向上穿過 20MA)",
-                "📦 一字底 (平躺橫盤突破)",
-                "📐 N字底 (第二隻腳打樁有守)",
-                "🔄 圓弧底 (U型弧底翻揚)",
-                "👑 頭高底高 (六字訣多頭確認)"
+                "👑 頭高底高 (六字訣多頭確認)",
+                "🎯 回後準進場 (拉回測線有守·短線買點)",
+                "🌱 底部起漲 (含一字底/N字底/圓弧底突破)",
+                "🚀 高檔起漲 (多頭突破再創高)",
+                "⚔️ 雙線翻揚 (5MA/20MA 向上翻揚)"
             ],
             horizontal=True,
             key="scr_sub_strat"
         )
         st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
-        if "回後準進場" in sub_strat:
+        if "頭高底高" in sub_strat:
+            target_strategy = "頭高底高"
+        elif "回後準進場" in sub_strat:
             target_strategy = "回後準進場"
         elif "底部起漲" in sub_strat:
             target_strategy = "底部起漲"
         elif "高檔起漲" in sub_strat:
             target_strategy = "高檔起漲"
-        elif "雙線黃金交叉" in sub_strat:
-            target_strategy = "雙線黃金交叉"
-        elif "一字底" in sub_strat:
-            target_strategy = "一字底"
-        elif "N字底" in sub_strat:
-            target_strategy = "N字底"
-        elif "圓弧底" in sub_strat:
-            target_strategy = "圓弧底"
-        elif "頭高底高" in sub_strat:
-            target_strategy = "頭高底高"
+        elif "雙線翻揚" in sub_strat:
+            target_strategy = "雙線翻揚"
     elif "長抱" in main_mode:
         target_strategy = "長抱"
     elif "盤中強勢" in main_mode:

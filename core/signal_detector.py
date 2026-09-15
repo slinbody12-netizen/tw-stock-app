@@ -181,9 +181,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     not_broken_support = l >= support * 0.985
     stand_on_5ma = (c >= sma5)
 
-    if (is_bull or signals_dict['golden_cross_5_20'] or sma5 >= sma20) and tested_ma and not_broken_support and is_red and stand_on_5ma and is_5ma_rising:
+    is_5ma_turning = is_5ma_rising or (c >= sma5 and sma5 >= df.iloc[-2]['SMA_5'] * 0.99) or (sma20 >= df.iloc[-2]['SMA_20'] and c >= sma5)
+    if (is_bull or signals_dict['golden_cross_5_20'] or sma5 >= sma20) and tested_ma and not_broken_support and is_red and stand_on_5ma and is_5ma_turning:
         signals_dict['pullback_buy'] = True
-        signals.append("回後準進場 (拉回測線有守，轉折紅K站回5MA且操盤線翻揚)")
+        signals.append("回後準進場 (拉回測線有守，轉折紅K站回5MA)")
 
     # ----------------------------------------------------
     # 策略 D：底部起漲 (低檔整理首度帶量長紅突破)

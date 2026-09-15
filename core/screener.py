@@ -351,11 +351,11 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 match = True
         elif strategy == "回後準進場" and signals_dict.get('pullback_buy', False):
             match = True
-        elif strategy == "底部起漲" and signals_dict.get('bottom_breakout', False):
+        elif strategy == "底部起漲" and (signals_dict.get('bottom_breakout', False) or signals_dict.get('flat_base_breakout', False) or signals_dict.get('n_pattern_bottom', False) or signals_dict.get('rounding_bottom', False)):
             match = True
         elif strategy == "高檔起漲" and signals_dict.get('high_breakout', False):
             match = True
-        elif strategy == "雙線黃金交叉" and signals_dict.get('golden_cross_5_20', False):
+        elif strategy in ["雙線翻揚", "雙線黃金交叉"] and (signals_dict.get('golden_cross_5_20', False) or (s.get('is_5ma_rising', False) and s.get('sma5', 0) > s.get('sma20', 0))):
             match = True
         elif strategy == "一字底" and signals_dict.get('flat_base_breakout', False):
             match = True
