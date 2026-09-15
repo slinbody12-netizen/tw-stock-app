@@ -333,64 +333,99 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         is_bull = bool(s.get('is_bull', False))
         if direction == "多" and is_bear and not signals_dict.get('bottom_breakout', False):
             continue
-        elif direction == "空" and is_bull:
+        elif direction == "空" and is_bull and not (signals_dict.get('top_breakdown', False) or signals_dict.get('intraday_weak', False)):
             continue
 
-        # 3.5 長上影線過濾 (實戰尾盤進場關鍵：剔除衝高拉回避雷針，只留收在相對高點的實體紅K)
-        if filter_no_upper_shadow and signals_dict.get('has_long_upper_shadow', False):
+        # 3.5 長上影線過濾 (僅限多方做多進場：剔除衝高拉回避雷針，只留收在相對高點的實體紅K)
+        if direction == "多" and filter_no_upper_shadow and signals_dict.get('has_long_upper_shadow', False):
             continue
 
         # 4. 策略精準過濾
         match = False
-        if strategy == "全部":
-            match = True
-        elif strategy == "頭高底高" and (signals_dict.get('higher_highs_lows', False) or is_bull):
-            # 實戰鐵律：做多買進選股，操盤線(5MA)必須走平或翻揚助漲，且收盤站穩 5MA 之上！
-            # 若波段多頭但短線 5MA 下彎破線，屬於多頭拉回回檔中，應歸入鎖股池「回檔等上漲」專區！
-            if s.get('is_5ma_rising', True) and s.get('above_5ma', True):
+        if direction == "空":
+            # 做空子策略 (1:1 對齊老朱 App 空方波段與即時大類)
+            if strategy in ["全部", "盤中排行", "量排行"]:
                 match = True
-        elif strategy == "回後準進場" and signals_dict.get('pullback_buy', False):
-            match = True
-        elif strategy == "底部起漲" and (signals_dict.get('bottom_breakout', False) or signals_dict.get('flat_base_breakout', False) or signals_dict.get('n_pattern_bottom', False) or signals_dict.get('rounding_bottom', False)):
-            match = True
-        elif strategy == "高檔起漲" and signals_dict.get('high_breakout', False):
-            match = True
-        elif strategy in ["雙線翻揚", "雙線黃金交叉"] and (signals_dict.get('golden_cross_5_20', False) or (s.get('is_5ma_rising', False) and s.get('sma5', 0) > s.get('sma20', 0))):
-            match = True
-        elif strategy == "一字底" and signals_dict.get('flat_base_breakout', False):
-            match = True
-        elif strategy == "N字底" and signals_dict.get('n_pattern_bottom', False):
-            match = True
-        elif strategy == "圓弧底" and signals_dict.get('rounding_bottom', False):
-            match = True
-        elif strategy == "長抱" and signals_dict.get('long_hold', False):
-            match = True
-        elif strategy == "一點鐘" and signals_dict.get('one_pm_strategy', False):
-            match = True
-        elif strategy == "盤中強勢" and signals_dict.get('intraday_strong', False):
-            match = True
-        elif strategy == "等突破" and stage == "等突破":
-            match = True
-        elif strategy == "高檔等回檔" and stage == "高檔等回檔":
-            match = True
-        elif strategy == "回檔等上漲" and stage == "回檔等上漲":
-            match = True
+            elif strategy == "頭低底低" and (signals_dict.get('lower_highs_lows', False) or is_bear):
+                if not s.get('is_5ma_rising', False) and not s.get('above_5ma', True):
+                    match = True
+            elif strategy == "彈後準進場" and signals_dict.get('rebound_short', False):
+                match = True
+            elif strategy == "頂部起跌" and (signals_dict.get('top_breakdown', False) or signals_dict.get('flat_top_breakdown', False) or signals_dict.get('n_pattern_top', False) or signals_dict.get('rounding_top', False)):
+                match = True
+            elif strategy == "低檔起跌" and signals_dict.get('low_breakdown', False):
+                match = True
+            elif strategy in ["雙線死亡交叉", "雙線下彎"] and signals_dict.get('death_cross_5_20', False):
+                match = True
+            elif strategy == "盤中弱勢" and (signals_dict.get('intraday_weak', False) or (s.get('change_pct', 0) <= -1.0 and not s.get('above_5ma', True))):
+                match = True
+            elif strategy == "一點鐘" and (signals_dict.get('one_pm_short', False) or (s.get('change_pct', 0) <= -0.5 and not s.get('above_5ma', True))):
+                match = True
+        else:
+            # 做多子策略
+            if strategy == "全部":
+                match = True
+            elif strategy == "頭高底高" and (signals_dict.get('higher_highs_lows', False) or is_bull):
+                # 實戰鐵律：做多買進選股，操盤線(5MA)必須走平或翻揚助漲，且收盤站穩 5MA 之上！
+                if s.get('is_5ma_rising', True) and s.get('above_5ma', True):
+                    match = True
+            elif strategy == "回後準進場" and signals_dict.get('pullback_buy', False):
+                match = True
+            elif strategy == "底部起漲" and (signals_dict.get('bottom_breakout', False) or signals_dict.get('flat_base_breakout', False) or signals_dict.get('n_pattern_bottom', False) or signals_dict.get('rounding_bottom', False)):
+                match = True
+            elif strategy == "高檔起漲" and signals_dict.get('high_breakout', False):
+                match = True
+            elif strategy in ["雙線翻揚", "雙線黃金交叉"] and (signals_dict.get('golden_cross_5_20', False) or (s.get('is_5ma_rising', False) and s.get('sma5', 0) > s.get('sma20', 0))):
+                match = True
+            elif strategy == "一字底" and signals_dict.get('flat_base_breakout', False):
+                match = True
+            elif strategy == "N字底" and signals_dict.get('n_pattern_bottom', False):
+                match = True
+            elif strategy == "圓弧底" and signals_dict.get('rounding_bottom', False):
+                match = True
+            elif strategy == "長抱" and signals_dict.get('long_hold', False):
+                match = True
+            elif strategy == "一點鐘" and signals_dict.get('one_pm_strategy', False):
+                match = True
+            elif strategy == "盤中強勢" and signals_dict.get('intraday_strong', False):
+                match = True
+            elif strategy == "等突破" and stage == "等突破":
+                match = True
+            elif strategy == "高檔等回檔" and stage == "高檔等回檔":
+                match = True
+            elif strategy == "回檔等上漲" and stage == "回檔等上漲":
+                match = True
 
         if match:
             filtered.append(s)
 
-    # 確保符合條件的所有標的依照品質分數排序
-    filtered.sort(key=lambda x: float(x.get('quality_score', 0) or 0), reverse=True)
+    # 排序邏輯：做空與做多自適應
+    if direction == "空":
+        if strategy == "盤中排行":
+            filtered.sort(key=lambda x: float(x.get('change_pct', 0) or 0)) # 跌幅大排前
+        elif strategy == "量排行":
+            filtered.sort(key=lambda x: float(x.get('volume', 0) or 0), reverse=True) # 爆量排前
+        else:
+            filtered.sort(key=lambda x: (
+                float(x.get('chili_count', 1)),
+                -float(x.get('change_pct', 0) or 0),
+                float(x.get('volume', 0) or 0)
+            ), reverse=True)
+    else:
+        if strategy == "量排行":
+            filtered.sort(key=lambda x: float(x.get('volume', 0) or 0), reverse=True)
+        else:
+            filtered.sort(key=lambda x: float(x.get('quality_score', 0) or 0), reverse=True)
 
     # 為排名前列的股票附加榮譽勳章 (Rank Badge)
     for idx, item in enumerate(filtered):
         rank = idx + 1
+        prefix = "🎯 做空" if direction == "空" else "🏆 綜合"
+        star_prefix = "📉 空方" if direction == "空" else "⭐ 強勢"
         if rank == 1:
-            item['rank_badge'] = "🏆 綜合首選 No.1"
-        elif rank == 2:
-            item['rank_badge'] = "⭐ 強勢推薦 No.2"
-        elif rank == 3:
-            item['rank_badge'] = "⭐ 強勢推薦 No.3"
+            item['rank_badge'] = f"{prefix}首選 No.1"
+        elif rank in [2, 3]:
+            item['rank_badge'] = f"{star_prefix}推薦 No.{rank}"
         elif rank <= 10:
             item['rank_badge'] = f"✨ 優質標的 No.{rank}"
         else:

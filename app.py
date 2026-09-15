@@ -287,7 +287,11 @@ def render_stock_card(item, key_prefix="sc"):
     elif sig.get('is_consolidation', False):
         badge_html += "<span style='background:#595959; color:white; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>⏸️ 整理觀望</span>"
 
-    chili_str = "🌶️" * item.get('chili_count', 1)
+    if is_up:
+        chili_str = "🌶️" * item.get('chili_count', 1)
+    else:
+        # 老朱 App 做空綠色辣椒標記 (代表空方摜壓/主力大賣)
+        chili_str = "<span style='filter: hue-rotate(95deg) saturate(2); display:inline-block;'>🌶️</span>" * item.get('chili_count', 1)
     safety = item.get('safety_rating', '🟢 安全首選')
     safety_color = "#52C41A" if "安全" in safety else ("#FAAD14" if "警訊" in safety else "#FF4D4F")
     
@@ -1200,45 +1204,83 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         direction = st.radio("操作方向", ["🔴 做多 (Long)", "🟢 做空 (Short)"], horizontal=True, key="scr_direction")
         dir_val = "多" if "做多" in direction else "空"
     with col_t2:
-        main_mode = st.radio(
-            "選股大類",
-            ["📈 波段策略 (起漲關鍵)", "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)", "⚡ 盤中強勢 (量價齊揚)", "💎 長抱標的 (長期多排)"],
-            horizontal=True,
-            key="scr_main_mode"
-        )
+        if dir_val == "多":
+            main_mode = st.radio(
+                "選股大類",
+                ["📈 波段策略 (起漲關鍵)", "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)", "⚡ 盤中強勢 (量價齊揚)", "💎 長抱標的 (長期多排)"],
+                horizontal=True,
+                key="scr_main_mode"
+            )
+        else:
+            main_mode = st.radio(
+                "選股大類 (做空)",
+                ["📉 波段策略 (起跌關鍵)", "⚡ 盤中弱勢 (跌破帶量)", "📊 盤中排行 (跌幅排行)", "🔥 量排行", "⏰ 12:40 - 13:30 尾盤一點鐘 (放空首選)"],
+                horizontal=True,
+                key="scr_main_mode_short"
+            )
 
-    # 若選中波段策略，展示 8 大子策略
     target_strategy = "全部"
     if "波段" in main_mode:
-        sub_strat = st.radio(
-            "波段子策略 (與老朱 APP 1:1 對齊)：",
-            [
-                "👑 頭高底高 (六字訣多頭確認)",
-                "🎯 回後準進場 (拉回測線有守·短線買點)",
-                "🌱 底部起漲 (含一字底/N字底/圓弧底突破)",
-                "🚀 高檔起漲 (多頭突破再創高)",
-                "⚔️ 雙線翻揚 (5MA/20MA 向上翻揚)"
-            ],
-            horizontal=True,
-            key="scr_sub_strat"
-        )
-        st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
-        if "頭高底高" in sub_strat:
-            target_strategy = "頭高底高"
-        elif "回後準進場" in sub_strat:
-            target_strategy = "回後準進場"
-        elif "底部起漲" in sub_strat:
-            target_strategy = "底部起漲"
-        elif "高檔起漲" in sub_strat:
-            target_strategy = "高檔起漲"
-        elif "雙線翻揚" in sub_strat:
-            target_strategy = "雙線翻揚"
+        if dir_val == "多":
+            sub_strat = st.radio(
+                "波段子策略 (與老朱 APP 1:1 對齊)：",
+                [
+                    "👑 頭高底高 (六字訣多頭確認)",
+                    "🎯 回後準進場 (拉回測線有守·短線買點)",
+                    "🌱 底部起漲 (含一字底/N字底/圓弧底突破)",
+                    "🚀 高檔起漲 (多頭突破再創高)",
+                    "⚔️ 雙線翻揚 (5MA/20MA 向上翻揚)"
+                ],
+                horizontal=True,
+                key="scr_sub_strat"
+            )
+            st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
+            if "頭高底高" in sub_strat:
+                target_strategy = "頭高底高"
+            elif "回後準進場" in sub_strat:
+                target_strategy = "回後準進場"
+            elif "底部起漲" in sub_strat:
+                target_strategy = "底部起漲"
+            elif "高檔起漲" in sub_strat:
+                target_strategy = "高檔起漲"
+            elif "雙線翻揚" in sub_strat:
+                target_strategy = "雙線翻揚"
+        else:
+            sub_strat = st.radio(
+                "空方波段子策略 (與老朱 APP 1:1 對齊)：",
+                [
+                    "👑 頭低底低 (六字訣空頭確認)",
+                    "🎯 彈後準進場 (反彈測線無力·短線空點)",
+                    "🛑 頂部起跌 (高檔頭部成形·首度跌破)",
+                    "📉 低檔起跌 (破底續跌·弱勢續殺)",
+                    "⚔️ 雙線死亡交叉 (5MA/20MA 雙線下彎走空)"
+                ],
+                horizontal=True,
+                key="scr_sub_strat_short"
+            )
+            st.caption("💡 **做空實戰心法**：【🎯 彈後準進場】是「**反彈測線無力、今日轉折黑K跌破5MA、12:40 - 13:30 可進場放空**」的黃金空點名單！")
+            if "頭低底低" in sub_strat:
+                target_strategy = "頭低底低"
+            elif "彈後準進場" in sub_strat:
+                target_strategy = "彈後準進場"
+            elif "頂部起跌" in sub_strat:
+                target_strategy = "頂部起跌"
+            elif "低檔起跌" in sub_strat:
+                target_strategy = "低檔起跌"
+            elif "雙線死亡交叉" in sub_strat:
+                target_strategy = "雙線死亡交叉"
     elif "長抱" in main_mode:
         target_strategy = "長抱"
-    elif "盤中強勢" in main_mode:
+    elif "強勢" in main_mode:
         target_strategy = "盤中強勢"
+    elif "弱勢" in main_mode:
+        target_strategy = "盤中弱勢"
     elif "一點鐘" in main_mode:
         target_strategy = "一點鐘"
+    elif "盤中排行" in main_mode:
+        target_strategy = "盤中排行"
+    elif "量排行" in main_mode:
+        target_strategy = "量排行"
 
     # 價格分級篩選
     col_p1, col_p2 = st.columns([3, 1])

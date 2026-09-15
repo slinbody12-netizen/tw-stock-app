@@ -27,7 +27,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     """
     signals = []
     signals_dict = {
-        # 波段 8 大子策略
+        # 波段做多子策略
         "higher_highs_lows": False,   # 頭高底高
         "pullback_buy": False,        # 回後準進場
         "bottom_breakout": False,     # 底部起漲
@@ -36,11 +36,23 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "flat_base_breakout": False,  # 一字底
         "n_pattern_bottom": False,    # N字底
         "rounding_bottom": False,     # 圓弧底
+
+        # 波段做空子策略 (1:1 對齊老朱 App)
+        "lower_highs_lows": False,    # 頭低底低 (六字訣空頭確認)
+        "rebound_short": False,       # 彈後準進場 (反彈測線無力·短線空點)
+        "top_breakdown": False,       # 頂部起跌 (高檔頭部放量長黑破線)
+        "low_breakdown": False,       # 低檔起跌 (破前低弱勢續殺)
+        "death_cross_5_20": False,    # 雙線死亡交叉 / 雙線下彎
+        "flat_top_breakdown": False,  # 一字頭 (平躺橫盤跌破)
+        "n_pattern_top": False,       # 倒N字底 (反彈不過前高再破低)
+        "rounding_top": False,        # 圓弧頂 (頭部蓋頂)
         
         # 其他大類
         "long_hold": False,           # 長抱
-        "one_pm_strategy": False,     # 一點鐘
+        "one_pm_strategy": False,     # 一點鐘 (多)
+        "one_pm_short": False,        # 一點鐘 (空)
         "intraday_strong": False,     # 盤中強勢
+        "intraday_weak": False,       # 盤中弱勢
         
         # 鎖股池狀態
         "watchlist_stage": "觀察中",   # 等突破 / 高檔等回檔 / 回檔等上漲
@@ -139,9 +151,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # 5. 辣椒動能指標 (1~3 根)
     chili = 1
     vol_ratio = v / v_ma20 if v_ma20 > 0 else 1.0
-    if vol_ratio >= 2.0 or change_pct >= 5.0:
+    if vol_ratio >= 2.0 or abs(change_pct) >= 5.0:
         chili = 3
-    elif vol_ratio >= 1.3 or change_pct >= 2.5:
+    elif vol_ratio >= 1.3 or abs(change_pct) >= 2.5:
         chili = 2
     signals_dict['chili_count'] = chili
 
@@ -267,6 +279,59 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if change_pct >= 1.5 and is_red and c >= sma5 and vol_ratio >= 1.1:
         signals_dict['intraday_strong'] = True
         signals.append("盤中強勢 (量價齊揚強勁攻擊)")
+
+    # ====================================================
+    # 做空波段與即時策略 (1:1 對齊老朱 App 空方體系)
+    # ====================================================
+    is_black = (c < o)
+    is_5ma_falling = (sma5 <= prev_sma5)
+    is_bear = bool(trend_info.get('lower_highs', False) and trend_info.get('lower_lows', False)) or trend_info.get('trend_status', '').startswith('空頭')
+
+    # 策略 A_空：頭低底低 (六字訣空頭確認)
+    if is_bear and c <= sma5 and is_5ma_falling:
+        signals_dict['lower_highs_lows'] = True
+        signals.append("頭低底低 (空頭走勢確認)")
+
+    # 策略 B_空：雙線死亡交叉 / 雙線下彎 (5MA 向下穿過 20MA 或雙線同步下彎)
+    is_death_cross_today = (sma5 <= sma20 and prev_sma5 >= prev_sma20 and is_5ma_falling)
+    is_death_cross_recent = (sma5 <= sma20 and float(prev2['SMA_5']) >= float(prev2['SMA_20']) and is_5ma_falling) if len(df) > 2 else False
+    is_dual_ma_falling = (sma5 < sma20 and is_5ma_falling and sma20 <= prev_sma20)
+    if is_death_cross_today or is_death_cross_recent or is_dual_ma_falling:
+        signals_dict['death_cross_5_20'] = True
+        signals.append("雙線死亡交叉/雙線下彎 (5MA向下跌破20MA或同步下彎)")
+
+    # 策略 C_空：彈後準進場 (弱勢反彈測線無力，轉折黑K空點)
+    recent_highs = df.iloc[-4:-1]['High'].max() if len(df) >= 4 else h
+    tested_res_or_ma = (recent_highs >= sma20 * 0.98 or h >= sma5 * 0.99)
+    res_val = trend_info.get('resistance', 0) or (c * 1.08)
+    not_broken_res = h <= res_val * 1.015
+    is_5ma_falling_or_turn = is_5ma_falling or (c <= sma5 and sma5 <= prev_sma5 * 1.01) or (sma20 <= prev_sma20 and c <= sma5)
+    if (is_bear or sma5 <= sma20) and tested_res_or_ma and not_broken_res and is_black and c <= sma5 and is_5ma_falling_or_turn:
+        signals_dict['rebound_short'] = True
+        signals.append("彈後準進場 (反彈測線無力，轉折黑K跌破5MA)")
+
+    # 策略 D_空：頂部起跌 (高檔整理或頭部型態完成，首度放量跌破均線)
+    past20_high = df.iloc[-25:-5]['High'].max() if len(df) >= 25 else h
+    is_near_top = (c >= past20_high * 0.85) or (sma20 >= sma60 * 0.98)
+    is_breakdown_today = (c <= sma5 and c <= sma20 and is_black and (change_pct <= -0.5 or vol_ratio >= 1.1) and is_5ma_falling)
+    if is_near_top and is_breakdown_today:
+        signals_dict['top_breakdown'] = True
+        signals.append("頂部起跌 (高檔放量長黑跌破均線)")
+
+    # 策略 E_空：低檔起跌 (空頭破底續殺)
+    if c <= sma60 and sma5 < sma20 and change_pct <= -1.2 and is_black and (c <= df.iloc[-10:-1]['Low'].min() * 1.01) and is_5ma_falling:
+        signals_dict['low_breakdown'] = True
+        signals.append("低檔起跌 (弱勢跌破前低續殺)")
+
+    # 策略 J_空：一點鐘放空 (1:00 PM 尾盤選股)
+    if is_black and c <= sma5 and is_5ma_falling and change_pct <= -0.5:
+        signals_dict['one_pm_short'] = True
+        signals.append("一點鐘放空 (尾盤弱勢收黑跌破操盤線)")
+
+    # 策略 K_空：盤中弱勢 (跌破帶量)
+    if change_pct <= -1.2 and is_black and c <= sma5 and vol_ratio >= 1.05:
+        signals_dict['intraday_weak'] = True
+        signals.append("盤中弱勢 (量大摜破操盤線)")
 
     # ----------------------------------------------------
     # 盤整狀態辨識與盤整末端即將突破預警 (教學手冊重點)
