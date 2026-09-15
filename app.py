@@ -16,6 +16,7 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import importlib
+import datetime
 
 import core.data_fetcher
 import core.wave_engine
@@ -23,6 +24,7 @@ import core.trend_analyzer
 import core.signal_detector
 import core.screener
 import core.ai_assistant
+import core.copilot
 
 # 強制重載 core 模組，確保 Streamlit Cloud 部署即時同步最新簽名與函式
 importlib.reload(core.wave_engine)
@@ -30,6 +32,7 @@ importlib.reload(core.trend_analyzer)
 importlib.reload(core.signal_detector)
 importlib.reload(core.screener)
 importlib.reload(core.ai_assistant)
+importlib.reload(core.copilot)
 
 from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, load_stock_list
 from core.wave_engine import calculate_turning_points
@@ -37,6 +40,10 @@ from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
 from core.screener import scan_stocks, load_speedy_chips
 from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query, diagnose_stock_deeply
+from core.copilot import (
+    load_portfolio, save_portfolio, add_holding, close_holding, delete_holding,
+    get_copilot_recommendation, inspect_portfolio
+)
 
 st.set_page_config(
     page_title="技術分析全攻略 - 股票趨勢與轉折波系統",
@@ -468,6 +475,7 @@ MENU_OPTIONS = [
     "📊 個股技術分析 (轉折波主圖)",
     "🎯 全攻略選股池 (多/空策略)",
     "👁️ 晚間盤後功課 (鎖股名冊監控)",
+    "🤖 實戰秘密特務 (操盤副駕駛)",
     "🧑‍🏫 AI 實戰操盤助教"
 ]
 
@@ -1362,7 +1370,336 @@ elif "鎖股" in menu or "晚間盤後功課" in menu:
         st.info(f"目前無處於【{current_stage}】的追蹤個股。")
 
 # ----------------------------------------------------
-# 功能分頁 4：AI 實戰操盤助教 (AI Assistant)
+# 功能分頁 4：實戰秘密特務 · 操盤副駕駛 (Trading Copilot)
+# ----------------------------------------------------
+elif "秘密特務" in menu or "操盤副駕駛" in menu:
+    st.header("🤖 實戰秘密特務 · 尾盤推薦與自動持股守護神")
+    
+    # 判斷當前是否處於 12:30 - 13:35 尾盤黃金時間
+    now_dt = datetime.datetime.now()
+    is_tail_time = (now_dt.hour == 12 and now_dt.minute >= 30) or (now_dt.hour == 13 and now_dt.minute <= 35)
+    
+    if is_tail_time:
+        st.markdown("""
+        <div style="background: linear-gradient(90deg, #FA8C16, #FF4D4F); padding: 14px 18px; border-radius: 10px; color: white; font-weight: bold; margin-bottom: 14px; font-size: 1.05rem;">
+            ⏰【尾盤黃金決策時刻 12:40 - 13:30】：今日多空主力已充分表態！轉折紅K確認站穩5MA，正是執行短線 3~5 天波段下單的最佳進場時機！
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.caption("💡 **實戰心法**：每天尾盤 **12:40 - 13:30** 是主力全日多空定調的關鍵時刻。副駕駛在背景經過 5 重嚴苛濾網，每日精挑 **唯一一檔最高勝率標的** 指示進場；您買進後只需點擊【我買了】，副駕駛將自動啟動 24 小時守護神，每日監控 5MA 生命線與停損目標！")
+
+    tab_copilot1, tab_copilot2, tab_copilot3 = st.tabs([
+        "🎯 今日尾盤作戰指示 (AI 唯一首選推薦)",
+        "🛡️ 我的持股守護神 (自動盯盤與出場提醒)",
+        "📜 實戰戰報紀錄 (已結算出場歷史)"
+    ])
+
+    with tab_copilot1:
+        st.subheader("🎯 今日全市場唯一首選 · 尾盤進場作戰指示")
+        
+        c_r1, c_r2 = st.columns([3, 1])
+        with c_r1:
+            st.caption("🤖 經技術分析全攻略引擎 5 重嚴格濾網（剔除避雷針、剔除高檔暴漲、剔除重套賣壓、風報比 >= 1.5、5MA翻揚收紅）自動嚴選。")
+        with c_r2:
+            rec_refresh = st.button("⚡ 重新精選推薦", key="btn_rec_refresh", use_container_width=True)
+
+        with st.spinner("AI 副駕駛正在全市場 187 檔股票中層層嚴選今日唯一首選標的..."):
+            rec_data = get_copilot_recommendation(force_refresh=rec_refresh, enable_realtime=True)
+
+        if rec_data.get("has_pick"):
+            rec_code = rec_data['code']
+            rec_name = rec_data['name']
+            rec_price = rec_data['close']
+            rec_chg = rec_data['change_pct']
+            rec_stop = rec_data['stop_loss']
+            rec_target = rec_data['target_price']
+            rec_rr = rec_data['rr_ratio']
+            rec_risk = rec_data['risk_pct']
+            rec_reward = rec_data['reward_pct']
+            rec_strat = rec_data['strategy']
+            rec_chili = "🌶️" * rec_data.get('chili_count', 1)
+
+            chg_sign = "+" if rec_chg >= 0 else ""
+            chg_color = "#FF4D4F" if rec_chg >= 0 else "#52C41A"
+
+            rec_card_html = f"""
+            <div style="background: #181B26; border: 2px solid #3B82F6; border-radius: 12px; padding: 20px; margin-bottom: 16px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px;">
+                    <div>
+                        <span style="background: linear-gradient(90deg, #FA8C16, #FF4D4F); color:white; padding:3px 10px; border-radius:6px; font-weight:bold; font-size:0.85rem; margin-right:8px;">
+                            👑 今日唯一首選
+                        </span>
+                        <span style="font-size: 1.6rem; font-weight: bold; color: white;">{rec_name} ({rec_code})</span>
+                        <span style="color: #A0AEC0; font-size: 0.95rem; margin-left: 8px;">{rec_data.get('industry', '')} · {rec_strat}</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="font-size: 1.8rem; font-weight: bold; color: {chg_color};">{rec_price:.2f}</span>
+                        <span style="font-size: 1.05rem; font-weight: bold; color: {chg_color}; margin-left: 6px;">{chg_sign}{rec_chg:.2f}%</span>
+                        <div style="margin-top:2px;">{rec_chili}</div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;">
+                    <div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;">
+                        <div style="color: #8892B0; font-size: 0.8rem;">操盤線 (5MA)</div>
+                        <div style="font-size: 1.15rem; font-weight: bold; color: #52C41A;">{rec_data.get('ma5', rec_price):.2f} 元</div>
+                    </div>
+                    <div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;">
+                        <div style="color: #8892B0; font-size: 0.8rem;">🛑 嚴格停損價</div>
+                        <div style="font-size: 1.15rem; font-weight: bold; color: #FF4D4F;">{rec_stop:.2f} 元 (-{rec_risk}%)</div>
+                    </div>
+                    <div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;">
+                        <div style="color: #8892B0; font-size: 0.8rem;">🏁 波段目標價</div>
+                        <div style="font-size: 1.15rem; font-weight: bold; color: #FAAD14;">{rec_target:.2f} 元 (+{rec_reward}%)</div>
+                    </div>
+                    <div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;">
+                        <div style="color: #8892B0; font-size: 0.8rem;">⚖️ 風報比 (Reward/Risk)</div>
+                        <div style="font-size: 1.15rem; font-weight: bold; color: #13C2C2;">1 : {rec_rr}</div>
+                    </div>
+                </div>
+
+                <div style="background: #151822; padding: 14px 16px; border-radius: 8px; margin-bottom: 14px;">
+                    <div style="font-weight: bold; color: #4FD1C5; margin-bottom: 6px; font-size: 0.95rem;">💡 為什麼今天尾盤買這檔？（副駕駛嚴選理由）：</div>
+                    <div style="font-size: 0.9rem; color: #E2E8F0; line-height: 1.8;">
+                        {'<br>'.join(rec_data.get('why_buy', []))}
+                    </div>
+                </div>
+
+                <div style="background: #262014; border-left: 4px solid #FA8C16; padding: 12px 14px; border-radius: 6px; color: #FFE8CC; font-size: 0.92rem; line-height: 1.6;">
+                    {rec_data.get('action_plan', '')}
+                </div>
+            </div>
+            """
+            st.markdown(rec_card_html, unsafe_allow_html=True)
+
+            with st.expander("👉 我在尾盤下單買了！點此將這檔股票交由【持股守護神】自動盯盤", expanded=False):
+                col_b1, col_b2, col_b3 = st.columns(3)
+                with col_b1:
+                    user_buy_price = st.number_input("您的實際成交價 (元)", value=rec_price, step=0.1, key=f"buy_p_{rec_code}")
+                with col_b2:
+                    user_shares = st.number_input("買進張數 (1張=1000股)", value=1, min_value=1, step=1, key=f"buy_s_{rec_code}")
+                with col_b3:
+                    user_stop_p = st.number_input("自訂防守停損價 (元)", value=rec_stop, step=0.1, key=f"buy_sl_{rec_code}")
+
+                if st.button(f"🚀 確認買進【{rec_name} ({rec_code})】並啟動守護神！", type="primary", use_container_width=True, key=f"confirm_buy_{rec_code}"):
+                    reason_str = f"尾盤首選推薦：{rec_strat}，風報比 1:{rec_rr}"
+                    add_holding(
+                        code=rec_code,
+                        name=rec_name,
+                        buy_price=user_buy_price,
+                        stop_loss=user_stop_p,
+                        target_price=rec_target,
+                        strategy=rec_strat,
+                        buy_reason=reason_str,
+                        shares=user_shares * 1000
+                    )
+                    st.success(f"🎉 成功加入持股守護神！副駕駛即刻開始為您每日盯盤【{rec_name}】！")
+                    st.rerun()
+
+            if rec_data.get("alternative_picks"):
+                with st.expander("📌 今日備選標的觀察名單 (Top 2~3)", expanded=False):
+                    alt_cols = st.columns(len(rec_data["alternative_picks"]))
+                    for idx, alt in enumerate(rec_data["alternative_picks"]):
+                        with alt_cols[idx]:
+                            st.markdown(f"""
+                            <div style="background:#1E202E; border:1px solid #33364D; border-radius:8px; padding:10px 12px;">
+                                <div style="font-weight:bold; font-size:1.05rem; color:white;">{alt['name']} ({alt['code']})</div>
+                                <div style="font-size:0.9rem; color:#AAA; margin:4px 0;">收盤：<b>{alt['close']}</b> ({'+' if alt['change_pct']>=0 else ''}{alt['change_pct']}%)</div>
+                                <div style="font-size:0.82rem; color:#4FD1C5;">策略：{alt['strategy']} | 風報比：1:{alt['rr']}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+        else:
+            st.warning(rec_data.get("advice_title", "今日建議空手觀望"))
+            st.info(rec_data.get("advice_detail", ""))
+
+    with tab_copilot2:
+        st.subheader("🛡️ 我的實戰在庫持股 · 全自動盯盤守護神")
+        st.caption("副駕駛每日全自動串接行情，檢驗 5MA 操盤線與停損目標，一旦觸發破線、達標或加碼，第一時間跳出高亮指示！")
+        
+        all_holdings = load_portfolio()
+        active_holdings = [h for h in all_holdings if h.get("status") == "HOLDING"]
+
+        c_p_add1, c_p_add2 = st.columns([3, 1])
+        with c_p_add2:
+            with st.popover("➕ 手動新增其他持股", use_container_width=True):
+                st.write("#### 新增手中的股票讓副駕駛守護")
+                st_list = load_stock_list()
+                h_opts = [f"{s['code']} {s['name']}" for s in st_list]
+                h_pick = st.selectbox("選擇股票", h_opts, key="manual_hold_pick")
+                h_code = h_pick.split()[0]
+                h_name = h_pick.split()[1]
+                h_buy_p = st.number_input("買進成交價", value=100.0, step=0.1, key="manual_hold_p")
+                h_shares = st.number_input("張數", value=1, min_value=1, step=1, key="manual_hold_s")
+                h_stop = st.number_input("停損價", value=round(h_buy_p * 0.95, 2), step=0.1, key="manual_hold_stop")
+                h_tgt = st.number_input("目標價", value=round(h_buy_p * 1.10, 2), step=0.1, key="manual_hold_tgt")
+                if st.button("確認加入守護", type="primary", use_container_width=True, key="btn_manual_add_confirm"):
+                    add_holding(h_code, h_name, h_buy_p, h_stop, h_tgt, strategy="手動庫存", buy_reason="手動建倉", shares=h_shares * 1000)
+                    st.success(f"已加入【{h_name}】！")
+                    st.rerun()
+
+        if not active_holdings:
+            st.info("💡 目前您的庫存清單中暫無股票。當您在【今日尾盤作戰指示】按下【我買了】，或是透過右上角【手動新增】，標的就會出現在此處，由副駕駛 24 小時守護！")
+        else:
+            with st.spinner("副駕駛正在為您的持股即時診斷均線與防守位..."):
+                inspected_list = inspect_portfolio(active_holdings)
+
+            total_cost = sum(item['buy_price'] * item['shares'] for item in inspected_list)
+            total_val = sum(item['curr_price'] * item['shares'] for item in inspected_list)
+            total_pnl = total_val - total_cost
+            total_pnl_pct = round((total_pnl / total_cost) * 100, 2) if total_cost > 0 else 0.0
+            pnl_sign = "+" if total_pnl >= 0 else ""
+            pnl_c = "#FF4D4F" if total_pnl >= 0 else "#52C41A"
+
+            stop_count = sum(1 for item in inspected_list if "STOP" in item['status_type'] or "BREAK" in item['status_type'])
+            target_count = sum(1 for item in inspected_list if "TARGET" in item['status_type'])
+            add_count = sum(1 for item in inspected_list if "ADD" in item['status_type'])
+            hold_count = sum(1 for item in inspected_list if "HOLD" in item['status_type'])
+
+            st.markdown(f"""
+            <div style="background: #1E202E; border: 1px solid #2F3247; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span style="color: #8892B0; font-size: 0.88rem;">實戰持股總數</span><br>
+                    <span style="font-size: 1.4rem; font-weight: bold; color: white;">{len(inspected_list)} 檔</span>
+                </div>
+                <div>
+                    <span style="color: #8892B0; font-size: 0.88rem;">在庫總損益</span><br>
+                    <span style="font-size: 1.4rem; font-weight: bold; color: {pnl_c};">{pnl_sign}{total_pnl:,.0f} 元 ({pnl_sign}{total_pnl_pct}%)</span>
+                </div>
+                <div>
+                    <span style="color: #8892B0; font-size: 0.88rem;">守護健康狀態</span><br>
+                    <span style="font-size: 0.92rem; color: #52C41A; font-weight: bold;">🟢 正常續抱 {hold_count} 檔</span> · 
+                    <span style="font-size: 0.92rem; color: #FF4D4F; font-weight: bold;">🔴 破線警報 {stop_count} 檔</span> · 
+                    <span style="font-size: 0.92rem; color: #FAAD14; font-weight: bold;">🏁 達標 {target_count} 檔</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            for item in inspected_list:
+                item_id = item['id']
+                item_code = item['code']
+                item_name = item['name']
+                item_bp = item['buy_price']
+                item_cp = item['curr_price']
+                item_shares = item['shares']
+                item_pnl_pct = item['pnl_pct']
+                item_pnl_amt = item['pnl_amt']
+                item_status = item['status_badge']
+                item_color = item['status_color']
+                item_desc = item['status_desc']
+                item_sign = "+" if item_pnl_pct >= 0 else ""
+                item_pnl_c = "#FF4D4F" if item_pnl_pct >= 0 else "#52C41A"
+
+                border_css = f"border: 2px solid {item_color};"
+                if "警報" in item_status or "跌破" in item_status:
+                    border_css = "border: 2px solid #FF4D4F; box-shadow: 0 0 10px rgba(255, 77, 79, 0.4);"
+
+                card_box = f"""
+                <div style="background: #181B26; {border_css} border-radius: 12px; padding: 16px; margin-bottom: 14px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <div>
+                            <span style="font-size: 1.3rem; font-weight: bold; color: white;">{item_name} ({item_code})</span>
+                            <span style="background: {item_color}22; color: {item_color}; border: 1px solid {item_color}; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; margin-left: 8px;">
+                                {item_status}
+                            </span>
+                            <div style="font-size: 0.82rem; color: #8892B0; margin-top: 4px;">
+                                買進日：<b>{item['buy_date']}</b> (已持有 {item['days_held']} 天) · 張數：<b>{item_shares // 1000} 張</b>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.35rem; font-weight: bold; color: {item_pnl_c};">
+                                {item_sign}{item_pnl_pct}%
+                            </div>
+                            <div style="font-size: 0.95rem; font-weight: bold; color: {item_pnl_c};">
+                                {item_sign}{item_pnl_amt:,.0f} 元
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; font-size: 0.88rem; margin: 12px 0; background: #202434; padding: 8px 12px; border-radius: 6px;">
+                        <div>買進價：<b>{item_bp:.2f}</b></div>
+                        <div>現價：<b style="color:{item_pnl_c};">{item_cp:.2f}</b></div>
+                        <div>5MA防守：<b>{item['sma5']:.2f}</b></div>
+                        <div>停損價：<b style="color:#FF7875;">{item['stop_loss']:.2f}</b></div>
+                        <div>目標價：<b style="color:#FFD666;">{item['target_price']:.2f}</b></div>
+                    </div>
+
+                    <div style="background: #151822; padding: 10px 12px; border-radius: 6px; font-size: 0.9rem; color: #E2E8F0; line-height: 1.6; margin-bottom: 10px;">
+                        {item_desc}
+                    </div>
+                </div>
+                """
+                st.markdown(card_box, unsafe_allow_html=True)
+
+                col_act1, col_act2, col_act3 = st.columns([2, 1, 1])
+                with col_act1:
+                    if st.button(f"📊 載入【{item_name}】轉折波K線主圖", key=f"btn_chart_hold_{item_id}"):
+                        st.session_state.selected_stock = item_code
+                        st.session_state.goto_chart = True
+                        st.rerun()
+                with col_act2:
+                    with st.popover("🏁 我賣出了 (結算)", use_container_width=True):
+                        st.write(f"#### 結算出場【{item_name}】")
+                        sell_p = st.number_input("實際賣出價格", value=item_cp, step=0.1, key=f"sp_{item_id}")
+                        sell_r = st.selectbox("出場原因", ["跌破5MA獲利/停損出場", "達到目標價分批停利", "個人資金調整", "觸及停損線止損"], key=f"sr_{item_id}")
+                        if st.button("確認結算歸檔", type="primary", use_container_width=True, key=f"btn_sell_ok_{item_id}"):
+                            close_holding(item_id, sell_p, sell_r)
+                            st.success(f"已成功結算【{item_name}】並存入歷史戰報！")
+                            st.rerun()
+                with col_act3:
+                    if st.button("🗑️ 刪除紀錄", key=f"btn_del_hold_{item_id}", use_container_width=True):
+                        delete_holding(item_id)
+                        st.rerun()
+
+    with tab_copilot3:
+        st.subheader("📜 實戰戰報紀錄 · 已結算歷史明細")
+        all_h = load_portfolio()
+        closed_h = [h for h in all_h if h.get("status") == "CLOSED"]
+        if not closed_h:
+            st.info("尚無結算出場的歷史戰報。當您在持股守護神點擊【我賣出了】，已實現的交易成績將自動記錄於此。")
+        else:
+            win_trades = sum(1 for c in closed_h if float(c.get("realized_pnl_amt", 0)) > 0)
+            total_realized_amt = sum(float(c.get("realized_pnl_amt", 0)) for c in closed_h)
+            win_rate = round((win_trades / len(closed_h)) * 100, 1)
+            amt_sign = "+" if total_realized_amt >= 0 else ""
+            amt_color = "#FF4D4F" if total_realized_amt >= 0 else "#52C41A"
+
+            st.markdown(f"""
+            <div style="background:#1E202E; border:1px solid #2F3247; border-radius:10px; padding:12px 18px; margin-bottom:14px; display:flex; justify-content:space-around; text-align:center;">
+                <div>
+                    <div style="color:#8892B0; font-size:0.85rem;">已結算總筆數</div>
+                    <div style="font-size:1.3rem; font-weight:bold; color:white;">{len(closed_h)} 筆</div>
+                </div>
+                <div>
+                    <div style="color:#8892B0; font-size:0.85rem;">實戰勝率</div>
+                    <div style="font-size:1.3rem; font-weight:bold; color:#FAAD14;">{win_rate}%</div>
+                </div>
+                <div>
+                    <div style="color:#8892B0; font-size:0.85rem;">累積已實現損益</div>
+                    <div style="font-size:1.3rem; font-weight:bold; color:{amt_color};">{amt_sign}{total_realized_amt:,.0f} 元</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            for c in reversed(closed_h):
+                c_pnl_amt = float(c.get("realized_pnl_amt", 0))
+                c_pnl_pct = float(c.get("realized_pnl_pct", 0))
+                c_sign = "+" if c_pnl_amt >= 0 else ""
+                c_col = "#FF4D4F" if c_pnl_amt >= 0 else "#52C41A"
+                st.markdown(f"""
+                <div style="background:#151822; border-left: 4px solid {c_col}; border-radius:6px; padding:10px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <b>{c['name']} ({c['code']})</b> · 買: {c['buy_price']} ({c['buy_date']}) ➜ 賣: {c['sell_price']} ({c.get('sell_date', '')})<br>
+                        <span style="font-size:0.82rem; color:#888;">出場原因：{c.get('sell_reason', '無備註')}</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="font-weight:bold; color:{c_col}; font-size:1.1rem;">{c_sign}{c_pnl_pct}%</span><br>
+                        <span style="font-weight:bold; color:{c_col}; font-size:0.9rem;">{c_sign}{c_pnl_amt:,.0f} 元</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+# ----------------------------------------------------
+# 功能分頁 5：AI 實戰操盤助教 (AI Assistant)
 # ----------------------------------------------------
 elif "AI" in menu or "助教" in menu:
     st.header("🧑‍🏫 專業技術分析實戰 AI 助教")
