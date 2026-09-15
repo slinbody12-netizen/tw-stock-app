@@ -295,26 +295,26 @@ def inspect_portfolio(portfolio: list) -> list:
                 status_type = "STOP_LOSS"
                 status_badge = "🚨 跌破停損點！"
                 status_color = "#FF4D4F"
-                status_desc = f"⚠️ **緊急警報**：當前股價 ({curr_p}元) 已摜破設定之防守價 ({stop_p}元)！請於今日尾盤 13:00~13:30 嚴格執行紀律停損，杜絕損失擴大！"
+                status_desc = f"⚠️ <b>緊急警報</b>：當前股價 ({curr_p}元) 已摜破設定之防守價 ({stop_p}元)！請於今日尾盤 13:00~13:30 嚴格執行紀律停損，杜絕損失擴大！"
             elif curr_p < sma5 and not sig_dict.get('pullback_buy', False):
                 status_type = "BREAK_MA5"
                 status_badge = "🛑 跌破 5MA 操盤線！"
                 status_color = "#FAAD14"
-                status_desc = f"⚠️ **轉弱注意**：收盤價跌破 5MA ({sma5:.2f}元)，短線波段慣性改變，若今日尾盤無法站回，建議先獲利了結或減碼防守！"
+                status_desc = f"⚠️ <b>轉弱注意</b>：收盤價跌破 5MA ({sma5:.2f}元)，短線波段慣性改變，若今日尾盤無法站回，建議先獲利了結或減碼防守！"
                 
             # 2. 停利檢驗：觸及目標價
             elif high_p >= target_p or curr_p >= target_p:
                 status_type = "TARGET_HIT"
                 status_badge = "🏁 達標停利！"
                 status_color = "#FA8C16"
-                status_desc = f"🎉 **恭喜達標**：股價已達前波壓力目標價 ({target_p}元)！建議先獲利了結 1/2 入袋為安，剩餘張數守 5MA 讓獲利奔馳！"
+                status_desc = f"🎉 <b>恭喜達標</b>：股價已達前波壓力目標價 ({target_p}元)！建議先獲利了結 1/2 入袋為安，剩餘張數守 5MA 讓獲利奔馳！"
                 
             # 3. 加碼檢驗：持股中回測 5MA/20MA 守穩又出轉折紅K
             elif sig_dict.get('pullback_buy', False) and curr_p > buy_p:
                 status_type = "ADD_POSITION"
                 status_badge = "➕ 回測有守·加碼點！"
                 status_color = "#1890FF"
-                status_desc = f"🔥 **戰術加碼**：持股拉回測線有守，今日再度浮現【回後準進場】轉折紅K，符合朱老師『買兩張長短配』加碼訊號，尾盤可加碼第 2 張！"
+                status_desc = f"🔥 <b>戰術加碼</b>：持股拉回測線有守，今日再度浮現【回後準進場】轉折紅K，符合朱老師『買兩張長短配』加碼訊號，尾盤可加碼第 2 張！"
                 
             results.append({
                 "id": item["id"],
