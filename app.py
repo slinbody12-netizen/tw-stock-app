@@ -17,6 +17,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import importlib
 import datetime
+import os
 
 import core.data_fetcher
 import core.wave_engine
@@ -134,7 +135,8 @@ st.markdown("""
 # -------------------------------------------------------------
 # 系統安全存取鎖 (保證非公開與私密性，防止未授權訪問)
 # -------------------------------------------------------------
-SYSTEM_PIN = "8888"
+SYSTEM_PIN = os.getenv("SYSTEM_PIN", "8888")
+COPILOT_SECRET_PIN = os.getenv("COPILOT_PIN", "7777")
 
 def check_password():
     """驗證存取密碼，確保私密安全訪問"""
@@ -498,6 +500,17 @@ menu = st.sidebar.radio(
     MENU_OPTIONS,
     key="nav_menu_radio"
 )
+
+if st.session_state.get("copilot_authenticated", False):
+    st.sidebar.markdown(
+        "<div style='background:#2A1B2D; padding:6px 10px; border-radius:6px; border:1px solid #722ED1; color:#D3ADF7; font-size:0.8rem; margin-top:4px; margin-bottom:6px; text-align:center;'>🕵️‍♂️ 秘密特務：已授權解鎖</div>",
+        unsafe_allow_html=True
+    )
+    if st.sidebar.button("🔒 立即鎖定特務", key="sidebar_lock_copilot", use_container_width=True):
+        st.session_state["copilot_authenticated"] = False
+        if "copilot_pin" in st.query_params:
+            del st.query_params["copilot_pin"]
+        st.rerun()
 
 st.sidebar.subheader("🔍 股票搜尋")
 search_query = st.sidebar.text_input("輸入股票代碼或名稱 (例如 2330 或 台積電)", value=st.session_state.selected_stock)
@@ -1373,7 +1386,49 @@ elif "鎖股" in menu or "晚間盤後功課" in menu:
 # 功能分頁 4：實戰秘密特務 · 操盤副駕駛 (Trading Copilot)
 # ----------------------------------------------------
 elif "秘密特務" in menu or "操盤副駕駛" in menu:
-    st.header("🤖 實戰秘密特務 · 尾盤推薦與自動持股守護神")
+    # 專屬特務私密安全鎖 (Double-lock protection)
+    # 支援 URL 快速授權參數 (?copilot_pin=7777) 便捷存取
+    if st.query_params.get("copilot_pin") == COPILOT_SECRET_PIN:
+        st.session_state["copilot_authenticated"] = True
+
+    if not st.session_state.get("copilot_authenticated", False):
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #1A1C29 0%, #2A1B2D 100%); padding: 26px 22px; border-radius: 14px; border: 1px solid #722ED1; text-align: center; margin-bottom: 20px;'>
+            <div style='font-size: 3.2rem; margin-bottom: 10px;'>🕵️‍♂️</div>
+            <h2 style='color: #E6D5F7; font-weight: 700; margin-bottom: 6px;'>機密特務權限驗證 · 操盤副駕駛</h2>
+            <p style='color: #B37FEB; font-size: 0.96rem; margin-bottom: 4px;'>【最高優先級私密模組】每日尾盤唯一首選推薦 · 24H 持股自動守護神</p>
+            <p style='color: #8C8C8C; font-size: 0.84rem;'>本專區包含核心實盤作戰策略與個人持股部位監控，受獨立二級特務安全金鑰 (PIN) 保護。<br/>若未獲授權，請切換至左側其他公開功能分頁。</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_l, col_m, col_r = st.columns([1, 1.4, 1])
+        with col_m:
+            with st.form("copilot_auth_form", clear_on_submit=False):
+                secret_pin_input = st.text_input(
+                    "特務專屬安全金鑰 (PIN)",
+                    type="password",
+                    placeholder="請輸入 4 位數特務金鑰",
+                    help="預設金鑰為 7777"
+                )
+                auth_submitted = st.form_submit_button("🔓 解鎖特務副駕駛系統", use_container_width=True)
+                if auth_submitted:
+                    if secret_pin_input == COPILOT_SECRET_PIN:
+                        st.session_state["copilot_authenticated"] = True
+                        st.rerun()
+                    else:
+                        st.error("❌ 特務金鑰錯誤！非授權訪問已被攔截。")
+            st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:10px;'>🛡️ 機密級策略隔離 · 個人資產防窺保護</div>", unsafe_allow_html=True)
+        st.stop()
+
+    c_head1, c_head2 = st.columns([4, 1])
+    with c_head1:
+        st.header("🤖 實戰秘密特務 · 尾盤推薦與自動持股守護神")
+    with c_head2:
+        if st.button("🔒 鎖定特務退出", key="btn_lock_copilot", use_container_width=True):
+            st.session_state["copilot_authenticated"] = False
+            if "copilot_pin" in st.query_params:
+                del st.query_params["copilot_pin"]
+            st.rerun()
     
     # 判斷當前是否處於 12:30 - 13:35 尾盤黃金時間
     now_dt = datetime.datetime.now()
