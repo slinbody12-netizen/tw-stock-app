@@ -15,6 +15,21 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import importlib
+
+import core.data_fetcher
+import core.wave_engine
+import core.trend_analyzer
+import core.signal_detector
+import core.screener
+import core.ai_assistant
+
+# 強制重載 core 模組，確保 Streamlit Cloud 部署即時同步最新簽名與函式
+importlib.reload(core.wave_engine)
+importlib.reload(core.trend_analyzer)
+importlib.reload(core.signal_detector)
+importlib.reload(core.screener)
+importlib.reload(core.ai_assistant)
 
 from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, load_stock_list
 from core.wave_engine import calculate_turning_points
@@ -1070,7 +1085,14 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             """, unsafe_allow_html=True)
 
             # 2. 本檔個股深度技術面健檢報告 (Deep TA Checklist)
-            diag = diagnose_stock_deeply(info['code'], df_raw=df, info=info)
+            diag = None
+            try:
+                diag = diagnose_stock_deeply(info['code'], df_raw=df, info=info)
+            except TypeError:
+                diag = diagnose_stock_deeply(info['code'])
+            except Exception:
+                diag = None
+
             if diag:
                 st.markdown(f"#### 📋 {diag['name']} ({diag['code']}) 深度技術面健檢報告")
                 st.markdown(f"> ### {diag['decision']}")
@@ -1117,7 +1139,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             user_q = st.text_input("輸入您的問題：", value=quick_prompt if quick_prompt else "", placeholder=f"例如：{info['name']} 跌破 5MA 要停損嗎？ 或是 均線扣抵怎麼看？", key=f"ai_input_{query}")
             if user_q:
                 with st.spinner("🧑‍🏫 AI 助教正在分析講義規範與盤面結構 ..."):
-                    ai_reply = answer_question(user_q, stock_context={"code": info['code'], "df": df, "info": info})
+                    try:
+                        ai_reply = answer_question(user_q, stock_context={"code": info['code'], "df": df, "info": info})
+                    except TypeError:
+                        ai_reply = answer_question(user_q, stock_context={"code": info['code']})
+                    except Exception as e:
+                        ai_reply = f"抱歉，分析過程中發生異常：{e}"
                 st.markdown(f"<div style='background:#1E2235; border:1px solid #3B82F6; border-radius:10px; padding:18px 20px; margin-top:12px;'>{ai_reply}</div>", unsafe_allow_html=True)
 
         # 底部快捷返回列 (看完圖表後不必滑回最上方)

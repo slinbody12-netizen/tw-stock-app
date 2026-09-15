@@ -357,10 +357,12 @@ def answer_general_ta_question(query: str) -> str:
 💡 **助教貼心提示**：
 如果您想請助教診斷**具體某檔股票**（例如想知道目前能不能買、支撐壓力在哪裡），請在問題中附上**股票代號或名稱**（例如：「*請問 2330 目前適合進場嗎？*」或「*請問 2851 在 8/26 為什麼不適合買？*」），助教將立即為您重現該股票的詳細技術面診斷與應對劇本！"""
 
-def diagnose_stock_deeply(code: str, query: str = "", as_of_date: str = None, df_raw=None, info=None):
+def diagnose_stock_deeply(code: str, query: str = "", as_of_date: str = None, *args, **kwargs):
     """
     深度診斷股票技術面，支援「歷史覆盤時光機」切片
     """
+    df_raw = kwargs.get('df_raw', None)
+    info = kwargs.get('info', None)
     if df_raw is None or info is None:
         df_raw, info = fetch_stock_kline(code, period="1y")
     if df_raw.empty or "error" in info:
