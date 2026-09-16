@@ -18,36 +18,54 @@ from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
 from core.screener import scan_stocks
 
-PORTFOLIO_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "user_portfolio.json")
+import random
+import string
 
-def load_portfolio() -> list:
-    """讀取使用者在庫實戰持股名冊"""
-    if not os.path.exists(PORTFOLIO_FILE):
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+PORTFOLIO_DIR = os.path.join(DATA_DIR, "portfolios")
+DEFAULT_PORTFOLIO_FILE = os.path.join(DATA_DIR, "user_portfolio.json")
+AUTH_REQUESTS_FILE = os.path.join(DATA_DIR, "copilot_auth_requests.json")
+USERS_FILE = os.path.join(DATA_DIR, "copilot_users.json")
+COPILOT_MASTER_PIN = os.getenv("COPILOT_PIN", "7777")
+
+def get_portfolio_file(user_id: str = "master") -> str:
+    """獲取指定使用者的獨立持股存儲路徑 (一人一保險庫)"""
+    if not user_id or user_id == "master":
+        return DEFAULT_PORTFOLIO_FILE
+    os.makedirs(PORTFOLIO_DIR, exist_ok=True)
+    safe_id = "".join(c for c in str(user_id) if c.isalnum() or c in "_-")
+    return os.path.join(PORTFOLIO_DIR, f"portfolio_{safe_id}.json")
+
+def load_portfolio(user_id: str = "master") -> list:
+    """讀取指定使用者在庫實戰持股名冊"""
+    file_path = get_portfolio_file(user_id)
+    if not os.path.exists(file_path):
         return []
     try:
-        with open(PORTFOLIO_FILE, "r", encoding="utf-8-sig") as f:
+        with open(file_path, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
             return data if isinstance(data, list) else []
     except Exception as e:
-        print(f"Error loading portfolio: {e}")
+        print(f"Error loading portfolio for {user_id}: {e}")
         return []
 
-def save_portfolio(portfolio: list) -> bool:
-    """保存持股名冊至磁碟"""
+def save_portfolio(portfolio: list, user_id: str = "master") -> bool:
+    """保存指定使用者的持股名冊至磁碟"""
+    file_path = get_portfolio_file(user_id)
     try:
-        os.makedirs(os.path.dirname(PORTFOLIO_FILE), exist_ok=True)
-        with open(PORTFOLIO_FILE, "w", encoding="utf-8") as f:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(portfolio, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        print(f"Error saving portfolio: {e}")
+        print(f"Error saving portfolio for {user_id}: {e}")
         return False
 
 def add_holding(code: str, name: str, buy_price: float, stop_loss: float = None, target_price: float = None, 
                 strategy: str = "回後準進場", buy_reason: str = "", shares: int = 1000, trade_type: str = "現股",
-                buy_date: str = None) -> dict:
-    """使用者點擊【我買了】或手動新增時，新增持股追蹤"""
-    portfolio = load_portfolio()
+                buy_date: str = None, user_id: str = "master") -> dict:
+    """使用者點擊【我買了】或手動新增時，新增持股追蹤至專屬庫存"""
+    portfolio = load_portfolio(user_id=user_id)
     today_str = buy_date if buy_date else datetime.datetime.now().strftime("%Y-%m-%d")
     holding_id = f"port_{code}_{trade_type}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
     
@@ -78,10 +96,10 @@ def add_holding(code: str, name: str, buy_price: float, stop_loss: float = None,
         ]
     }
     portfolio.append(new_item)
-    save_portfolio(portfolio)
+    save_portfolio(portfolio, user_id=user_id)
     return new_item
 
-def load_preset_user_holdings() -> tuple[int, list]:
+def load_preset_user_holdings(user_id: str = "master") -> tuple[int, list]:
     """
     一鍵載入使用者專屬 4 檔持股 (美時 0.5張, 麗正 1張, 晟銘電現股 10張, 晟銘電融資 1張, 勤誠 100股)
     """
@@ -92,7 +110,7 @@ def load_preset_user_holdings() -> tuple[int, list]:
         {"code": "3013", "name": "晟銘電", "buy_price": 88.34, "trade_type": "融資", "shares": 1000, "buy_reason": "融資持股 1張 (利息與維持率壓力，鎖定88.5元平手解套)"},
         {"code": "8210", "name": "勤誠", "buy_price": 1088.96, "trade_type": "現股", "shares": 100, "buy_reason": "伺服器龍頭建倉 100股 (尋求月線/反彈波賣點)"},
     ]
-    portfolio = load_portfolio()
+    portfolio = load_portfolio(user_id=user_id)
     added_count = 0
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
     for p in presets:
@@ -134,14 +152,12 @@ def load_preset_user_holdings() -> tuple[int, list]:
             })
             added_count += 1
     if added_count > 0:
-        save_portfolio(portfolio)
+        save_portfolio(portfolio, user_id=user_id)
     return added_count, portfolio
 
-
-
-def close_holding(holding_id: str, sell_price: float, sell_reason: str = "手動獲利/停損出場") -> bool:
-    """使用者點擊【我賣了】時，結算獲利並歸檔"""
-    portfolio = load_portfolio()
+def close_holding(holding_id: str, sell_price: float, sell_reason: str = "手動獲利/停損出場", user_id: str = "master") -> bool:
+    """使用者點擊【我賣了】時，結算獲利並歸檔至專屬歷史戰報"""
+    portfolio = load_portfolio(user_id=user_id)
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
     found = False
     for item in portfolio:
@@ -162,14 +178,197 @@ def close_holding(holding_id: str, sell_price: float, sell_reason: str = "手動
             found = True
             break
     if found:
-        save_portfolio(portfolio)
+        save_portfolio(portfolio, user_id=user_id)
     return found
 
-def delete_holding(holding_id: str) -> bool:
+def delete_holding(holding_id: str, user_id: str = "master") -> bool:
     """刪除單筆紀錄"""
-    portfolio = load_portfolio()
+    portfolio = load_portfolio(user_id=user_id)
     portfolio = [p for p in portfolio if p.get("id") != holding_id]
-    return save_portfolio(portfolio)
+    return save_portfolio(portfolio, user_id=user_id)
+
+# ========================================================
+# 特務權限申請審批與多用戶管理引擎 (SaaS Access Control)
+# ========================================================
+def get_auth_requests() -> list:
+    """讀取所有特務權限開通申請單"""
+    if not os.path.exists(AUTH_REQUESTS_FILE):
+        return []
+    try:
+        with open(AUTH_REQUESTS_FILE, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception as e:
+        print(f"Error loading auth requests: {e}")
+        return []
+
+def save_auth_requests(requests: list) -> bool:
+    """保存特務權限申請單"""
+    try:
+        os.makedirs(os.path.dirname(AUTH_REQUESTS_FILE), exist_ok=True)
+        with open(AUTH_REQUESTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(requests, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving auth requests: {e}")
+        return False
+
+def submit_access_request(name: str, email: str, reason: str = "") -> dict:
+    """一般用戶送出 VIP 特務開通申請"""
+    requests = get_auth_requests()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    req_id = f"req_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{random.randint(100, 999)}"
+    
+    clean_email = email.strip().lower()
+    clean_name = name.strip()
+    
+    # 檢查是否已有相同 Email 的 pending 申請
+    for r in requests:
+        if r.get("email", "").strip().lower() == clean_email and r.get("status") == "PENDING":
+            return {"success": False, "msg": "您已有一筆審核中的申請，請靜待指揮官核准！", "request": r}
+            
+    new_req = {
+        "request_id": req_id,
+        "name": clean_name,
+        "email": clean_email,
+        "reason": reason.strip(),
+        "request_time": now_str,
+        "status": "PENDING",
+        "assigned_pin": None
+    }
+    requests.insert(0, new_req)
+    save_auth_requests(requests)
+    return {"success": True, "msg": "開通申請已成功送達指揮官！", "request": new_req}
+
+def get_copilot_users() -> list:
+    """讀取所有已核准特務成員"""
+    if not os.path.exists(USERS_FILE):
+        return []
+    try:
+        with open(USERS_FILE, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception as e:
+        print(f"Error loading copilot users: {e}")
+        return []
+
+def save_copilot_users(users: list) -> bool:
+    """保存特務成員清單"""
+    try:
+        os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(users, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving copilot users: {e}")
+        return False
+
+def verify_copilot_pin(pin: str) -> dict | None:
+    """
+    驗證特務金鑰：
+    1. 若符合最高指揮官 Master PIN (7777)，回傳 ADMIN
+    2. 若符合已核准 VIP 用戶金鑰且狀態為 ACTIVE，回傳 VIP_USER
+    3. 否則回傳 None
+    """
+    pin_str = str(pin).strip()
+    if not pin_str:
+        return None
+        
+    if pin_str == COPILOT_MASTER_PIN:
+        return {
+            "user_id": "master",
+            "name": "最高指揮官 (您)",
+            "email": "owner@system.local",
+            "role": "ADMIN",
+            "status": "ACTIVE"
+        }
+        
+    users = get_copilot_users()
+    for u in users:
+        if str(u.get("pin", "")).strip() == pin_str and u.get("status") == "ACTIVE":
+            return u
+            
+    return None
+
+def approve_access_request(request_id: str, custom_pin: str = None) -> tuple[bool, str, dict]:
+    """
+    最高指揮官審批通過：
+    1. 產生專屬 6 碼隨機金鑰 (或自訂)
+    2. 更新申請單狀態為 APPROVED
+    3. 加入 copilot_users.json
+    4. 初始化該用戶專屬獨立空白庫存檔
+    """
+    requests = get_auth_requests()
+    target_req = None
+    for r in requests:
+        if r.get("request_id") == request_id:
+            target_req = r
+            break
+            
+    if not target_req:
+        return False, "找不到該筆申請單", {}
+        
+    users = get_copilot_users()
+    existing_pins = {str(u.get("pin")) for u in users}
+    existing_pins.add(COPILOT_MASTER_PIN)
+    
+    if custom_pin and str(custom_pin).strip():
+        new_pin = str(custom_pin).strip()
+    else:
+        while True:
+            new_pin = "".join(random.choices(string.digits, k=6))
+            if new_pin not in existing_pins:
+                break
+                
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    user_id = f"usr_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{random.randint(100, 999)}"
+    
+    new_user = {
+        "user_id": user_id,
+        "name": target_req.get("name", "VIP學員"),
+        "email": target_req.get("email", ""),
+        "reason": target_req.get("reason", ""),
+        "pin": new_pin,
+        "role": "VIP_USER",
+        "status": "ACTIVE",
+        "approved_at": now_str
+    }
+    
+    users.append(new_user)
+    save_copilot_users(users)
+    
+    target_req["status"] = "APPROVED"
+    target_req["assigned_pin"] = new_pin
+    target_req["approved_at"] = now_str
+    save_auth_requests(requests)
+    
+    # 建立專屬獨立空白庫存檔
+    save_portfolio([], user_id=user_id)
+    
+    return True, new_pin, new_user
+
+def reject_access_request(request_id: str) -> bool:
+    """最高指揮官駁回申請"""
+    requests = get_auth_requests()
+    for r in requests:
+        if r.get("request_id") == request_id:
+            r["status"] = "REJECTED"
+            r["rejected_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            save_auth_requests(requests)
+            return True
+    return False
+
+def revoke_user_access(user_id: str) -> bool:
+    """最高指揮官撤銷/凍結某成員權限"""
+    users = get_copilot_users()
+    for u in users:
+        if u.get("user_id") == user_id:
+            u["status"] = "SUSPENDED"
+            u["suspended_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            save_copilot_users(users)
+            return True
+    return False
+
 
 # ========================================================
 # 核心大腦 1：今日尾盤 AI 唯一首選推薦 (魔鬼級 5 重濾網)

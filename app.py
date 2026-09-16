@@ -43,8 +43,11 @@ from core.screener import scan_stocks, load_speedy_chips
 from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query, diagnose_stock_deeply
 from core.copilot import (
     load_portfolio, save_portfolio, add_holding, close_holding, delete_holding,
-    get_copilot_recommendation, inspect_portfolio, load_preset_user_holdings
+    get_copilot_recommendation, inspect_portfolio, load_preset_user_holdings,
+    verify_copilot_pin, submit_access_request, get_auth_requests, approve_access_request,
+    reject_access_request, revoke_user_access, get_copilot_users, COPILOT_MASTER_PIN
 )
+
 
 
 st.set_page_config(
@@ -1493,49 +1496,158 @@ elif "鎖股" in menu or "晚間盤後功課" in menu:
 # ----------------------------------------------------
 elif "秘密特務" in menu or "操盤副駕駛" in menu:
     # 專屬特務私密安全鎖 (Double-lock protection)
-    # 支援 URL 快速授權參數 (?copilot_pin=7777) 便捷存取
-    if st.query_params.get("copilot_pin") == COPILOT_SECRET_PIN:
-        st.session_state["copilot_authenticated"] = True
+    # 支援 URL 快速授權參數 (?copilot_pin=...) 便捷存取
+    url_copilot_pin = st.query_params.get("copilot_pin")
+    if url_copilot_pin and not st.session_state.get("copilot_authenticated", False):
+        verified_u = verify_copilot_pin(url_copilot_pin)
+        if verified_u:
+            st.session_state["copilot_authenticated"] = True
+            st.session_state["copilot_user"] = verified_u
 
     if not st.session_state.get("copilot_authenticated", False):
         st.markdown("""
         <div style='background: linear-gradient(135deg, #1A1C29 0%, #2A1B2D 100%); padding: 26px 22px; border-radius: 14px; border: 1px solid #722ED1; text-align: center; margin-bottom: 20px;'>
             <div style='font-size: 3.2rem; margin-bottom: 10px;'>🕵️‍♂️</div>
             <h2 style='color: #E6D5F7; font-weight: 700; margin-bottom: 6px;'>機密特務權限驗證 · 操盤副駕駛</h2>
-            <p style='color: #B37FEB; font-size: 0.96rem; margin-bottom: 4px;'>【最高優先級私密模組】每日尾盤唯一首選推薦 · 24H 持股自動守護神</p>
-            <p style='color: #8C8C8C; font-size: 0.84rem;'>本專區包含核心實盤作戰策略與個人持股部位監控，受獨立二級特務安全金鑰 (PIN) 保護。<br/>若未獲授權，請切換至左側其他公開功能分頁。</p>
+            <p style='color: #B37FEB; font-size: 0.96rem; margin-bottom: 4px;'>【最高優先級私密模組】每日尾盤唯一首選推薦 · 24H 個人持股獨立守護神</p>
+            <p style='color: #8C8C8C; font-size: 0.84rem;'>本專區為 VIP 獨立隔離系統，支援一人一保險庫資產防窺。<br/>若您已有專屬金鑰請直接登入；若初次造訪請切換至【申請開通】登記審核！</p>
         </div>
         """, unsafe_allow_html=True)
 
-        col_l, col_m, col_r = st.columns([1, 1.4, 1])
-        with col_m:
-            with st.form("copilot_auth_form", clear_on_submit=False):
-                secret_pin_input = st.text_input(
-                    "特務專屬安全金鑰 (PIN)",
-                    type="password",
-                    placeholder="請輸入特務安全金鑰",
-                    help="此專區受獨立安全金鑰保護，請輸入專屬金鑰以解鎖"
-                )
+        auth_tab_login, auth_tab_apply = st.tabs(["🔑 特務專屬金鑰登入", "📝 申請開通 VIP 特務權限"])
 
-                auth_submitted = st.form_submit_button("🔓 解鎖特務副駕駛系統", use_container_width=True)
-                if auth_submitted:
-                    if secret_pin_input == COPILOT_SECRET_PIN:
-                        st.session_state["copilot_authenticated"] = True
-                        st.rerun()
-                    else:
-                        st.error("❌ 特務金鑰錯誤！非授權訪問已被攔截。")
-            st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:10px;'>🛡️ 機密級策略隔離 · 個人資產防窺保護</div>", unsafe_allow_html=True)
+        with auth_tab_login:
+            col_l, col_m, col_r = st.columns([1, 1.4, 1])
+            with col_m:
+                with st.form("copilot_auth_form", clear_on_submit=False):
+                    secret_pin_input = st.text_input(
+                        "特務專屬安全金鑰 (PIN)",
+                        type="password",
+                        placeholder="請輸入 4~6 位特務金鑰",
+                        help="輸入最高指揮官金鑰或您的 VIP 專屬金鑰以解鎖個人保險庫"
+                    )
+                    auth_submitted = st.form_submit_button("🔓 解鎖個人專屬副駕駛", use_container_width=True)
+                    if auth_submitted:
+                        user_info = verify_copilot_pin(secret_pin_input)
+                        if user_info:
+                            st.session_state["copilot_authenticated"] = True
+                            st.session_state["copilot_user"] = user_info
+                            st.rerun()
+                        else:
+                            st.error("❌ 金鑰錯誤或尚未開通！若您尚未取得金鑰，請至【申請開通】登記審核。")
+                st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:10px;'>🛡️ 機密級策略隔離 · 個人資產防窺保護</div>", unsafe_allow_html=True)
+
+        with auth_tab_apply:
+            col_al, col_am, col_ar = st.columns([1, 1.6, 1])
+            with col_am:
+                st.write("#### 📝 申請開通操盤副駕駛 VIP 權限")
+                st.caption("填寫您的基本資訊，送出後將由最高指揮官進行人工審核。審批核准後，將為您配發專屬 6 碼 VIP 金鑰並開啟獨立保險箱！")
+                with st.form("copilot_apply_form", clear_on_submit=False):
+                    apply_name = st.text_input("真實姓名 (必填)", placeholder="例如：王大明")
+                    apply_email = st.text_input("電子信箱 (必填)", placeholder="例如：daming@gmail.com")
+                    apply_reason = st.text_input("申請身分 / 備註說明 (選填)", placeholder="例如：朱家泓同學會學員 / 實戰班學員")
+                    btn_apply = st.form_submit_button("📤 送出 VIP 開通申請", type="primary", use_container_width=True)
+                    if btn_apply:
+                        if not apply_name.strip() or not apply_email.strip() or "@" not in apply_email:
+                            st.warning("⚠️ 請完整填寫姓名與正確的電子信箱！")
+                        else:
+                            res = submit_access_request(apply_name, apply_email, apply_reason)
+                            if res.get("success"):
+                                st.success(f"🎉 申請已成功送達最高指揮官！申請編號：`{res['request']['request_id']}`。請靜待審批核發專屬金鑰！")
+                            else:
+                                st.info(res.get("msg", "申請已在處理中！"))
+                st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:10px;'>🔒 隱私保障：資料僅供開通專屬持股保險庫使用</div>", unsafe_allow_html=True)
         st.stop()
+
+    current_user = st.session_state.get("copilot_user", {"user_id": "master", "name": "最高指揮官", "role": "ADMIN"})
+    user_id = current_user.get("user_id", "master")
+    is_admin = (current_user.get("role") == "ADMIN")
 
     c_head1, c_head2 = st.columns([4, 1])
     with c_head1:
-        st.header("🤖 實戰秘密特務 · 尾盤推薦與自動持股守護神")
+        if is_admin:
+            st.header("🤖 實戰秘密特務 · 操盤副駕駛 👑 最高指揮官")
+        else:
+            st.header("🤖 實戰秘密特務 · 操盤副駕駛 🎖️ VIP 學員專區")
+            st.caption(f"👋 歡迎，**{current_user.get('name')}**！您已解鎖專屬個人獨立保險庫，資料 100% 隱私隔離。")
     with c_head2:
         if st.button("🔒 鎖定特務退出", key="btn_lock_copilot", use_container_width=True):
             st.session_state["copilot_authenticated"] = False
+            if "copilot_user" in st.session_state:
+                del st.session_state["copilot_user"]
             if "copilot_pin" in st.query_params:
                 del st.query_params["copilot_pin"]
             st.rerun()
+
+    # 指揮官專屬審批後台面板
+    if is_admin:
+        all_reqs = get_auth_requests()
+        pending_reqs = [r for r in all_reqs if r.get("status") == "PENDING"]
+        all_vip_users = get_copilot_users()
+        active_vips = [u for u in all_vip_users if u.get("status") == "ACTIVE"]
+        
+        badge_text = f"🚨 待審核特務申請 ({len(pending_reqs)} 筆待處理)" if pending_reqs else "👑 指揮官特務審批與會員管理後台"
+        
+        with st.expander(badge_text, expanded=bool(pending_reqs)):
+            st.write("### 👑 特務最高指揮官 · 權限審批中心")
+            tab_adm_req, tab_adm_users = st.tabs([f"📥 待審核申請單 ({len(pending_reqs)})", f"👥 已核准 VIP 成員 ({len(active_vips)})"])
+            
+            with tab_adm_req:
+                if not pending_reqs:
+                    st.info("✅ 目前沒有待審核的開通申請單。當一般用戶提交姓名與 Email 時，會即刻顯示於此處！")
+                else:
+                    for req in pending_reqs:
+                        rid = req['request_id']
+                        r_name = req['name']
+                        r_email = req['email']
+                        r_reason = req.get('reason', '無')
+                        r_time = req.get('request_time', '')
+                        
+                        st.markdown(f"""
+                        <div style="background:#1E202E; border:1px solid #722ED1; border-radius:8px; padding:12px 16px; margin-bottom:10px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <b style="font-size:1.1rem; color:white;">{r_name}</b> <span style="color:#B37FEB; font-size:0.88rem;">({r_email})</span>
+                                    <div style="color:#8892B0; font-size:0.82rem; margin-top:2px;">申請時間：{r_time} · 備註：{r_reason}</div>
+                                </div>
+                                <div><span style="background:#FAAD1422; color:#FFD666; border:1px solid #FAAD14; padding:2px 8px; border-radius:4px; font-size:0.8rem;">待審批</span></div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        c_appr1, c_appr2, c_appr3 = st.columns([2, 1, 1])
+                        with c_appr1:
+                            custom_pin_in = st.text_input("指定金鑰 (留空自動生成 6 碼)", key=f"cpin_{rid}", placeholder="留空自動生成 6 碼隨機金鑰")
+                        with c_appr2:
+                            if st.button("✅ 同意授權", key=f"btn_ok_{rid}", type="primary", use_container_width=True):
+                                ok, assigned_pin, new_u = approve_access_request(rid, custom_pin=custom_pin_in)
+                                if ok:
+                                    st.success(f"🎉 已成功核准【{r_name}】！專屬金鑰為：`{assigned_pin}`")
+                                    st.info(f"📋 請複製傳送給對方：\n「嗨 {r_name}，您的操盤副駕駛專屬 VIP 金鑰已開通！金鑰為：{assigned_pin}，登入後即可享有個人專屬獨立持股守護神！」")
+                                    st.rerun()
+                        with c_appr3:
+                            if st.button("❌ 駁回", key=f"btn_rej_{rid}", use_container_width=True):
+                                reject_access_request(rid)
+                                st.warning(f"已駁回【{r_name}】之申請。")
+                                st.rerun()
+                                
+            with tab_adm_users:
+                if not active_vips:
+                    st.info("💡 目前尚無已核准的外部 VIP 成員。")
+                else:
+                    for u in active_vips:
+                        uid = u['user_id']
+                        c_u1, c_u2, c_u3 = st.columns([3, 1, 1])
+                        with c_u1:
+                            st.write(f"👤 **{u['name']}** ({u['email']}) · 專屬金鑰: `{u['pin']}` · 開通日: {u.get('approved_at', '')}")
+                        with c_u2:
+                            st.caption(f"身分: {u.get('reason', 'VIP')}")
+                        with c_u3:
+                            if st.button("🚫 停權撤銷", key=f"btn_rev_{uid}", use_container_width=True):
+                                revoke_user_access(uid)
+                                st.warning(f"已停權【{u['name']}】之特務存取。")
+                                st.rerun()
+
     
     # 判斷當前是否處於 12:30 - 13:35 尾盤黃金時間
     now_dt = datetime.datetime.now()
@@ -1648,12 +1760,14 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                             target_price=p_target,
                             strategy=p_strat,
                             buy_reason=reason_str,
-                            shares=user_shares * 1000
+                            shares=user_shares * 1000,
+                            user_id=user_id
                         )
                         if "copilot_inspected_cache" in st.session_state:
                             del st.session_state["copilot_inspected_cache"]
                         st.success(f"🎉 已將【{p_name} ({p_code})】納入【我的持股守護神】！副駕駛將每日為您盯盤守護！")
                         st.rerun()
+
 
                 st.markdown("<div style='margin-bottom: 16px;'></div>", unsafe_allow_html=True)
         else:
@@ -1664,74 +1778,125 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
         st.subheader("🛡️ 我的實戰在庫持股 · 全自動盯盤守護神與高點賣點雷達")
         st.caption("副駕駛每日串接最新行情，無論是波段續抱或是套牢持股，精準運算【底線保命價】與【下一波反彈賣點】，即時給予操盤紅綠燈！")
         
-        all_holdings = load_portfolio()
+        all_holdings = load_portfolio(user_id=user_id)
         active_holdings = [h for h in all_holdings if h.get("status") == "HOLDING"]
 
-        c_p_add1, c_p_add2, c_p_add3 = st.columns([1.2, 2.0, 1.2])
-        with c_p_add1:
-            btn_refresh_holdings = st.button("🔄 即時重新診斷行情", key="btn_refresh_holdings", use_container_width=True)
-            if btn_refresh_holdings and "copilot_inspected_cache" in st.session_state:
-                del st.session_state["copilot_inspected_cache"]
-        with c_p_add2:
-            btn_load_presets = st.button("📥 一鍵載入我的 4 檔持股 (美時/麗正/晟銘電/勤誠)", type="primary", key="btn_load_presets", use_container_width=True)
-            if btn_load_presets:
-                added_num, _ = load_preset_user_holdings()
-                if "copilot_inspected_cache" in st.session_state:
+        if is_admin:
+            c_p_add1, c_p_add2, c_p_add3 = st.columns([1.2, 2.0, 1.2])
+            with c_p_add1:
+                btn_refresh_holdings = st.button("🔄 即時重新診斷行情", key="btn_refresh_holdings", use_container_width=True)
+                if btn_refresh_holdings and "copilot_inspected_cache" in st.session_state:
                     del st.session_state["copilot_inspected_cache"]
-                if added_num > 0:
-                    st.success(f"🎉 成功自動載入 {added_num} 筆持股部位！已全面啟動救援與高點賣點雷達！")
-                else:
-                    st.info("💡 您的專屬持股（美時、麗正、晟銘電現股與融資、勤誠）已全數在庫守護中！")
-                st.rerun()
-        with c_p_add3:
-            with st.popover("➕ 手動新增其他持股", use_container_width=True):
-                st.write("#### 登錄股票讓副駕駛守護")
-                st_list = load_stock_list()
-                h_opts = [f"{s['code']} {s['name']}" for s in st_list]
-                h_pick = st.selectbox("選擇股票", h_opts, key="manual_hold_pick")
-                h_code = h_pick.split()[0]
-                h_name = h_pick.split()[1]
-
-                # 自動嘗試抓取該股票最新收盤價做為貼心預設值
-                cur_live_price = 100.0
-                try:
-                    _, inf = fetch_stock_kline(h_code, period="1mo")
-                    cur_live_price = float(inf.get("close", 100.0))
-                except Exception:
-                    cur_live_price = 100.0
-
-                h_trade_type = st.radio("交易類別", ["現股", "融資"], horizontal=True, key=f"manual_hold_type_{h_code}")
-                h_buy_p = st.number_input("買進成交價 (元)", value=cur_live_price, step=0.1, key=f"manual_hold_p_{h_code}")
-                
-                c_unit1, c_unit2 = st.columns([1, 1])
-                with c_unit1:
-                    u_mode = st.radio("單位模式", ["整張 (1張=1000股)", "零股 (股數)"], horizontal=True, key=f"manual_u_mode_{h_code}")
-                with c_unit2:
-                    if "整張" in u_mode:
-                        h_zhang = st.number_input("張數 (可輸小數如 0.5)", value=1.0, min_value=0.01, step=0.5, format="%.2f", key=f"manual_hold_zhang_{h_code}")
-                        final_shares = int(round(h_zhang * 1000))
-                    else:
-                        final_shares = int(st.number_input("持有股數 (股)", value=100, min_value=1, step=50, key=f"manual_hold_gu_{h_code}"))
-                
-                # 若買進價高於現價 (套牢狀態)，給予貼心提示
-                if cur_live_price < h_buy_p:
-                    st.caption("💡 目前買價高於市價，副駕駛將自動啟動【套牢救援與高點賣點雷達】，自動推算保命底線與反彈目標！")
-                    h_stop = st.number_input("底線保命價 (元, 設 0 由系統自動推算)", value=0.0, step=0.1, key=f"manual_hold_stop_{h_code}")
-                    h_tgt = st.number_input("下一波反彈賣點 (元, 設 0 由系統自動推算)", value=0.0, step=0.1, key=f"manual_hold_tgt_{h_code}")
-                else:
-                    h_stop = st.number_input("停損防守價 (元)", value=round(h_buy_p * 0.95, 2), step=0.1, key=f"manual_hold_stop_{h_code}")
-                    h_tgt = st.number_input("波段目標價 (元)", value=round(h_buy_p * 1.10, 2), step=0.1, key=f"manual_hold_tgt_{h_code}")
-                    
-                if st.button("確認加入守護", type="primary", use_container_width=True, key="btn_manual_add_confirm"):
-                    add_holding(h_code, h_name, h_buy_p, h_stop, h_tgt, strategy="手動建倉", buy_reason="手動建倉監控", shares=final_shares, trade_type=h_trade_type)
+            with c_p_add2:
+                btn_load_presets = st.button("📥 一鍵載入我的 4 檔持股 (美時/麗正/晟銘電/勤誠)", type="primary", key="btn_load_presets", use_container_width=True)
+                if btn_load_presets:
+                    added_num, _ = load_preset_user_holdings(user_id=user_id)
                     if "copilot_inspected_cache" in st.session_state:
                         del st.session_state["copilot_inspected_cache"]
-                    st.success(f"已加入【{h_name}】({h_trade_type})！")
+                    if added_num > 0:
+                        st.success(f"🎉 成功自動載入 {added_num} 筆持股部位！已全面啟動救援與高點賣點雷達！")
+                    else:
+                        st.info("💡 您的專屬持股（美時、麗正、晟銘電現股與融資、勤誠）已全數在庫守護中！")
                     st.rerun()
+            with c_p_add3:
+                with st.popover("➕ 手動新增其他持股", use_container_width=True):
+                    st.write("#### 登錄股票讓副駕駛守護")
+                    st_list = load_stock_list()
+                    h_opts = [f"{s['code']} {s['name']}" for s in st_list]
+                    h_pick = st.selectbox("選擇股票", h_opts, key="manual_hold_pick")
+                    h_code = h_pick.split()[0]
+                    h_name = h_pick.split()[1]
 
+                    cur_live_price = 100.0
+                    try:
+                        _, inf = fetch_stock_kline(h_code, period="1mo")
+                        cur_live_price = float(inf.get("close", 100.0))
+                    except Exception:
+                        cur_live_price = 100.0
+
+                    h_trade_type = st.radio("交易類別", ["現股", "融資"], horizontal=True, key=f"manual_hold_type_{h_code}")
+                    h_buy_p = st.number_input("買進成交價 (元)", value=cur_live_price, step=0.1, key=f"manual_hold_p_{h_code}")
+                    
+                    c_unit1, c_unit2 = st.columns([1, 1])
+                    with c_unit1:
+                        u_mode = st.radio("單位模式", ["整張 (1張=1000股)", "零股 (股數)"], horizontal=True, key=f"manual_u_mode_{h_code}")
+                    with c_unit2:
+                        if "整張" in u_mode:
+                            h_zhang = st.number_input("張數 (可輸小數如 0.5)", value=1.0, min_value=0.01, step=0.5, format="%.2f", key=f"manual_hold_zhang_{h_code}")
+                            final_shares = int(round(h_zhang * 1000))
+                        else:
+                            final_shares = int(st.number_input("持有股數 (股)", value=100, min_value=1, step=50, key=f"manual_hold_gu_{h_code}"))
+                    
+                    if cur_live_price < h_buy_p:
+                        st.caption("💡 目前買價高於市價，副駕駛將自動啟動【套牢救援與高點賣點雷達】，自動推算保命底線與反彈目標！")
+                        h_stop = st.number_input("底線保命價 (元, 設 0 由系統自動推算)", value=0.0, step=0.1, key=f"manual_hold_stop_{h_code}")
+                        h_tgt = st.number_input("下一波反彈賣點 (元, 設 0 由系統自動推算)", value=0.0, step=0.1, key=f"manual_hold_tgt_{h_code}")
+                    else:
+                        h_stop = st.number_input("停損防守價 (元)", value=round(h_buy_p * 0.95, 2), step=0.1, key=f"manual_hold_stop_{h_code}")
+                        h_tgt = st.number_input("波段目標價 (元)", value=round(h_buy_p * 1.10, 2), step=0.1, key=f"manual_hold_tgt_{h_code}")
+                        
+                    if st.button("確認加入守護", type="primary", use_container_width=True, key="btn_manual_add_confirm"):
+                        add_holding(h_code, h_name, h_buy_p, h_stop, h_tgt, strategy="手動建倉", buy_reason="手動建倉監控", shares=final_shares, trade_type=h_trade_type, user_id=user_id)
+                        if "copilot_inspected_cache" in st.session_state:
+                            del st.session_state["copilot_inspected_cache"]
+                        st.success(f"已加入【{h_name}】({h_trade_type})！")
+                        st.rerun()
+        else:
+            c_p_add1, c_p_add2 = st.columns([1.5, 1.5])
+            with c_p_add1:
+                btn_refresh_holdings = st.button("🔄 即時重新診斷我的持股行情", key="btn_refresh_holdings", use_container_width=True)
+                if btn_refresh_holdings and "copilot_inspected_cache" in st.session_state:
+                    del st.session_state["copilot_inspected_cache"]
+            with c_p_add2:
+                with st.popover("➕ 手動新增我的持股", use_container_width=True):
+                    st.write("#### 登錄股票讓副駕駛守護")
+                    st_list = load_stock_list()
+                    h_opts = [f"{s['code']} {s['name']}" for s in st_list]
+                    h_pick = st.selectbox("選擇股票", h_opts, key="manual_hold_pick")
+                    h_code = h_pick.split()[0]
+                    h_name = h_pick.split()[1]
+
+                    cur_live_price = 100.0
+                    try:
+                        _, inf = fetch_stock_kline(h_code, period="1mo")
+                        cur_live_price = float(inf.get("close", 100.0))
+                    except Exception:
+                        cur_live_price = 100.0
+
+                    h_trade_type = st.radio("交易類別", ["現股", "融資"], horizontal=True, key=f"manual_hold_type_{h_code}")
+                    h_buy_p = st.number_input("買進成交價 (元)", value=cur_live_price, step=0.1, key=f"manual_hold_p_{h_code}")
+                    
+                    c_unit1, c_unit2 = st.columns([1, 1])
+                    with c_unit1:
+                        u_mode = st.radio("單位模式", ["整張 (1張=1000股)", "零股 (股數)"], horizontal=True, key=f"manual_u_mode_{h_code}")
+                    with c_unit2:
+                        if "整張" in u_mode:
+                            h_zhang = st.number_input("張數 (可輸小數如 0.5)", value=1.0, min_value=0.01, step=0.5, format="%.2f", key=f"manual_hold_zhang_{h_code}")
+                            final_shares = int(round(h_zhang * 1000))
+                        else:
+                            final_shares = int(st.number_input("持有股數 (股)", value=100, min_value=1, step=50, key=f"manual_hold_gu_{h_code}"))
+                    
+                    if cur_live_price < h_buy_p:
+                        st.caption("💡 目前買價高於市價，副駕駛將自動啟動【套牢救援與高點賣點雷達】，自動推算保命底線與反彈目標！")
+                        h_stop = st.number_input("底線保命價 (元, 設 0 由系統自動推算)", value=0.0, step=0.1, key=f"manual_hold_stop_{h_code}")
+                        h_tgt = st.number_input("下一波反彈賣點 (元, 設 0 由系統自動推算)", value=0.0, step=0.1, key=f"manual_hold_tgt_{h_code}")
+                    else:
+                        h_stop = st.number_input("停損防守價 (元)", value=round(h_buy_p * 0.95, 2), step=0.1, key=f"manual_hold_stop_{h_code}")
+                        h_tgt = st.number_input("波段目標價 (元)", value=round(h_buy_p * 1.10, 2), step=0.1, key=f"manual_hold_tgt_{h_code}")
+                        
+                    if st.button("確認加入守護", type="primary", use_container_width=True, key="btn_manual_add_confirm"):
+                        add_holding(h_code, h_name, h_buy_p, h_stop, h_tgt, strategy="手動建倉", buy_reason="手動建倉監控", shares=final_shares, trade_type=h_trade_type, user_id=user_id)
+                        if "copilot_inspected_cache" in st.session_state:
+                            del st.session_state["copilot_inspected_cache"]
+                        st.success(f"已加入【{h_name}】({h_trade_type})！")
+                        st.rerun()
 
         if not active_holdings:
-            st.info("💡 目前您的庫存清單中暫無股票。您可以點擊上方【📥 一鍵載入我的 4 檔持股】，或是透過【➕ 手動新增其他持股】，標的就會立即出現在此處，由副駕駛 24 小時守護！")
+            if is_admin:
+                st.info("💡 目前您的庫存清單中暫無股票。您可以點擊上方【📥 一鍵載入我的 4 檔持股】，或是透過【➕ 手動新增其他持股】，標的就會立即出現在此處，由副駕駛 24 小時守護！")
+            else:
+                st.info("💡 目前您的專屬持股庫存清單為空。您可以透過右上角【➕ 手動新增我的持股】，登錄您手中買進的股票，副駕駛將為您進行 24 小時即時盯盤與出場提醒！")
+
         else:
             if "copilot_inspected_cache" not in st.session_state:
                 with st.spinner("副駕駛正在為您的持股即時診斷均線與防守位..."):
@@ -1850,7 +2015,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                         sell_p = st.number_input("實際賣出價格", value=item_cp, step=0.1, key=f"sp_{item_id}")
                         sell_r = st.selectbox("出場原因", ["達到下一波反彈賣點分批賣出", "觸及保命底線停損逃命", "達到成本保本出清", "跌破5MA獲利/停損出場", "達到目標價分批停利", "融資平手出清", "個人資金調整"], key=f"sr_{item_id}")
                         if st.button("確認結算歸檔", type="primary", use_container_width=True, key=f"btn_sell_ok_{item_id}"):
-                            close_holding(item_id, sell_p, sell_r)
+                            close_holding(item_id, sell_p, sell_r, user_id=user_id)
 
                             if "copilot_inspected_cache" in st.session_state:
                                 del st.session_state["copilot_inspected_cache"]
@@ -1858,7 +2023,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                             st.rerun()
                 with col_act3:
                     if st.button("🗑️ 刪除紀錄", key=f"btn_del_hold_{item_id}", use_container_width=True):
-                        delete_holding(item_id)
+                        delete_holding(item_id, user_id=user_id)
                         if "copilot_inspected_cache" in st.session_state:
                             del st.session_state["copilot_inspected_cache"]
                         st.rerun()
@@ -1866,8 +2031,9 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
 
     with tab_copilot3:
         st.subheader("📜 實戰戰報紀錄 · 已結算歷史明細")
-        all_h = load_portfolio()
+        all_h = load_portfolio(user_id=user_id)
         closed_h = [h for h in all_h if h.get("status") == "CLOSED"]
+
         if not closed_h:
             st.info("尚無結算出場的歷史戰報。當您在持股守護神點擊【我賣出了】，已實現的交易成績將自動記錄於此。")
         else:
