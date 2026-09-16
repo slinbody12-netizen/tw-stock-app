@@ -43,8 +43,9 @@ from core.screener import scan_stocks, load_speedy_chips
 from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query, diagnose_stock_deeply
 from core.copilot import (
     load_portfolio, save_portfolio, add_holding, close_holding, delete_holding,
-    get_copilot_recommendation, inspect_portfolio
+    get_copilot_recommendation, inspect_portfolio, load_preset_user_holdings
 )
+
 
 st.set_page_config(
     page_title="技術分析全攻略 - 股票趨勢與轉折波系統",
@@ -1659,20 +1660,31 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
             st.info(rec_data.get("advice_detail", ""))
 
     with tab_copilot2:
-        st.subheader("🛡️ 我的實戰在庫持股 · 全自動盯盤守護神")
-        st.caption("副駕駛每日全自動串接行情，檢驗 5MA 操盤線與停損目標，一旦觸發破線、達標或加碼，第一時間跳出高亮指示！")
+        st.subheader("🛡️ 我的實戰在庫持股 · 全自動盯盤守護神與高點賣點雷達")
+        st.caption("副駕駛每日串接最新行情，無論是波段續抱或是套牢持股，精準運算【底線保命價】與【下一波反彈賣點】，即時給予操盤紅綠燈！")
         
         all_holdings = load_portfolio()
         active_holdings = [h for h in all_holdings if h.get("status") == "HOLDING"]
 
-        c_p_add1, c_p_add2 = st.columns([3, 1])
+        c_p_add1, c_p_add2, c_p_add3 = st.columns([1.2, 2.0, 1.2])
         with c_p_add1:
-            btn_refresh_holdings = st.button("🔄 即時重新診斷持股行情", key="btn_refresh_holdings")
+            btn_refresh_holdings = st.button("🔄 即時重新診斷行情", key="btn_refresh_holdings", use_container_width=True)
             if btn_refresh_holdings and "copilot_inspected_cache" in st.session_state:
                 del st.session_state["copilot_inspected_cache"]
         with c_p_add2:
+            btn_load_presets = st.button("📥 一鍵載入我的 4 檔持股 (美時/麗正/晟銘電/勤誠)", type="primary", key="btn_load_presets", use_container_width=True)
+            if btn_load_presets:
+                added_num, _ = load_preset_user_holdings()
+                if "copilot_inspected_cache" in st.session_state:
+                    del st.session_state["copilot_inspected_cache"]
+                if added_num > 0:
+                    st.success(f"🎉 成功自動載入 {added_num} 筆持股部位！已全面啟動救援與高點賣點雷達！")
+                else:
+                    st.info("💡 您的專屬持股（美時、麗正、晟銘電現股與融資、勤誠）已全數在庫守護中！")
+                st.rerun()
+        with c_p_add3:
             with st.popover("➕ 手動新增其他持股", use_container_width=True):
-                st.write("#### 新增手中的股票讓副駕駛守護")
+                st.write("#### 登錄股票讓副駕駛守護")
                 st_list = load_stock_list()
                 h_opts = [f"{s['code']} {s['name']}" for s in st_list]
                 h_pick = st.selectbox("選擇股票", h_opts, key="manual_hold_pick")
@@ -1687,19 +1699,28 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                 except Exception:
                     cur_live_price = 100.0
 
+                h_trade_type = st.radio("交易類別", ["現股", "融資"], horizontal=True, key=f"manual_hold_type_{h_code}")
                 h_buy_p = st.number_input("買進成交價 (元)", value=cur_live_price, step=0.1, key=f"manual_hold_p_{h_code}")
                 h_shares = st.number_input("張數 (1張=1000股)", value=1, min_value=1, step=1, key=f"manual_hold_s_{h_code}")
-                h_stop = st.number_input("停損防守價 (元)", value=round(h_buy_p * 0.95, 2), step=0.1, key=f"manual_hold_stop_{h_code}")
-                h_tgt = st.number_input("波段目標價 (元)", value=round(h_buy_p * 1.10, 2), step=0.1, key=f"manual_hold_tgt_{h_code}")
+                
+                # 若買進價高於現價 (套牢狀態)，給予貼心提示
+                if cur_live_price < h_buy_p:
+                    st.caption("💡 目前買價高於市價，副駕駛將自動啟動【套牢救援與高點賣點雷達】，自動推算保命底線與反彈目標！")
+                    h_stop = st.number_input("底線保命價 (元, 設 0 由系統自動推算)", value=0.0, step=0.1, key=f"manual_hold_stop_{h_code}")
+                    h_tgt = st.number_input("下一波反彈賣點 (元, 設 0 由系統自動推算)", value=0.0, step=0.1, key=f"manual_hold_tgt_{h_code}")
+                else:
+                    h_stop = st.number_input("停損防守價 (元)", value=round(h_buy_p * 0.95, 2), step=0.1, key=f"manual_hold_stop_{h_code}")
+                    h_tgt = st.number_input("波段目標價 (元)", value=round(h_buy_p * 1.10, 2), step=0.1, key=f"manual_hold_tgt_{h_code}")
+                    
                 if st.button("確認加入守護", type="primary", use_container_width=True, key="btn_manual_add_confirm"):
-                    add_holding(h_code, h_name, h_buy_p, h_stop, h_tgt, strategy="手動庫存", buy_reason="手動建倉", shares=h_shares * 1000)
+                    add_holding(h_code, h_name, h_buy_p, h_stop, h_tgt, strategy="手動建倉", buy_reason="手動建倉監控", shares=h_shares * 1000, trade_type=h_trade_type)
                     if "copilot_inspected_cache" in st.session_state:
                         del st.session_state["copilot_inspected_cache"]
-                    st.success(f"已加入【{h_name}】！")
+                    st.success(f"已加入【{h_name}】({h_trade_type})！")
                     st.rerun()
 
         if not active_holdings:
-            st.info("💡 目前您的庫存清單中暫無股票。當您在【今日尾盤作戰指示】按下【我買了】，或是透過右上角【手動新增】，標的就會出現在此處，由副駕駛 24 小時守護！")
+            st.info("💡 目前您的庫存清單中暫無股票。您可以點擊上方【📥 一鍵載入我的 4 檔持股】，或是透過【➕ 手動新增其他持股】，標的就會立即出現在此處，由副駕駛 24 小時守護！")
         else:
             if "copilot_inspected_cache" not in st.session_state:
                 with st.spinner("副駕駛正在為您的持股即時診斷均線與防守位..."):
@@ -1713,16 +1734,15 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
             pnl_sign = "+" if total_pnl >= 0 else ""
             pnl_c = "#FF4D4F" if total_pnl >= 0 else "#52C41A"
 
-            stop_count = sum(1 for item in inspected_list if "STOP" in item['status_type'] or "BREAK" in item['status_type'])
-            target_count = sum(1 for item in inspected_list if "TARGET" in item['status_type'])
-            add_count = sum(1 for item in inspected_list if "ADD" in item['status_type'])
-            hold_count = sum(1 for item in inspected_list if "HOLD" in item['status_type'])
+            stop_count = sum(1 for item in inspected_list if any(k in item['status_type'] for k in ["STOP", "BREAK_MA5_WEAK", "MARGIN"]))
+            target_count = sum(1 for item in inspected_list if any(k in item['status_type'] for k in ["TARGET", "REBOUND_EXIT", "BREAKEVEN"]))
+            hold_count = sum(1 for item in inspected_list if any(k in item['status_type'] for k in ["HOLD", "REBOUND_RISING"]))
 
             summary_box = (
                 f'<div style="background: #1E202E; border: 1px solid #2F3247; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;">'
                 f'<div><span style="color: #8892B0; font-size: 0.88rem;">實戰持股總數</span><br><span style="font-size: 1.4rem; font-weight: bold; color: white;">{len(inspected_list)} 檔</span></div>'
                 f'<div><span style="color: #8892B0; font-size: 0.88rem;">在庫總損益</span><br><span style="font-size: 1.4rem; font-weight: bold; color: {pnl_c};">{pnl_sign}{total_pnl:,.0f} 元 ({pnl_sign}{total_pnl_pct}%)</span></div>'
-                f'<div><span style="color: #8892B0; font-size: 0.88rem;">守護健康狀態</span><br><span style="font-size: 0.92rem; color: #52C41A; font-weight: bold;">🟢 正常續抱 {hold_count} 檔</span> · <span style="font-size: 0.92rem; color: #FF4D4F; font-weight: bold;">🔴 破線警報 {stop_count} 檔</span> · <span style="font-size: 0.92rem; color: #FAAD14; font-weight: bold;">🏁 達標 {target_count} 檔</span></div>'
+                f'<div><span style="color: #8892B0; font-size: 0.88rem;">守護健康狀態</span><br><span style="font-size: 0.92rem; color: #52C41A; font-weight: bold;">🟢 正常推升/續抱 {hold_count} 檔</span> · <span style="font-size: 0.92rem; color: #FAAD14; font-weight: bold;">🎯 逼近賣壓/達標 {target_count} 檔</span> · <span style="font-size: 0.92rem; color: #FF4D4F; font-weight: bold;">🔴 破線/逃命警戒 {stop_count} 檔</span></div>'
                 f'</div>'
             )
             st.markdown(summary_box, unsafe_allow_html=True)
@@ -1739,33 +1759,60 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                 item_status = item['status_badge']
                 item_color = item['status_color']
                 item_desc = item['status_desc']
+                item_type = item.get('trade_type', '現股')
+                is_trapped = item.get('is_trapped', False)
+                be_diff = item.get('breakeven_diff_pct', 0.0)
+                m_ratio = item.get('margin_ratio')
                 item_sign = "+" if item_pnl_pct >= 0 else ""
                 item_pnl_c = "#FF4D4F" if item_pnl_pct >= 0 else "#52C41A"
 
+                type_badge = '<span style="background: #13520022; color: #95DE64; border: 1px solid #52C41A; padding: 2px 7px; border-radius: 4px; font-size: 0.82rem; font-weight: bold; margin-left: 6px;">💵 現股</span>' if item_type == "現股" else '<span style="background: #722ED122; color: #D3ADF7; border: 1px solid #9254DE; padding: 2px 7px; border-radius: 4px; font-size: 0.82rem; font-weight: bold; margin-left: 6px;">💳 融資</span>'
+
+                margin_badge = f'<span style="background: #FA8C1622; color: #FFC069; border: 1px solid #FA8C16; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; margin-left: 6px;">維持率約 {m_ratio}%</span>' if m_ratio else ''
+
                 border_css = f"border: 2px solid {item_color};"
-                if "警報" in item_status or "跌破" in item_status:
-                    border_css = "border: 2px solid #FF4D4F; box-shadow: 0 0 10px rgba(255, 77, 79, 0.4);"
+                if "警報" in item_status or "跌破" in item_status or "逃命" in item_status or "斷頭" in item_status:
+                    border_css = "border: 2px solid #FF4D4F; box-shadow: 0 0 12px rgba(255, 77, 79, 0.45);"
+                elif "高點" in item_status or "賣出" in item_status or "出清" in item_status:
+                    border_css = "border: 2px solid #FAAD14; box-shadow: 0 0 10px rgba(250, 173, 20, 0.35);"
+
+                if is_trapped:
+                    metrics_bar = (
+                        f'<div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.88rem; margin: 12px 0; background: #202434; padding: 10px 14px; border-radius: 6px; border-left: 4px solid #1890FF;">'
+                        f'<div>買進成本：<b>{item_bp:.2f} 元</b></div>'
+                        f'<div>當前市價：<b style="color:{item_pnl_c};">{item_cp:.2f} 元</b> <span style="color:#8892B0; font-size:0.8rem;">(距回本需 +{be_diff}%)</span></div>'
+                        f'<div>🛑 <b>底線保命價</b>：<b style="color:#FF7875;">{item["floor_stop"]:.2f} 元</b> <span style="color:#8892B0; font-size:0.78rem;">(破底必砍)</span></div>'
+                        f'<div>🎯 <b>下一波反彈賣點</b>：<b style="color:#FFD666;">{item["target_rebound_1"]:.2f} 元</b> <span style="color:#8892B0; font-size:0.78rem;">(分批掛賣)</span></div>'
+                        f'<div>🏁 <b>極限解套高點</b>：<b style="color:#69C0FF;">{item["target_rebound_extreme"]:.2f} 元</b></div>'
+                        f'</div>'
+                    )
+                else:
+                    metrics_bar = (
+                        f'<div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.88rem; margin: 12px 0; background: #202434; padding: 10px 14px; border-radius: 6px;">'
+                        f'<div>買進價：<b>{item_bp:.2f} 元</b></div>'
+                        f'<div>現價：<b style="color:{item_pnl_c};">{item_cp:.2f} 元</b></div>'
+                        f'<div>5MA操盤線：<b>{item["sma5"]:.2f} 元</b></div>'
+                        f'<div>停損防守價：<b style="color:#FF7875;">{item["stop_loss"]:.2f} 元</b></div>'
+                        f'<div>波段目標價：<b style="color:#FFD666;">{item["target_price"]:.2f} 元</b></div>'
+                        f'</div>'
+                    )
 
                 card_box = (
                     f'<div style="background: #181B26; {border_css} border-radius: 12px; padding: 16px; margin-bottom: 14px;">'
                     f'<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
                     f'<div>'
                     f'<span style="font-size: 1.3rem; font-weight: bold; color: white;">{item_name} ({item_code})</span>'
+                    f'{type_badge}'
+                    f'{margin_badge}'
                     f'<span style="background: {item_color}22; color: {item_color}; border: 1px solid {item_color}; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; margin-left: 8px;">{item_status}</span>'
-                    f'<div style="font-size: 0.82rem; color: #8892B0; margin-top: 4px;">買進日：<b>{item["buy_date"]}</b> (已持有 {item["days_held"]} 天) · 張數：<b>{item_shares // 1000} 張</b></div>'
+                    f'<div style="font-size: 0.82rem; color: #8892B0; margin-top: 4px;">買進日：<b>{item["buy_date"]}</b> (已持有 {item["days_held"]} 天) · 數量：<b>{item_shares // 1000} 張</b> ({item_type})</div>'
                     f'</div>'
                     f'<div style="text-align: right;">'
                     f'<div style="font-size: 1.35rem; font-weight: bold; color: {item_pnl_c};">{item_sign}{item_pnl_pct}%</div>'
                     f'<div style="font-size: 0.95rem; font-weight: bold; color: {item_pnl_c};">{item_sign}{item_pnl_amt:,.0f} 元</div>'
                     f'</div>'
                     f'</div>'
-                    f'<div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.88rem; margin: 12px 0; background: #202434; padding: 8px 12px; border-radius: 6px;">'
-                    f'<div>買進價：<b>{item_bp:.2f}</b></div>'
-                    f'<div>現價：<b style="color:{item_pnl_c};">{item_cp:.2f}</b></div>'
-                    f'<div>5MA防守：<b>{item["sma5"]:.2f}</b></div>'
-                    f'<div>停損價：<b style="color:#FF7875;">{item["stop_loss"]:.2f}</b></div>'
-                    f'<div>目標價：<b style="color:#FFD666;">{item["target_price"]:.2f}</b></div>'
-                    f'</div>'
+                    f'{metrics_bar}'
                     f'<div style="background: #151822; padding: 10px 12px; border-radius: 6px; font-size: 0.9rem; color: #E2E8F0; line-height: 1.6; margin-bottom: 10px;">'
                     f'{item_desc}'
                     f'</div>'
@@ -1781,9 +1828,9 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                         st.rerun()
                 with col_act2:
                     with st.popover("🏁 我賣出了 (結算)", use_container_width=True):
-                        st.write(f"#### 結算出場【{item_name}】")
+                        st.write(f"#### 結算出場【{item_name}】({item_type})")
                         sell_p = st.number_input("實際賣出價格", value=item_cp, step=0.1, key=f"sp_{item_id}")
-                        sell_r = st.selectbox("出場原因", ["跌破5MA獲利/停損出場", "達到目標價分批停利", "個人資金調整", "觸及停損線止損"], key=f"sr_{item_id}")
+                        sell_r = st.selectbox("出場原因", ["達到下一波反彈賣點分批賣出", "觸及保命底線停損逃命", "達到成本保本出清", "跌破5MA獲利/停損出場", "達到目標價分批停利", "融資平手出清", "個人資金調整"], key=f"sr_{item_id}")
                         if st.button("確認結算歸檔", type="primary", use_container_width=True, key=f"btn_sell_ok_{item_id}"):
                             close_holding(item_id, sell_p, sell_r)
                             if "copilot_inspected_cache" in st.session_state:
@@ -1796,6 +1843,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                         if "copilot_inspected_cache" in st.session_state:
                             del st.session_state["copilot_inspected_cache"]
                         st.rerun()
+
 
     with tab_copilot3:
         st.subheader("📜 實戰戰報紀錄 · 已結算歷史明細")

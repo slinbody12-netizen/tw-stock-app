@@ -1,1 +1,112 @@
-[]
+[
+  {
+    "id": "port_1795_現股_20260916101157_0",
+    "code": "1795",
+    "name": "美時",
+    "buy_date": "2026-09-16",
+    "buy_price": 268.11,
+    "stop_loss": 0.0,
+    "target_price": 0.0,
+    "strategy": "解套救援雷達",
+    "buy_reason": "歷史波段建倉 (尋求下一波反彈解套賣點)",
+    "trade_type": "現股",
+    "shares": 1000,
+    "status": "HOLDING",
+    "created_at": "2026-09-16T10:11:57.228382",
+    "history_logs": [
+      {
+        "date": "2026-09-16",
+        "event": "PRESET_LOAD",
+        "note": "載入庫存：以 268.11 元買進 現股，啟動套牢解套與高點賣點雷達。"
+      }
+    ]
+  },
+  {
+    "id": "port_2302_現股_20260916101157_1",
+    "code": "2302",
+    "name": "麗正",
+    "buy_date": "2026-09-16",
+    "buy_price": 45.37,
+    "stop_loss": 0.0,
+    "target_price": 0.0,
+    "strategy": "解套救援雷達",
+    "buy_reason": "歷史建倉 (接近成本，尋求一波反彈保本出清)",
+    "trade_type": "現股",
+    "shares": 1000,
+    "status": "HOLDING",
+    "created_at": "2026-09-16T10:11:57.228382",
+    "history_logs": [
+      {
+        "date": "2026-09-16",
+        "event": "PRESET_LOAD",
+        "note": "載入庫存：以 45.37 元買進 現股，啟動套牢解套與高點賣點雷達。"
+      }
+    ]
+  },
+  {
+    "id": "port_3013_現股_20260916101157_2",
+    "code": "3013",
+    "name": "晟銘電",
+    "buy_date": "2026-09-16",
+    "buy_price": 114.84,
+    "stop_loss": 0.0,
+    "target_price": 0.0,
+    "strategy": "解套救援雷達",
+    "buy_reason": "歷史現股建倉 (尋求反彈高點減碼逃命)",
+    "trade_type": "現股",
+    "shares": 1000,
+    "status": "HOLDING",
+    "created_at": "2026-09-16T10:11:57.228382",
+    "history_logs": [
+      {
+        "date": "2026-09-16",
+        "event": "PRESET_LOAD",
+        "note": "載入庫存：以 114.84 元買進 現股，啟動套牢解套與高點賣點雷達。"
+      }
+    ]
+  },
+  {
+    "id": "port_3013_融資_20260916101157_3",
+    "code": "3013",
+    "name": "晟銘電",
+    "buy_date": "2026-09-16",
+    "buy_price": 88.34,
+    "stop_loss": 0.0,
+    "target_price": 0.0,
+    "strategy": "解套救援雷達",
+    "buy_reason": "融資持股 (利息與維持率壓力，鎖定88.5元平手解套)",
+    "trade_type": "融資",
+    "shares": 1000,
+    "status": "HOLDING",
+    "created_at": "2026-09-16T10:11:57.228382",
+    "history_logs": [
+      {
+        "date": "2026-09-16",
+        "event": "PRESET_LOAD",
+        "note": "載入庫存：以 88.34 元買進 融資，啟動套牢解套與高點賣點雷達。"
+      }
+    ]
+  },
+  {
+    "id": "port_8210_現股_20260916101157_4",
+    "code": "8210",
+    "name": "勤誠",
+    "buy_date": "2026-09-16",
+    "buy_price": 1088.96,
+    "stop_loss": 0.0,
+    "target_price": 0.0,
+    "strategy": "解套救援雷達",
+    "buy_reason": "伺服器龍頭歷史建倉 (尋求月線/反彈波賣點)",
+    "trade_type": "現股",
+    "shares": 1000,
+    "status": "HOLDING",
+    "created_at": "2026-09-16T10:11:57.228382",
+    "history_logs": [
+      {
+        "date": "2026-09-16",
+        "event": "PRESET_LOAD",
+        "note": "載入庫存：以 1088.96 元買進 現股，啟動套牢解套與高點賣點雷達。"
+      }
+    ]
+  }
+]
