@@ -1513,9 +1513,10 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                 secret_pin_input = st.text_input(
                     "特務專屬安全金鑰 (PIN)",
                     type="password",
-                    placeholder="請輸入 4 位數特務金鑰",
-                    help="預設金鑰為 7777"
+                    placeholder="請輸入特務安全金鑰",
+                    help="此專區受獨立安全金鑰保護，請輸入專屬金鑰以解鎖"
                 )
+
                 auth_submitted = st.form_submit_button("🔓 解鎖特務副駕駛系統", use_container_width=True)
                 if auth_submitted:
                     if secret_pin_input == COPILOT_SECRET_PIN:
