@@ -148,6 +148,10 @@ def check_password():
     if st.session_state.get("authenticated", False):
         return True
 
+    # 只要處於首頁大門口解鎖畫面，立即徹底清理任何殘留特務狀態，確保資安零洩漏
+    st.session_state["copilot_authenticated"] = False
+    st.session_state.pop("copilot_user", None)
+
     # 支援 URL 參數直接驗證 (?pin=8888 或 ?pin=VIP_PIN 或 ?copilot_pin=...) 便捷存取
     params = st.query_params
     url_pin = params.get("pin") or params.get("copilot_pin")
@@ -155,6 +159,10 @@ def check_password():
         clean_url_pin = str(url_pin).strip()
         if clean_url_pin == SYSTEM_PIN:
             st.session_state["authenticated"] = True
+            st.session_state["copilot_authenticated"] = False
+            st.session_state.pop("copilot_user", None)
+            if "copilot_pin" in st.query_params:
+                del st.query_params["copilot_pin"]
             return True
         else:
             vip_info = verify_copilot_pin(clean_url_pin)
@@ -188,6 +196,11 @@ def check_password():
                 clean_input = str(pin_input).strip()
                 if clean_input == SYSTEM_PIN:
                     st.session_state["authenticated"] = True
+                    # 關鍵資安隔離：以 8888 登入者強制剝離並鎖定特務身分！
+                    st.session_state["copilot_authenticated"] = False
+                    st.session_state.pop("copilot_user", None)
+                    if "copilot_pin" in st.query_params:
+                        del st.query_params["copilot_pin"]
                     st.rerun()
                 else:
                     vip_info = verify_copilot_pin(clean_input)
@@ -199,7 +212,7 @@ def check_password():
                         st.rerun()
                     else:
                         st.error("❌ 密碼錯誤，請重新輸入！")
-        st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:12px;'>🛡️ 端對端加密傳輸 · 支援訪客 (8888)、指揮官 (7777) 與 VIP 統一驗證</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:12px;'>🛡️ 端對端加密傳輸 · 支援訪客 (8888)、指揮官與 VIP 統一驗證</div>", unsafe_allow_html=True)
 
     return False
 
@@ -586,14 +599,12 @@ if st.session_state.get("copilot_authenticated", False):
             st.rerun()
     with c_btn2:
         if st.button("🚪 登出系統", key="sidebar_full_logout", use_container_width=True):
-            for k in list(st.session_state.keys()):
-                del st.session_state[k]
+            st.session_state.clear()
             st.query_params.clear()
             st.rerun()
 else:
     if st.sidebar.button("🚪 登出系統 (重新輸入密碼)", key="sidebar_full_logout_gen", use_container_width=True):
-        for k in list(st.session_state.keys()):
-            del st.session_state[k]
+        st.session_state.clear()
         st.query_params.clear()
         st.rerun()
 
