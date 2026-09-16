@@ -463,8 +463,12 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         safety_reasons.append(f"今日盤中留長上影線 (+{upper_shadow_pct:.1f}%) 避雷針，高檔遭遇獲利調節或解套賣壓")
     if c < sma60 and sma20 < sma60:
         safety_reasons.append("季線 (60MA) 下彎壓制，屬空方反彈非主升")
+    if vol_ratio >= 3.5 and is_red:
+        safety_reasons.append("今日爆量過猛 (超過均量3.5倍)，常伴隨前波解套賣壓，依助教指引宜等次日回測支撐再上漲")
+    if res_price > c and (res_price - c) / c <= 0.028:
+        safety_reasons.append(f"上方緊臨密集前高頭部壓力 ({res_price:.2f} 元)，空間狹窄風報比差，突破易遇解套回測")
 
-    if is_multi_bagger or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0):
+    if is_multi_bagger or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red):
         signals_dict['safety_rating'] = "🟡 警訊注意"
     elif up_days >= 4 or bias20 >= 12.0:
         signals_dict['safety_rating'] = "🔴 嚴禁追高"
