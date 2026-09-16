@@ -134,6 +134,11 @@ st.markdown("""
         padding: 14px 18px;
         margin-bottom: 14px;
     }
+    /* Plotly 模式工具列 (ModeBar) 置頂並微調間距，徹底避免遮蔽圖例與指標文字 */
+    .js-plotly-plot .plotly .modebar-container {
+        top: 4px !important;
+        right: 10px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -962,9 +967,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             drag1 = 'pan' if "自由拖曳" in t1_touch_mode else False
             fig1.update_layout(
-                height=650, margin=dict(l=15, r=75, t=15, b=15),
+                height=650, margin=dict(l=15, r=75, t=45, b=15),
                 template="plotly_dark", annotations=annos1, shapes=shapes1,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01),
                 dragmode=drag1, hovermode="x unified"
             )
             fig1.update_xaxes(rangeslider_visible=False, range=init_x)
@@ -1100,9 +1105,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 fig2.add_hline(y=20, line_dash="dot", line_color="#2F9E44", row=2, col=1)
 
             fig2.update_layout(
-                height=650, margin=dict(l=15, r=60, t=15, b=15),
+                height=650, margin=dict(l=15, r=60, t=45, b=15),
                 template="plotly_dark",
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01),
                 dragmode=False, hovermode="x unified"
             )
             fig2.update_xaxes(rangeslider_visible=False, range=k_init_x)
