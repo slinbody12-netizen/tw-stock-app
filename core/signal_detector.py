@@ -37,7 +37,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "n_pattern_bottom": False,    # N字底
         "rounding_bottom": False,     # 圓弧底
 
-        # 波段做空子策略 (1:1 對齊老朱 App)
+        # 波段做空核心子策略
         "lower_highs_lows": False,    # 頭低底低 (六字訣空頭確認)
         "rebound_short": False,       # 彈後準進場 (反彈測線無力·短線空點)
         "top_breakdown": False,       # 頂部起跌 (高檔頭部放量長黑破線)
@@ -267,7 +267,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             signals.append("長抱 (多頭長線穩健推升)")
 
     # ----------------------------------------------------
-    # 策略 J：一點鐘 (1:00 PM 尾盤選股 - 1:1 對齊專業 App 官方規則)
+    # 策略 J：一點鐘 (1:00 PM 尾盤選股規則)
     # ----------------------------------------------------
     if is_red and c >= sma5 and is_5ma_rising and change_pct >= 0.5:
         signals_dict['one_pm_strategy'] = True
@@ -281,7 +281,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("盤中強勢 (量價齊揚強勁攻擊)")
 
     # ====================================================
-    # 做空波段與即時策略 (1:1 對齊老朱 App 空方體系)
+    # 做空波段與即時策略 (空方體系)
     # ====================================================
     is_black = (c < o)
     is_5ma_falling = (sma5 <= prev_sma5)
@@ -406,7 +406,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # ----------------------------------------------------
     # 短線 3~5 天波段價差專屬操盤卡 (量身打造風報比與停損停利)
     # ----------------------------------------------------
-    # 若前高壓力小於或等於現價（代表已突破或在歷史高點），目標價依朱家泓「等幅對稱波」或 +10% 測距滿足點
+    # 若前高壓力小於或等於現價（代表已突破或在歷史高點），目標價依「等幅對稱波」或 +10% 測距滿足點
     if res_price <= c * 1.02:
         calc_target = round(c + max(c * 0.08, c - sup_price), 2)
     else:

@@ -329,7 +329,7 @@ def render_stock_card(item, key_prefix="sc"):
     if is_up:
         chili_str = "🌶️" * item.get('chili_count', 1)
     else:
-        # 老朱 App 做空綠色辣椒標記 (代表空方摜壓/主力大賣)
+        # 空方綠色辣椒標記 (代表空方摜壓/主力大賣)
         chili_str = "<span style='filter: hue-rotate(95deg) saturate(2); display:inline-block;'>🌶️</span>" * item.get('chili_count', 1)
     safety = item.get('safety_rating', '🟢 安全首選')
     safety_color = "#52C41A" if "安全" in safety else ("#FAAD14" if "警訊" in safety else "#FF4D4F")
@@ -754,7 +754,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
         ])
 
         # =========================================================================
-        # TAB 1: 🎯 技術分析 (頭底/壓力支撐) - 老朱 App 1:1 核心視覺
+        # TAB 1: 🎯 技術分析 (頭底/壓力支撐) - 旗艦核心視覺
         # =========================================================================
         with tab_tech:
             # 5 大核心技術面指標盒
@@ -772,13 +772,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 lt_text = f"{lowest_trough['price']} ({lowest_trough['date'].strftime('%m/%d')})" if lowest_trough else "無"
                 st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>⚓ 區間最低底</div><div style='font-size:1.15rem; font-weight:bold; color:#52C41A;'>{lt_text}</div></div>", unsafe_allow_html=True)
 
-            # 老朱 App 目標價機制判斷 (未突破前高壓力前暫不啟動，過壓才啟動滿足點)
+            # 專業目標價機制判斷 (未突破前高壓力前暫不啟動，過壓才啟動滿足點)
             has_broken_res = (info['close'] >= trend['resistance']) if trend.get('resistance') else False
             if trend.get('target'):
                 if has_broken_res:
                     st.success(f"🚀 **【目標價已正式啟動！】** 收盤價 ({info['close']} 元) 已成功站上壓力線 ({trend['resistance']} 元)！波段 N 字等距對稱目標價上看：**{trend['target']}** 元！")
                 else:
-                    st.info(f"🔒 **【目標價機制】** 目前股價 ({info['close']} 元) 尚未突破壓力線 ({trend['resistance']} 元)，波段等距目標價 ({trend['target']} 元) 暫未啟動。（老朱心法：過壓才算起漲，未過壓前依箱型區間操作，嚴禁預設立場！）")
+                    st.info(f"🔒 **【目標價機制】** 目前股價 ({info['close']} 元) 尚未突破壓力線 ({trend['resistance']} 元)，波段等距目標價 ({trend['target']} 元) 暫未啟動。（實戰心法：過壓才算起漲，未過壓前依箱型區間操作，嚴禁預設立場！）")
 
             # 盤整與警示訊息
             if signals_dict.get('consolidation_breakout_imminent', False):
@@ -1204,12 +1204,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             st.markdown(f"<div style='background:#181B28; border-left:3px solid {c_status_color}; padding:8px 12px; border-radius:6px; font-size:0.85rem; color:#E0E6ED; margin-bottom:12px;'><b>💡 實戰買高買低評定</b>：{c_diag}</div>", unsafe_allow_html=True)
 
-            with st.expander("📘 【老朱實戰心法教學】大戶均價怎麼看？如何看出主力出場？", expanded=False):
+            with st.expander("📘 【實戰技術心法教學】大戶均價怎麼看？如何看出主力出場？", expanded=False):
                 st.markdown("""
                 - **你是買高還是買低？**
                   - **買在主力均價之下或貼近 (±1.5%以內)**：代表你的進場成本跟主力/大戶幾乎一模一樣，甚至比大戶更便宜！此時風險極低，主力有護盤與拉抬誘因，持股最安心。
                   - **高於主力均價 4% 以上**：代表主力已經拉出獲利空間，若此時追高容易淪為幫主力抬轎，應等待拉回月線/支撐再進場。
-                - **如何看出主力正在出場？（朱家泓老師四大出貨徵兆）**
+                - **如何看出主力正在出場？（實戰技術分析四大出貨徵兆）**
                   1. **連續爆量長黑K棒**：股價在高檔卻出現巨額成交量伴隨大黑K，代表主力正在逢高倒貨。
                   2. **跌破 5MA 操盤線與主力均價**：股價收盤直接摜破 5MA 且跌破 5 日主力均價，代表主力防守線棄守。
                   3. **籌碼大單連續淨流出**：SpeedyAI 的主力大單 (MF) 或外資 (FI) 連續數日呈現大額負值賣超。
@@ -1242,7 +1242,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
         # TAB 4: 🧑‍🏫 AI 助教 (深度診斷/提問) - 今日盤前 + 個股深度健檢 + 即時提問
         # =========================================================================
         with tab_ai:
-            # 1. 今日 2026.09.16 盤前大盤解盤卡片 (老朱最新音檔與講義)
+            # 1. 今日 2026.09.16 盤前大盤解盤卡片 (晨間最新音檔速報)
             st.markdown("""
             <div class='ai-card'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
@@ -1250,7 +1250,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     <span class='tag-badge' style='background:#E11D48;'>⚠️ 今日台指期結算</span>
                 </div>
                 <div style='margin-top:8px; font-size:0.92rem; line-height:1.6; color:#E2E8F0;'>
-                    • <b>大盤致命警訊</b>：加權指數昨收 <b>45,511 點 (-351點)</b>，<b>收盤跌破前低！</b>朱家泓鐵律：「<b>多頭回檔破前低，趨勢改變不再是多頭！</b>」跌破月線，雖月線尚有 4 天低扣抵，但前提是「不能大跌」！<br>
+                    • <b>大盤致命警訊</b>：加權指數昨收 <b>45,511 點 (-351點)</b>，<b>收盤跌破前低！</b>趨勢鐵律：「<b>多頭回檔破前低，趨勢改變不再是多頭！</b>」跌破月線，雖月線尚有 4 天低扣抵，但前提是「不能大跌」！<br>
                     • <b>OTC 櫃買重災區</b>：昨大跌 1.51% 破半年線與前低，<b>確認轉為空頭格局</b>，中小型股空方摜壓沉重！<br>
                     • <b>三大法人與籌碼</b>：外資昨大賣 <b>626 億</b>（前兩週買超全倒光），三大法人合計大賣 <b>788 億</b>！資減 16 億、券減 3,434 張。<br>
                     • <b>台指期結算震撼</b>：<b>今日 9/16 為 9 月台指期結算日</b>，外資台指期未平倉空單高達 <b>83,223 口</b> 歷史高檔重壓！<br>
@@ -1367,7 +1367,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 # 功能分頁 2：全攻略選股池 (Screener)
 # ----------------------------------------------------
 elif menu == "🎯 全攻略選股池 (多/空策略)":
-    st.header("🎯 全攻略條件選股雷達 (1:1 復刻 App 專業版)")
+    st.header("🎯 全攻略條件選股雷達 · 旗艦專業版")
     st.caption("完整收錄 8 大波段子策略、長抱存股、盤中強勢、一點鐘尾盤進場與助教實戰安全評級")
 
     # 頂部控制列
@@ -1395,7 +1395,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     if "波段" in main_mode:
         if dir_val == "多":
             sub_strat = st.radio(
-                "波段子策略 (與老朱 APP 1:1 對齊)：",
+                "波段核心子策略分類：",
                 [
                     "👑 頭高底高 (六字訣多頭確認)",
                     "🎯 回後準進場 (拉回測線有守·短線買點)",
@@ -1419,7 +1419,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 target_strategy = "雙線翻揚"
         else:
             sub_strat = st.radio(
-                "空方波段子策略 (與老朱 APP 1:1 對齊)：",
+                "空方波段核心子策略分類：",
                 [
                     "👑 頭低底低 (六字訣空頭確認)",
                     "🎯 彈後準進場 (反彈測線無力·短線空點)",
@@ -1587,7 +1587,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                 with st.form("copilot_apply_form", clear_on_submit=False):
                     apply_name = st.text_input("真實姓名 (必填)", placeholder="例如：王大明")
                     apply_email = st.text_input("電子信箱 (必填)", placeholder="例如：daming@gmail.com")
-                    apply_reason = st.text_input("申請身分 / 備註說明 (選填)", placeholder="例如：朱家泓同學會學員 / 實戰班學員")
+                    apply_reason = st.text_input("申請身分 / 備註說明 (選填)", placeholder="例如：技術分析實戰班學員 / 朋友推薦")
                     btn_apply = st.form_submit_button("📤 送出 VIP 開通申請", type="primary", use_container_width=True)
                     if btn_apply:
                         if not apply_name.strip() or not apply_email.strip() or "@" not in apply_email:
@@ -1785,7 +1785,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
             picks = [rec_data]
 
         if picks:
-            st.markdown(f"<div style='color:#A0AEC0; font-size:0.92rem; margin-bottom:14px;'>📊 今日全市場共嚴選出 <b>{len(picks)}</b> 檔符合朱老師黃金買點之優質標的，依品質分數與風報比由高至低排列：</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color:#A0AEC0; font-size:0.92rem; margin-bottom:14px;'>📊 今日全市場共嚴選出 <b>{len(picks)}</b> 檔符合波段黃金買點之優質標的，依品質分數與風報比由高至低排列：</div>", unsafe_allow_html=True)
             for p_idx, p in enumerate(picks):
                 p_code = p['code']
                 p_name = p['name']

@@ -437,7 +437,7 @@ def add_direct_vip_user(name: str, email: str, pin: str, reason: str = "指揮�
 def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: bool = True) -> dict:
     """
     全自動運算今日 12:40 - 13:30 尾盤作戰精選 Top 5 作戰名冊
-    嚴格遵循朱家泓實戰鐵律：
+    嚴格遵循實戰技術分析鐵律：
     1. 做多轉折波精華（回後買上漲首選、底部放量起漲、均線糾結突破、多頭排列起跑）
     2. 操盤線 5MA 走平向上，收盤站穩 5MA
     3. 拒絕避雷針（長上影線主力出貨）
@@ -512,7 +512,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             "has_pick": False,
             "picks": [],
             "advice_title": "🛑 今日大盤偏弱或無完美訊號，建議【空手觀望，現金為王】",
-            "advice_detail": "經技術分析全攻略引擎 5 重嚴格濾網檢驗，全市場今日無符合「回後測線有守且風報比合格」之安全買點。朱老師心法：『看不懂不買、沒條件不買』，寧可錯過也不要貿然追高！"
+            "advice_detail": "經技術分析全攻略引擎 5 重嚴格濾網檢驗，全市場今日無符合「回後測線有守且風報比合格」之安全買點。實戰心法：『看不懂不買、沒條件不買』，寧可錯過也不要貿然追高！"
         }
         
     # 依加權分數排序
@@ -614,7 +614,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
 def inspect_portfolio(portfolio: list) -> list:
     """
     遍歷使用者庫存，抓取最新日K與即時盤中撮合價，
-    自動執行朱家泓常態波段診斷 + 套牢解套與高點賣點作戰雷達：
+    自動執行專業常態波段診斷 + 套牢解套與高點賣點作戰雷達：
     1. 🔴 破保命底線 / 🚨 破線停損 (摜破波段前底或停損線，立即出場防守)
     2. ⚠️ 融資斷頭警戒 (針對融資標的，監控維持率與平手解套賣點)
     3. 🟡 逼近反彈高點 (月線/前高密集重壓，建議掛單分批賣出)
@@ -715,7 +715,7 @@ def inspect_portfolio(portfolio: list) -> list:
                         status_type = "BREAKEVEN_EXIT"
                         status_badge = "🎉 逼近成本！保本出清"
                         status_color = "#FAAD14"
-                        status_desc = f"🎯 <b>解套賣點浮現</b>：當前股價 ({curr_p}元) 已來到買進成本 ({buy_p}元) 附近，虧損幾乎完全彌平！依朱家泓心法『解套先求保本』，建議今日於尾盤逢高掛單分批或全部賣出出清，收回全額本金！"
+                        status_desc = f"🎯 <b>解套賣點浮現</b>：當前股價 ({curr_p}元) 已來到買進成本 ({buy_p}元) 附近，虧損幾乎完全彌平！依操盤心法『解套先求保本』，建議今日於尾盤逢高掛單分批或全部賣出出清，收回全額本金！"
                     else:
                         status_type = "REBOUND_EXIT"
                         status_badge = "🟡 逼近反彈高點！建議分批掛賣"
@@ -736,7 +736,7 @@ def inspect_portfolio(portfolio: list) -> list:
                 if high_p >= custom_target or curr_p >= custom_target:
                     status_type = "TARGET_HIT"
                     status_badge = "🏁 達標停利！"
-                    status_color = "#FA8C16"
+                    status_color = "#FAAD14"
                     status_desc = f"🎉 <b>恭喜達標</b>：股價已達前波壓力目標價 ({custom_target}元)！建議先獲利了結 1/2 入袋為安，剩餘張數守 5MA 讓獲利奔馳！"
                 elif curr_p < custom_stop:
                     status_type = "STOP_LOSS"
@@ -752,7 +752,7 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_type = "ADD_POSITION"
                     status_badge = "➕ 回測有守·加碼點！"
                     status_color = "#1890FF"
-                    status_desc = f"🔥 <b>戰術加碼</b>：持股拉回測線有守，今日再度浮現【回後準進場】轉折紅K，符合朱老師『買兩張長短配』加碼訊號，尾盤可加碼第 2 張！"
+                    status_desc = f"🔥 <b>戰術加碼</b>：持股拉回測線有守，今日再度浮現【回後準進場】轉折紅K，符合『買兩張長短配』加碼訊號，尾盤可加碼第 2 張！"
                 else:
                     status_type = "HOLD"
                     status_badge = "🛡️ 安心續抱"

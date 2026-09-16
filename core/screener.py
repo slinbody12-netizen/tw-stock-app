@@ -275,7 +275,7 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 cost_desc = f"已高於大戶成本 (+{cost_diff_pct:.1f}%)，主力已獲利，防拉回不追高！"
                 cost_color = "#FF4D4F"
 
-            # 盤中強勢戰術分類 (1:1 對齊老朱 App 教學手冊：晶華突破即進場 vs 群光/怡利電盤整先鎖股等1:00)
+            # 盤中強勢戰術分類 (突破即進場 vs 盤整先鎖股等 1:00)
             res_val = trend.get('resistance', 0) or (close_price * 1.05)
             is_breakout = (close_price >= res_val * 0.998) or signals_dict.get('bottom_breakout', False) or signals_dict.get('high_breakout', False) or signals_dict.get('flat_base_breakout', False)
 
@@ -411,7 +411,7 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         # 4. 策略精準過濾
         match = False
         if direction == "空":
-            # 做空子策略 (1:1 對齊老朱 App 空方波段與即時大類)
+            # 做空子策略 (空方波段與即時大類)
             if strategy in ["全部", "盤中排行", "量排行"]:
                 match = True
             elif strategy == "頭低底低" and (signals_dict.get('lower_highs_lows', False) or is_bear):
