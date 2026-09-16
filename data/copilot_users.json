@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "user_id": "usr_iv1234_vip",
+    "name": "VIP特務學員",
+    "email": "applicant@vip.local",
+    "reason": "VIP 學員申請核准",
+    "pin": "iv1234",
+    "role": "VIP_USER",
+    "status": "ACTIVE",
+    "approved_at": "2026-09-16 11:20:00"
+  }
+]

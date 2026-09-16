@@ -143,15 +143,26 @@ SYSTEM_PIN = os.getenv("SYSTEM_PIN", "8888")
 COPILOT_SECRET_PIN = os.getenv("COPILOT_PIN", "7777")
 
 def check_password():
-    """驗證存取密碼，確保私密安全訪問"""
+    """驗證存取密碼，確保私密安全訪問（全面支援 8888 訪客、7777 最高指揮官、VIP 專屬金鑰統一驗證）"""
     if st.session_state.get("authenticated", False):
         return True
 
-    # 支援 URL 參數直接驗證 (?pin=8888) 便捷存取
+    # 支援 URL 參數直接驗證 (?pin=8888 或 ?pin=7777 或 ?pin=VIP_PIN 或 ?copilot_pin=...) 便捷存取
     params = st.query_params
-    if params.get("pin") == SYSTEM_PIN:
-        st.session_state["authenticated"] = True
-        return True
+    url_pin = params.get("pin") or params.get("copilot_pin")
+    if url_pin:
+        clean_url_pin = str(url_pin).strip()
+        if clean_url_pin == SYSTEM_PIN:
+            st.session_state["authenticated"] = True
+            return True
+        else:
+            vip_info = verify_copilot_pin(clean_url_pin)
+            if vip_info:
+                st.session_state["authenticated"] = True
+                st.session_state["copilot_authenticated"] = True
+                st.session_state["copilot_user"] = vip_info
+                st.session_state["target_nav_menu"] = "🤖 實戰秘密特務 (操盤副駕駛)"
+                return True
 
     # 渲染專用登入解鎖畫面 (手機與電腦皆完美適配)
     st.markdown("""
@@ -165,15 +176,29 @@ def check_password():
     col_l, col_m, col_r = st.columns([1, 1.3, 1])
     with col_m:
         with st.form("login_form", clear_on_submit=False):
-            pin_input = st.text_input("存取密碼 (PIN)", type="password", placeholder="請輸入 4 位數密碼", help="預設密碼為 8888")
+            pin_input = st.text_input(
+                "存取密碼 (PIN)",
+                type="password",
+                placeholder="請輸入密碼或特務金鑰",
+                help="訪客預設密碼為 8888；若持有最高指揮官 (7777) 或 VIP 專屬金鑰可直接在此輸入登入"
+            )
             submitted = st.form_submit_button("🔐 解鎖進入系統", use_container_width=True)
             if submitted:
-                if pin_input == SYSTEM_PIN:
+                clean_input = str(pin_input).strip()
+                if clean_input == SYSTEM_PIN:
                     st.session_state["authenticated"] = True
                     st.rerun()
                 else:
-                    st.error("❌ 密碼錯誤，請重新輸入！")
-        st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:12px;'>🛡️ 端對端加密傳輸 · 隱私專屬保護</div>", unsafe_allow_html=True)
+                    vip_info = verify_copilot_pin(clean_input)
+                    if vip_info:
+                        st.session_state["authenticated"] = True
+                        st.session_state["copilot_authenticated"] = True
+                        st.session_state["copilot_user"] = vip_info
+                        st.session_state["target_nav_menu"] = "🤖 實戰秘密特務 (操盤副駕駛)"
+                        st.rerun()
+                    else:
+                        st.error("❌ 密碼錯誤，請重新輸入！")
+        st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:12px;'>🛡️ 端對端加密傳輸 · 支援訪客 (8888)、指揮官 (7777) 與 VIP 統一驗證</div>", unsafe_allow_html=True)
 
     return False
 
@@ -549,10 +574,26 @@ if st.session_state.get("copilot_authenticated", False):
         "<div style='background:#2A1B2D; padding:6px 10px; border-radius:6px; border:1px solid #722ED1; color:#D3ADF7; font-size:0.8rem; margin-top:4px; margin-bottom:6px; text-align:center;'>🕵️‍♂️ 秘密特務：已授權解鎖</div>",
         unsafe_allow_html=True
     )
-    if st.sidebar.button("🔒 立即鎖定特務", key="sidebar_lock_copilot", use_container_width=True):
-        st.session_state["copilot_authenticated"] = False
-        if "copilot_pin" in st.query_params:
-            del st.query_params["copilot_pin"]
+    c_btn1, c_btn2 = st.sidebar.columns(2)
+    with c_btn1:
+        if st.button("🔒 鎖定特務", key="sidebar_lock_copilot", use_container_width=True):
+            st.session_state["copilot_authenticated"] = False
+            if "copilot_user" in st.session_state:
+                del st.session_state["copilot_user"]
+            if "copilot_pin" in st.query_params:
+                del st.query_params["copilot_pin"]
+            st.rerun()
+    with c_btn2:
+        if st.button("🚪 登出系統", key="sidebar_full_logout", use_container_width=True):
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            st.query_params.clear()
+            st.rerun()
+else:
+    if st.sidebar.button("🚪 登出系統 (重新輸入密碼)", key="sidebar_full_logout_gen", use_container_width=True):
+        for k in list(st.session_state.keys()):
+            del st.session_state[k]
+        st.query_params.clear()
         st.rerun()
 
 st.sidebar.subheader("🔍 股票搜尋")
