@@ -26,7 +26,48 @@ PORTFOLIO_DIR = os.path.join(DATA_DIR, "portfolios")
 DEFAULT_PORTFOLIO_FILE = os.path.join(DATA_DIR, "user_portfolio.json")
 AUTH_REQUESTS_FILE = os.path.join(DATA_DIR, "copilot_auth_requests.json")
 USERS_FILE = os.path.join(DATA_DIR, "copilot_users.json")
-COPILOT_MASTER_PIN = os.getenv("COPILOT_PIN", "7777")
+ADMIN_CONFIG_FILE = os.path.join(DATA_DIR, "admin_config.json")
+DEFAULT_MASTER_PIN = "IvanCmdr#8899"
+
+def get_master_pin() -> str:
+    """取得最高指揮官安全金鑰 (支援環境變數、配置檔與預設金鑰)"""
+    env_pin = os.getenv("COPILOT_PIN")
+    if env_pin and str(env_pin).strip():
+        return str(env_pin).strip()
+    if os.path.exists(ADMIN_CONFIG_FILE):
+        try:
+            with open(ADMIN_CONFIG_FILE, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+                p = cfg.get("master_pin")
+                if p and str(p).strip():
+                    return str(p).strip()
+        except Exception:
+            pass
+    return DEFAULT_MASTER_PIN
+
+def set_master_pin(new_pin: str) -> tuple[bool, str]:
+    """更新最高指揮官安全金鑰"""
+    clean_pin = str(new_pin).strip()
+    if len(clean_pin) < 6:
+        return False, "密碼長度至少需 6 位！"
+    try:
+        os.makedirs(os.path.dirname(ADMIN_CONFIG_FILE), exist_ok=True)
+        cfg = {}
+        if os.path.exists(ADMIN_CONFIG_FILE):
+            try:
+                with open(ADMIN_CONFIG_FILE, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+            except Exception:
+                cfg = {}
+        cfg["master_pin"] = clean_pin
+        cfg["updated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(ADMIN_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        return True, f"最高指揮官金鑰已成功更新為：`{clean_pin}`！請妥善保存！"
+    except Exception as e:
+        return False, f"儲存失敗：{e}"
+
+COPILOT_MASTER_PIN = get_master_pin()
 
 def get_portfolio_file(user_id: str = "master") -> str:
     """獲取指定使用者的獨立持股存儲路徑 (一人一保險庫)"""
@@ -274,7 +315,7 @@ def verify_copilot_pin(pin: str) -> dict | None:
     if not pin_str:
         return None
         
-    if pin_str == COPILOT_MASTER_PIN:
+    if pin_str == get_master_pin():
         return {
             "user_id": "master",
             "name": "最高指揮官 (您)",
@@ -310,7 +351,7 @@ def approve_access_request(request_id: str, custom_pin: str = None) -> tuple[boo
         
     users = get_copilot_users()
     existing_pins = {str(u.get("pin")) for u in users}
-    existing_pins.add(COPILOT_MASTER_PIN)
+    existing_pins.add(get_master_pin())
     
     if custom_pin and str(custom_pin).strip():
         new_pin = str(custom_pin).strip()
@@ -408,7 +449,7 @@ def add_direct_vip_user(name: str, email: str, pin: str, reason: str = "指揮�
         
     users = get_copilot_users()
     existing_pins = {str(u.get("pin")) for u in users}
-    existing_pins.add(COPILOT_MASTER_PIN)
+    existing_pins.add(get_master_pin())
     if clean_pin in existing_pins:
         return False, f"金鑰 `{clean_pin}` 已被其他成員或指揮官佔用，請更換！", {}
         

@@ -46,7 +46,7 @@ from core.copilot import (
     get_copilot_recommendation, inspect_portfolio, load_preset_user_holdings,
     verify_copilot_pin, submit_access_request, get_auth_requests, approve_access_request,
     reject_access_request, revoke_user_access, reactivate_user_access, delete_copilot_user,
-    add_direct_vip_user, get_copilot_users, COPILOT_MASTER_PIN
+    add_direct_vip_user, get_copilot_users, get_master_pin, set_master_pin, COPILOT_MASTER_PIN
 )
 
 
@@ -141,14 +141,14 @@ st.markdown("""
 # 系統安全存取鎖 (保證非公開與私密性，防止未授權訪問)
 # -------------------------------------------------------------
 SYSTEM_PIN = os.getenv("SYSTEM_PIN", "8888")
-COPILOT_SECRET_PIN = os.getenv("COPILOT_PIN", "7777")
+COPILOT_SECRET_PIN = get_master_pin()
 
 def check_password():
-    """驗證存取密碼，確保私密安全訪問（全面支援 8888 訪客、7777 最高指揮官、VIP 專屬金鑰統一驗證）"""
+    """驗證存取密碼，確保私密安全訪問（全面支援 8888 訪客、最高指揮官專屬金鑰、VIP 專屬金鑰統一驗證）"""
     if st.session_state.get("authenticated", False):
         return True
 
-    # 支援 URL 參數直接驗證 (?pin=8888 或 ?pin=7777 或 ?pin=VIP_PIN 或 ?copilot_pin=...) 便捷存取
+    # 支援 URL 參數直接驗證 (?pin=8888 或 ?pin=VIP_PIN 或 ?copilot_pin=...) 便捷存取
     params = st.query_params
     url_pin = params.get("pin") or params.get("copilot_pin")
     if url_pin:
@@ -181,7 +181,7 @@ def check_password():
                 "存取密碼 (PIN)",
                 type="password",
                 placeholder="請輸入密碼或特務金鑰",
-                help="訪客預設密碼為 8888；若持有最高指揮官 (7777) 或 VIP 專屬金鑰可直接在此輸入登入"
+                help="訪客預設密碼為 8888；若持有最高指揮官專屬金鑰或 VIP 金鑰可直接在此輸入登入"
             )
             submitted = st.form_submit_button("🔐 解鎖進入系統", use_container_width=True)
             if submitted:
@@ -1631,8 +1631,11 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
         badge_text = f"🚨 待審核特務申請 ({len(pending_reqs)} 筆待處理)" if pending_reqs else "👑 指揮官特務審批與會員管理後台"
         
         with st.expander(badge_text, expanded=bool(pending_reqs)):
-            st.write("### 👑 特務最高指揮官 · 權限審批中心")
-            tab_adm_req, tab_adm_users = st.tabs([f"📥 待審核申請單 ({len(pending_reqs)})", f"👥 已核准 VIP 成員 ({len(active_vips)})"])
+            tab_adm_req, tab_adm_users, tab_adm_pwd = st.tabs([
+                f"📥 待審核申請單 ({len(pending_reqs)})", 
+                f"👥 已核准 VIP 成員 ({len(all_vip_users)})",
+                "🔐 指揮官金鑰管理"
+            ])
             
             with tab_adm_req:
                 if not pending_reqs:
@@ -1745,6 +1748,36 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                                 delete_copilot_user(uid)
                                 st.error(f"已徹底刪除【{u['name']}】之帳號與個人保險庫！")
                                 st.rerun()
+
+            with tab_adm_pwd:
+                st.write("#### 🔐 最高指揮官安全金鑰管理")
+                st.caption("您可在此檢視當前金鑰，或隨時自訂修改為更高強度的專屬密碼。修改後立即生效！")
+                
+                curr_m_pin = get_master_pin()
+                c_p1, c_p2 = st.columns([1.2, 1.8])
+                with c_p1:
+                    st.markdown(f"""
+                    <div style="background:#1E202E; border:1px solid #722ED1; border-radius:8px; padding:16px; margin-bottom:12px;">
+                        <div style="color:#8892B0; font-size:0.85rem;">當前最高指揮官金鑰 (Master PIN)</div>
+                        <div style="font-size:1.35rem; font-weight:bold; color:#E6D5F7; margin-top:6px;">
+                            🔑 <code>{curr_m_pin}</code>
+                        </div>
+                        <div style="color:#52C41A; font-size:0.8rem; margin-top:8px;">🛡️ 具備全系統最高管理、審批、刪除與私房持股權限</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with c_p2:
+                    with st.form("form_change_master_pin", clear_on_submit=True):
+                        st.write("##### ✏️ 自訂修改指揮官新金鑰")
+                        new_p_input = st.text_input("輸入新金鑰 (英數符號皆可，至少6碼)", type="password", placeholder="例如：Ivan#9988Pass")
+                        btn_chg_pin = st.form_submit_button("🚀 確認更新指揮官金鑰", type="primary", use_container_width=True)
+                        if btn_chg_pin:
+                            ok, msg = set_master_pin(new_p_input)
+                            if ok:
+                                st.success(f"🎉 {msg}")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg}")
+
 
     
     # 判斷當前是否處於 12:30 - 13:35 尾盤黃金時間
