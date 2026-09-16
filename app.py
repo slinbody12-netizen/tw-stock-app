@@ -830,6 +830,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             # 依使用者選擇重新計算轉折波
             t1_points, t1_lines, t1_hp, t1_lt = calculate_turning_points(df, ma_period=5, filter_mode=t1_filter_mode)
+            trend = analyze_trend(df, t1_points)
 
             st.markdown("<div class='checkbox-panel'>", unsafe_allow_html=True)
             r1_c1, r1_c2, r1_c3, r1_c4, r1_c5, r1_c6, r1_c7 = st.columns(7)
