@@ -83,27 +83,32 @@ def add_holding(code: str, name: str, buy_price: float, stop_loss: float = None,
 
 def load_preset_user_holdings() -> tuple[int, list]:
     """
-    一鍵載入使用者專屬 4 檔持股 (美時、麗正、晟銘電現股與融資、勤誠)
+    一鍵載入使用者專屬 4 檔持股 (美時 0.5張, 麗正 1張, 晟銘電現股 10張, 晟銘電融資 1張, 勤誠 100股)
     """
     presets = [
-        {"code": "1795", "name": "美時", "buy_price": 268.11, "trade_type": "現股", "shares": 1000, "buy_reason": "歷史波段建倉 (尋求下一波反彈解套賣點)"},
-        {"code": "2302", "name": "麗正", "buy_price": 45.37, "trade_type": "現股", "shares": 1000, "buy_reason": "歷史建倉 (接近成本，尋求一波反彈保本出清)"},
-        {"code": "3013", "name": "晟銘電", "buy_price": 114.84, "trade_type": "現股", "shares": 1000, "buy_reason": "歷史現股建倉 (尋求反彈高點減碼逃命)"},
-        {"code": "3013", "name": "晟銘電", "buy_price": 88.34, "trade_type": "融資", "shares": 1000, "buy_reason": "融資持股 (利息與維持率壓力，鎖定88.5元平手解套)"},
-        {"code": "8210", "name": "勤誠", "buy_price": 1088.96, "trade_type": "現股", "shares": 1000, "buy_reason": "伺服器龍頭歷史建倉 (尋求月線/反彈波賣點)"},
+        {"code": "1795", "name": "美時", "buy_price": 268.11, "trade_type": "現股", "shares": 500, "buy_reason": "歷史波段建倉 0.5張 (尋求下一波反彈解套賣點)"},
+        {"code": "2302", "name": "麗正", "buy_price": 45.37, "trade_type": "現股", "shares": 1000, "buy_reason": "歷史建倉 1張 (接近成本，尋求一波反彈保本出清)"},
+        {"code": "3013", "name": "晟銘電", "buy_price": 114.84, "trade_type": "現股", "shares": 10000, "buy_reason": "歷史現股建倉 10張 (尋求反彈高點減碼逃命)"},
+        {"code": "3013", "name": "晟銘電", "buy_price": 88.34, "trade_type": "融資", "shares": 1000, "buy_reason": "融資持股 1張 (利息與維持率壓力，鎖定88.5元平手解套)"},
+        {"code": "8210", "name": "勤誠", "buy_price": 1088.96, "trade_type": "現股", "shares": 100, "buy_reason": "伺服器龍頭建倉 100股 (尋求月線/反彈波賣點)"},
     ]
     portfolio = load_portfolio()
     added_count = 0
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
     for p in presets:
-        exists = any(
-            h.get("code") == p["code"] and 
+        existing_item = next((
+            h for h in portfolio 
+            if h.get("code") == p["code"] and 
             h.get("trade_type", "現股") == p["trade_type"] and 
             abs(float(h.get("buy_price", 0)) - p["buy_price"]) < 0.01 and 
-            h.get("status") == "HOLDING" 
-            for h in portfolio
-        )
-        if not exists:
+            h.get("status") == "HOLDING"
+        ), None)
+        if existing_item:
+            if existing_item.get("shares") != p["shares"]:
+                existing_item["shares"] = p["shares"]
+                existing_item["buy_reason"] = p["buy_reason"]
+                added_count += 1
+        else:
             h_id = f"port_{p['code']}_{p['trade_type']}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{added_count}"
             portfolio.append({
                 "id": h_id,
@@ -123,7 +128,7 @@ def load_preset_user_holdings() -> tuple[int, list]:
                     {
                         "date": today_str,
                         "event": "PRESET_LOAD",
-                        "note": f"載入庫存：以 {p['buy_price']} 元買進 {p['trade_type']}，啟動套牢解套與高點賣點雷達。"
+                        "note": f"載入庫存：以 {p['buy_price']} 元買進 {p['trade_type']} {p['shares']} 股，啟動套牢解套與高點賣點雷達。"
                     }
                 ]
             })
@@ -131,6 +136,7 @@ def load_preset_user_holdings() -> tuple[int, list]:
     if added_count > 0:
         save_portfolio(portfolio)
     return added_count, portfolio
+
 
 
 def close_holding(holding_id: str, sell_price: float, sell_reason: str = "手動獲利/停損出場") -> bool:

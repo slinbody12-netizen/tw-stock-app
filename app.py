@@ -1701,7 +1701,16 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
 
                 h_trade_type = st.radio("交易類別", ["現股", "融資"], horizontal=True, key=f"manual_hold_type_{h_code}")
                 h_buy_p = st.number_input("買進成交價 (元)", value=cur_live_price, step=0.1, key=f"manual_hold_p_{h_code}")
-                h_shares = st.number_input("張數 (1張=1000股)", value=1, min_value=1, step=1, key=f"manual_hold_s_{h_code}")
+                
+                c_unit1, c_unit2 = st.columns([1, 1])
+                with c_unit1:
+                    u_mode = st.radio("單位模式", ["整張 (1張=1000股)", "零股 (股數)"], horizontal=True, key=f"manual_u_mode_{h_code}")
+                with c_unit2:
+                    if "整張" in u_mode:
+                        h_zhang = st.number_input("張數 (可輸小數如 0.5)", value=1.0, min_value=0.01, step=0.5, format="%.2f", key=f"manual_hold_zhang_{h_code}")
+                        final_shares = int(round(h_zhang * 1000))
+                    else:
+                        final_shares = int(st.number_input("持有股數 (股)", value=100, min_value=1, step=50, key=f"manual_hold_gu_{h_code}"))
                 
                 # 若買進價高於現價 (套牢狀態)，給予貼心提示
                 if cur_live_price < h_buy_p:
@@ -1713,11 +1722,12 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                     h_tgt = st.number_input("波段目標價 (元)", value=round(h_buy_p * 1.10, 2), step=0.1, key=f"manual_hold_tgt_{h_code}")
                     
                 if st.button("確認加入守護", type="primary", use_container_width=True, key="btn_manual_add_confirm"):
-                    add_holding(h_code, h_name, h_buy_p, h_stop, h_tgt, strategy="手動建倉", buy_reason="手動建倉監控", shares=h_shares * 1000, trade_type=h_trade_type)
+                    add_holding(h_code, h_name, h_buy_p, h_stop, h_tgt, strategy="手動建倉", buy_reason="手動建倉監控", shares=final_shares, trade_type=h_trade_type)
                     if "copilot_inspected_cache" in st.session_state:
                         del st.session_state["copilot_inspected_cache"]
                     st.success(f"已加入【{h_name}】({h_trade_type})！")
                     st.rerun()
+
 
         if not active_holdings:
             st.info("💡 目前您的庫存清單中暫無股票。您可以點擊上方【📥 一鍵載入我的 4 檔持股】，或是透過【➕ 手動新增其他持股】，標的就會立即出現在此處，由副駕駛 24 小時守護！")
@@ -1797,6 +1807,13 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                         f'</div>'
                     )
 
+                if item_shares >= 1000 and item_shares % 1000 == 0:
+                    shares_display = f"<b>{item_shares // 1000} 張</b>"
+                elif item_shares >= 1000:
+                    shares_display = f"<b>{item_shares / 1000:.2f} 張</b> ({item_shares:,} 股)"
+                else:
+                    shares_display = f"<b>{item_shares:,} 股</b> ({item_shares / 1000:.2f} 張)"
+
                 card_box = (
                     f'<div style="background: #181B26; {border_css} border-radius: 12px; padding: 16px; margin-bottom: 14px;">'
                     f'<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
@@ -1805,7 +1822,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                     f'{type_badge}'
                     f'{margin_badge}'
                     f'<span style="background: {item_color}22; color: {item_color}; border: 1px solid {item_color}; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; margin-left: 8px;">{item_status}</span>'
-                    f'<div style="font-size: 0.82rem; color: #8892B0; margin-top: 4px;">買進日：<b>{item["buy_date"]}</b> (已持有 {item["days_held"]} 天) · 數量：<b>{item_shares // 1000} 張</b> ({item_type})</div>'
+                    f'<div style="font-size: 0.82rem; color: #8892B0; margin-top: 4px;">買進日：<b>{item["buy_date"]}</b> (已持有 {item["days_held"]} 天) · 持有數量：{shares_display} ({item_type})</div>'
                     f'</div>'
                     f'<div style="text-align: right;">'
                     f'<div style="font-size: 1.35rem; font-weight: bold; color: {item_pnl_c};">{item_sign}{item_pnl_pct}%</div>'
@@ -1828,11 +1845,12 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                         st.rerun()
                 with col_act2:
                     with st.popover("🏁 我賣出了 (結算)", use_container_width=True):
-                        st.write(f"#### 結算出場【{item_name}】({item_type})")
+                        st.write(f"#### 結算出場【{item_name}】({item_type} · {shares_display})")
                         sell_p = st.number_input("實際賣出價格", value=item_cp, step=0.1, key=f"sp_{item_id}")
                         sell_r = st.selectbox("出場原因", ["達到下一波反彈賣點分批賣出", "觸及保命底線停損逃命", "達到成本保本出清", "跌破5MA獲利/停損出場", "達到目標價分批停利", "融資平手出清", "個人資金調整"], key=f"sr_{item_id}")
                         if st.button("確認結算歸檔", type="primary", use_container_width=True, key=f"btn_sell_ok_{item_id}"):
                             close_holding(item_id, sell_p, sell_r)
+
                             if "copilot_inspected_cache" in st.session_state:
                                 del st.session_state["copilot_inspected_cache"]
                             st.success(f"已成功結算【{item_name}】並存入歷史戰報！")
