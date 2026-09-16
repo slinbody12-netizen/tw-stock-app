@@ -1873,12 +1873,13 @@ elif "AI" in menu or "助教" in menu:
         enable_timemachine = st.toggle("⏳ 啟用歷史覆盤時光機", value=False, help="開啟後，將以您指定的歷史交易日截斷行情，還原當時的盤後數據與助教即時研判！")
     
     selected_replay_date_str = None
-    if enable_timemachine and not df.empty:
+    if enable_timemachine and df is not None and not df.empty and 'Date' in df.columns:
         with col_tm2:
             all_dates = df['Date'].dt.date.tolist()
-            default_date = all_dates[-1]
-            if cur_code == "2851":
-                st.caption("💡 經典覆盤日期推薦：`2026-08-26` (回後買上漲但有8/21爆量黑K瑕疵)")
+            if all_dates:
+                default_date = all_dates[-1]
+                if cur_code == "2851":
+                    st.caption("💡 經典覆盤日期推薦：`2026-08-26` (回後買上漲但有8/21爆量黑K瑕疵)")
             selected_date = st.date_input(
                 "選擇歷史覆盤基準日 (盤後)",
                 value=default_date,
@@ -1893,46 +1894,51 @@ elif "AI" in menu or "助教" in menu:
 
     # 定義股票上下文計算函式 (支援依提問動態跟隨標的)
     def compute_stock_context(target_code, replay_date_str=None):
-        df_target, info_target = fetch_stock_kline(target_code, period="1y")
-        if df_target.empty or "error" in info_target:
-            return None, df_target, info_target
-        
-        target_df = df_target
-        is_replay = False
-        if replay_date_str:
-            target_ts = pd.to_datetime(replay_date_str)
-            sliced = df_target[df_target['Date'] <= target_ts].copy().reset_index(drop=True)
-            if not sliced.empty:
-                target_df = sliced
-                is_replay = (target_ts.strftime('%Y-%m-%d') != df_target.iloc[-1]['Date'].strftime('%Y-%m-%d'))
+        try:
+            df_target, info_target = fetch_stock_kline(target_code, period="1y")
+            if df_target is None or df_target.empty or "error" in info_target or len(df_target) < 5:
+                return None, df_target if df_target is not None else pd.DataFrame(), info_target
+            
+            target_df = df_target
+            is_replay = False
+            if replay_date_str:
+                target_ts = pd.to_datetime(replay_date_str)
+                sliced = df_target[df_target['Date'] <= target_ts].copy().reset_index(drop=True)
+                if not sliced.empty and len(sliced) >= 5:
+                    target_df = sliced
+                    is_replay = (target_ts.strftime('%Y-%m-%d') != df_target.iloc[-1]['Date'].strftime('%Y-%m-%d'))
+                elif sliced.empty:
+                    return None, df_target, info_target
 
-        points, _, _, _ = calculate_turning_points(target_df, ma_period=5)
-        trend = analyze_trend(target_df, points)
-        signals_dict, signals_list = detect_signals(target_df, trend)
-        last_row = target_df.iloc[-1]
-        prev_row = target_df.iloc[-2] if len(target_df) > 1 else last_row
-        c_price = round(float(last_row['Close']), 2)
-        p_price = round(float(prev_row['Close']), 2)
-        chg = round(c_price - p_price, 2)
-        chg_pct = round((chg / p_price) * 100, 2) if p_price > 0 else 0
+            points, _, _, _ = calculate_turning_points(target_df, ma_period=5)
+            trend = analyze_trend(target_df, points)
+            signals_dict, signals_list = detect_signals(target_df, trend)
+            last_row = target_df.iloc[-1]
+            prev_row = target_df.iloc[-2] if len(target_df) > 1 else last_row
+            c_price = round(float(last_row['Close']), 2)
+            p_price = round(float(prev_row['Close']), 2)
+            chg = round(c_price - p_price, 2)
+            chg_pct = round((chg / p_price) * 100, 2) if p_price > 0 else 0
 
-        ctx = {
-            "code": info_target['code'],
-            "name": info_target['name'],
-            "date": last_row['Date'].strftime('%Y-%m-%d'),
-            "close": c_price,
-            "change": chg,
-            "change_pct": chg_pct,
-            "volume": int(last_row['Volume']),
-            "trend_status": trend['trend_status'],
-            "support": trend['support'],
-            "resistance": trend['resistance'],
-            "target": trend['target'],
-            "signals": signals_list,
-            "watchlist_stage": signals_dict.get('watchlist_stage', '觀察中'),
-            "is_replay": is_replay
-        }
-        return ctx, target_df, info_target
+            ctx = {
+                "code": info_target.get('code', target_code),
+                "name": info_target.get('name', target_code),
+                "date": last_row['Date'].strftime('%Y-%m-%d'),
+                "close": c_price,
+                "change": chg,
+                "change_pct": chg_pct,
+                "volume": int(last_row['Volume']),
+                "trend_status": trend.get('trend_status', '盤整中'),
+                "support": trend.get('support', c_price * 0.95),
+                "resistance": trend.get('resistance', c_price * 1.05),
+                "target": trend.get('target', c_price * 1.1),
+                "signals": signals_list,
+                "watchlist_stage": signals_dict.get('watchlist_stage', '觀察中'),
+                "is_replay": is_replay
+            }
+            return ctx, target_df, info_target
+        except Exception:
+            return None, pd.DataFrame(), {}
 
     st.markdown("---")
     col_q1, col_q2 = st.columns([1.5, 1])
@@ -1979,11 +1985,14 @@ elif "AI" in menu or "助教" in menu:
         extracted_date = None
         active_stock_context = None
         if has_explicit_stock:
-            df_temp, _ = fetch_stock_kline(active_code, period="1y")
-            if not df_temp.empty:
-                extracted_date = extract_date_from_query(target_q, df_temp)
-            target_date = extracted_date if extracted_date else selected_replay_date_str
-            active_stock_context, _, _ = compute_stock_context(active_code, target_date)
+            try:
+                df_temp, _ = fetch_stock_kline(active_code, period="1y")
+                if df_temp is not None and not df_temp.empty:
+                    extracted_date = extract_date_from_query(target_q, df_temp)
+                target_date = extracted_date if extracted_date else selected_replay_date_str
+                active_stock_context, _, _ = compute_stock_context(active_code, target_date)
+            except Exception:
+                active_stock_context = None
             btn_chart_label = f"📊 載入【{active_stock_context['name'] if active_stock_context else active_code}】主圖看盤"
         else:
             btn_chart_label = "📊 載入主圖查看 K 線波段"

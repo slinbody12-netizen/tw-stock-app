@@ -88,7 +88,7 @@ def extract_date_from_query(query: str, df: pd.DataFrame):
     """
     從問題中自動提取指定的日期 (支援 8/26, 08/26, 8-26, 8月26日, 2026-08-26, 昨天, 前天, 上週五等)
     """
-    if df.empty:
+    if df is None or df.empty or len(df) == 0:
         return None
 
     q = query.strip()
@@ -365,7 +365,7 @@ def diagnose_stock_deeply(code: str, query: str = "", as_of_date: str = None, *a
     info = kwargs.get('info', None)
     if df_raw is None or info is None:
         df_raw, info = fetch_stock_kline(code, period="1y")
-    if df_raw.empty or "error" in info:
+    if df_raw is None or df_raw.empty or "error" in info or len(df_raw) < 5:
         return None
 
     is_replay = False

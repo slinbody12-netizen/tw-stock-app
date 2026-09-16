@@ -360,13 +360,13 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
                 try:
                     with open(cf, 'rb') as f:
                         loaded = pickle.load(f)
-                        if isinstance(loaded, pd.DataFrame):
+                        if isinstance(loaded, pd.DataFrame) and not loaded.empty and len(loaded) >= 5:
                             df = loaded
                             break
                 except Exception:
                     pass
 
-    if df is None:
+    if df is None or df.empty:
         raw = pd.DataFrame()
         try:
             stock = yf.Ticker(ticker)
@@ -386,12 +386,6 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
                 raw = pd.DataFrame()
 
         if raw.empty:
-            # 建立空快取，避免重複請求網路超時
-            try:
-                with open(cache_file, 'wb') as f:
-                    pickle.dump(pd.DataFrame(), f)
-            except Exception:
-                pass
             return pd.DataFrame(), {
                 "ticker": ticker, "code": code, "name": name,
                 "market": market, "industry": industry, "error": "查無此股票行情數據"
@@ -475,7 +469,13 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
         except Exception:
             pass
 
-    # 提取即時摘要資訊
+    # 提取即時摘要資訊 (嚴密防護：確保 df 具備有效資料)
+    if df is None or df.empty or len(df) == 0:
+        return pd.DataFrame(), {
+            "ticker": ticker, "code": code, "name": name,
+            "market": market, "industry": industry, "error": "查無有效行情數據"
+        }
+
     last_row = df.iloc[-1]
     prev_row = df.iloc[-2] if len(df) > 1 else last_row
     change = last_row['Close'] - prev_row['Close']
