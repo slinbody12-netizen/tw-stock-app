@@ -165,6 +165,15 @@ def calculate_quality_score(s):
     if sig.get('is_multi_bagger', False):
         score -= 35.0
 
+    # 7. 主力成本折溢價安全邊際 (比大戶便宜或貼近大戶加分，暴離主力成本扣分)
+    cost_diff = float(s.get('cost_diff_pct', 0.0) or 0.0)
+    if cost_diff < -1.5:
+        score += 10.0  # 比大戶買得更便宜，防守安全邊際極高
+    elif cost_diff <= 1.5:
+        score += 8.0   # 貼近主力成本區，同一艘船上
+    elif cost_diff > 6.0:
+        score -= 15.0  # 大幅脫離主力建倉成本，幫主力抬轎風險高
+
     return round(float(score), 1)
 
 def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
@@ -234,6 +243,55 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
             fi = real_chips.get('fi', 0)
             it = real_chips.get('it', 0)
 
+            # 5日與3日成交量加權均價 VWAP (大戶主力與外資建倉成本均價)
+            if len(df) >= 5:
+                sub5 = df.iloc[-5:]
+                major_cost = round(float((sub5['Volume'] * sub5['Close']).sum() / (sub5['Volume'].sum() + 1e-9)), 2)
+                sub3 = df.iloc[-3:]
+                foreign_cost = round(float((sub3['Volume'] * sub3['Close']).sum() / (sub3['Volume'].sum() + 1e-9)), 2)
+            else:
+                major_cost = round(float(df['Close'].mean()), 2)
+                foreign_cost = major_cost
+
+            cost_diff_pct = round(((close_price - major_cost) / (major_cost + 1e-9)) * 100, 2)
+            if cost_diff_pct < -1.5:
+                cost_badge = f"🔥 比主力便宜 {abs(cost_diff_pct):.1f}%"
+                cost_status = "比主力便宜"
+                cost_desc = f"現價比大戶成本便宜 {abs(cost_diff_pct):.1f}%，防守安全邊際極高！"
+                cost_color = "#52C41A"
+            elif cost_diff_pct <= 1.5:
+                cost_badge = f"🟢 貼近主力成本 ({cost_diff_pct:+.1f}%)"
+                cost_status = "貼近主力成本"
+                cost_desc = f"與大戶主力同成本區間 ({cost_diff_pct:+.1f}%)，同甘共苦安心抱！"
+                cost_color = "#52C41A"
+            elif cost_diff_pct <= 4.0:
+                cost_badge = f"🟡 略高主力成本 (+{cost_diff_pct:.1f}%)"
+                cost_status = "略高於主力"
+                cost_desc = f"略高於大戶成本 (+{cost_diff_pct:.1f}%)，初升推升段守 5MA。"
+                cost_color = "#FAAD14"
+            else:
+                cost_badge = f"⚠️ 高於主力成本 (+{cost_diff_pct:.1f}%)"
+                cost_status = "顯著高於主力"
+                cost_desc = f"已高於大戶成本 (+{cost_diff_pct:.1f}%)，主力已獲利，防拉回不追高！"
+                cost_color = "#FF4D4F"
+
+            # 盤中強勢戰術分類 (1:1 對齊老朱 App 教學手冊：晶華突破即進場 vs 群光/怡利電盤整先鎖股等1:00)
+            res_val = trend.get('resistance', 0) or (close_price * 1.05)
+            is_breakout = (close_price >= res_val * 0.998) or signals_dict.get('bottom_breakout', False) or signals_dict.get('high_breakout', False) or signals_dict.get('flat_base_breakout', False)
+
+            if is_breakout and is_5ma_rising and above_5ma and info.get('change_pct', 0) >= 0.5:
+                intraday_status = "🚀 盤整突破剛起漲 (可即刻進場)"
+                intraday_action = "放量突破前高壓力線！尾盤 1:00~1:25 確認收紅可即刻進場操作。"
+                intraday_tag = "突破起漲"
+            elif signals_dict.get('is_consolidation', False) or (close_price < res_val * 0.998 and abs(close_price - res_val)/(res_val + 1e-9) <= 0.05):
+                intraday_status = "⏳ 盤整等突破 (先鎖股等1:00)"
+                intraday_action = "受制於前高壓力線尚未突破，先列入鎖股名單，每日 1:00 觀察是否出量突破再進！"
+                intraday_tag = "盤整等突破"
+            else:
+                intraday_status = "📈 強勢推升中"
+                intraday_action = "多頭型態沿 5MA 操盤線上攻，守穩 5MA 續抱。"
+                intraday_tag = "強勢推升"
+
             if code in chips_map and (mf != 0 or fi != 0 or it != 0):
                 mf_sign = "+" if mf >= 0 else ""
                 broker_str = f"主力大單 {mf_sign}{mf:,} 張 | 外資 {fi:+,} | 投信 {it:+,}"
@@ -242,7 +300,7 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 broker_name = BROKER_NAMES[broker_seed % len(BROKER_NAMES)]
                 buyer_vol = int(info['volume'] * ((broker_seed % 25 + 15) / 1000.0))
                 buyer_vol = max(25, buyer_vol)
-                broker_str = f"{broker_name} {buyer_vol:,} 張 (均 {round(close_price*0.995, 2)})"
+                broker_str = f"{broker_name} {buyer_vol:,} 張 (均 {major_cost})"
 
             stock_record = {
                 "code": item['code'],
@@ -269,6 +327,16 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "safety_reasons": signals_dict.get('safety_reasons', []),
                 "chili_count": signals_dict.get('chili_count', 1),
                 "broker_info": broker_str,
+                "major_cost": major_cost,
+                "foreign_cost": foreign_cost,
+                "cost_diff_pct": cost_diff_pct,
+                "cost_badge": cost_badge,
+                "cost_status": cost_status,
+                "cost_desc": cost_desc,
+                "cost_color": cost_color,
+                "intraday_status": intraday_status,
+                "intraday_action": intraday_action,
+                "intraday_tag": intraday_tag,
                 "speedy_mf": mf,
                 "recent_bars": recent_data,
                 "sma5": round(cur_sma5, 2),
@@ -387,7 +455,7 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 match = True
             elif strategy == "一點鐘" and signals_dict.get('one_pm_strategy', False):
                 match = True
-            elif strategy == "盤中強勢" and signals_dict.get('intraday_strong', False):
+            elif strategy == "盤中強勢" and (signals_dict.get('intraday_strong', False) or s.get('intraday_tag') in ['突破起漲', '盤整等突破']):
                 match = True
             elif strategy == "等突破" and stage == "等突破":
                 match = True

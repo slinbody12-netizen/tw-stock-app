@@ -340,6 +340,35 @@ def render_stock_card(item, key_prefix="sc"):
     if two_tr.get('advice'):
         two_tr_html = f"<div style='font-size:0.78rem; color:#888; margin-top:4px;'>💡 <b>買兩張配置</b>：{two_tr['advice']}</div>"
 
+    # 大戶主力與外資持股成本線 (買高還買低比對)
+    major_cost = item.get('major_cost', 0.0)
+    foreign_cost = item.get('foreign_cost', 0.0)
+    cost_badge = item.get('cost_badge', '')
+    cost_color = item.get('cost_color', '#52C41A')
+    
+    cost_line_html = ""
+    if major_cost > 0:
+        cost_line_html = (
+            f"<div style='display:flex; justify-content:space-between; align-items:center; background:#141724; border:1px solid #282C40; border-radius:6px; padding:6px 10px; margin:5px 0; font-size:0.8rem;'>"
+            f"<div>💼 <b>主力買均</b>：<span style='color:#FFF; font-weight:bold;'>{major_cost:.2f}</span> | <b>外資均價</b>：<span style='color:#40A9FF; font-weight:bold;'>{foreign_cost:.2f}</span></div>"
+            f"<div><span style='background:#1F2438; border:1px solid {cost_color}; color:{cost_color}; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:0.76rem;'>{cost_badge}</span></div>"
+            f"</div>"
+        )
+
+    # 盤中強勢戰術指引 (晶華突破即進場 vs 群光/怡利電盤整先鎖股等1:00)
+    intraday_status = item.get('intraday_status', '')
+    intraday_action = item.get('intraday_action', '')
+    intraday_html = ""
+    if intraday_status and item.get('intraday_tag') in ['突破起漲', '盤整等突破']:
+        is_break_act = "突破剛起漲" in intraday_status
+        bg_i = "#162316" if is_break_act else "#262014"
+        bd_i = "#52C41A" if is_break_act else "#FAAD14"
+        intraday_html = (
+            f"<div style='background:{bg_i}; border-left:3px solid {bd_i}; padding:6px 10px; border-radius:5px; font-size:0.8rem; margin:5px 0; color:#E0E6ED;'>"
+            f"<span style='font-weight:bold; color:{bd_i};'>{intraday_status}</span>：{intraday_action}"
+            f"</div>"
+        )
+
     card_html = (
         f'<div style="background:#1E202E; border:1px solid #33364D; border-radius:10px; padding:12px 14px; margin-bottom:4px;">'
         f'<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
@@ -355,6 +384,8 @@ def render_stock_card(item, key_prefix="sc"):
         f'<div style="display:flex; justify-content:space-between; font-size:0.82rem; margin-bottom:4px;">'
         f'<div style="color:#99A;">{item.get("broker_info", "")}</div><div style="color:{safety_color}; font-weight:bold;">{safety}</div>'
         f'</div>'
+        f'{cost_line_html}'
+        f'{intraday_html}'
         f'<div style="font-size:0.8rem; color:#FFA94D; margin-bottom:2px;">{sup_text} | {res_text}</div>'
         f'{safety_warn_html}'
         f'{swing_html}'
@@ -441,14 +472,22 @@ def get_market_condition():
             prev_sma20 = float(df_tw.iloc[-3]['SMA_20'])
             slope = sma20 - prev_sma20
             
-            if c >= sma20 and slope >= 0:
+            # 檢查是否跌破前波波段低點 (多頭回檔破前低)
+            past15_low = float(df_tw.iloc[-15:-1]['Low'].min()) if len(df_tw) >= 15 else c
+            broke_prev_low = c < past15_low * 0.999
+            
+            if broke_prev_low or (c < sma20 and slope < 0):
+                status = "🔴 大盤轉弱破前低 (多頭回檔破前低，趨勢改變不再是多頭！)"
+                ratio = 0.30  # 建議 3 成以下或空手防守
+                reason = "大盤跌破前波低點與月線，多頭結構已被破壞！實戰鐵律：「多頭回檔破前低，不再做多！」建議持股降至 3 成以下或空手觀望，保留 70%~100% 現金防守，靜待打出第二隻腳 (底底高) 再行佈局。"
+            elif c >= sma20 and slope >= 0:
                 status = "🟢 大盤多頭強勢 (指數在月線之上且月線走升)"
                 ratio = 0.75  # 建議 7~8 成
                 reason = "大盤多頭結構健康，指數穩居月線之上！實戰操盤心法：多頭環境積極做多，建議持股 7~8 成，保留 25% 現金應對突發震盪。"
             elif abs(c - sma20) / sma20 <= 0.018 or (c < sma20 and slope >= 0):
                 status = "🟡 大盤震盪整理 (指數在月線附近糾結整理)"
-                ratio = 0.55  # 建議 5~6 成
-                reason = "大盤處於箱型震盪或回測月線，多空拉鋸！實戰操盤心法：持股降至 5~6 成，精選剛突破型態股，保留 45% 現金觀望。"
+                ratio = 0.50  # 建議 5 成
+                reason = "大盤處於箱型震盪或回測月線，多空拉鋸！實戰操盤心法：持股降至 5 成，精選剛突破型態股，保留 50% 現金觀望。"
             else:
                 status = "🔴 大盤轉弱走空 (指數跌破月線且月線下彎)"
                 ratio = 0.35  # 建議 3~4 成
@@ -1068,6 +1107,70 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             st.markdown(badge_html, unsafe_allow_html=True)
 
             st.markdown("---")
+            # 💎 大戶主力與外資持股成本戰情室 (你是買高還是買低？)
+            st.markdown("#### 💎 大戶主力與外資持股成本戰情室 (你是買高還是買低？)")
+            
+            # 計算 5日 (主力建倉成本)、3日 (外資均價)、20日 (月線大戶成本)
+            c_close = float(info['close']) if float(info.get('close', 0)) > 0 else 1.0
+            if len(df) >= 5:
+                sub5 = df.iloc[-5:]
+                m_cost = round(float((sub5['Volume'] * sub5['Close']).sum() / (sub5['Volume'].sum() + 1e-9)), 2)
+                sub3 = df.iloc[-3:]
+                f_cost = round(float((sub3['Volume'] * sub3['Close']).sum() / (sub3['Volume'].sum() + 1e-9)), 2)
+            else:
+                m_cost = round(float(df['Close'].mean()), 2)
+                f_cost = m_cost
+
+            if len(df) >= 20:
+                sub20 = df.iloc[-20:]
+                m20_cost = round(float((sub20['Volume'] * sub20['Close']).sum() / (sub20['Volume'].sum() + 1e-9)), 2)
+            else:
+                m20_cost = m_cost
+
+            diff_m = round(((c_close - m_cost) / (m_cost + 1e-9)) * 100, 2)
+            
+            if diff_m < -1.5:
+                c_status_title = "🔥 比主力買得更便宜！"
+                c_status_color = "#52C41A"
+                c_diag = f"現價 {c_close:.2f} 低於主力 5 日成本均價 {m_cost:.2f} (折價 {abs(diff_m):.1f}%)。防守安全邊際極高，主力拉抬成本線時有解套獲利誘因！"
+            elif diff_m <= 1.5:
+                c_status_title = "🟢 貼近主力成本 (同一艘船)"
+                c_status_color = "#52C41A"
+                c_diag = f"現價 {c_close:.2f} 與主力 5 日均價 {m_cost:.2f} 價差僅 {diff_m:+.1f}%。與大戶主力買在相同成本區，同舟共濟，安心跟轎！"
+            elif diff_m <= 4.0:
+                c_status_title = "🟡 略高於主力成本 (正常推升)"
+                c_status_color = "#FAAD14"
+                c_diag = f"現價 {c_close:.2f} 略高於主力 5 日成本 {m_cost:.2f} (溢價 +{diff_m:.1f}%)。處於初升推升段，只要守穩 5MA 操盤線可續抱。"
+            else:
+                c_status_title = "⚠️ 顯著高於主力成本 (慎防倒貨)"
+                c_status_color = "#FF4D4F"
+                c_diag = f"現價 {c_close:.2f} 已拉開主力 5 日成本 {m_cost:.2f} 達 +{diff_m:.1f}%！主力已大幅獲利，切忌追高，提防主力逢高派發籌碼！"
+
+            col_cost1, col_cost2, col_cost3, col_cost4 = st.columns(4)
+            with col_cost1:
+                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.85rem;'>主力 5 日建倉均價</div><div style='font-size:1.35rem; font-weight:bold; color:#FFF; margin:4px 0;'>{m_cost:.2f} 元</div><div style='font-size:0.8rem; color:#60A5FA;'>大戶近 5 日成交量加權</div></div>", unsafe_allow_html=True)
+            with col_cost2:
+                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.85rem;'>外資推估成本 (3日)</div><div style='font-size:1.35rem; font-weight:bold; color:#40A9FF; margin:4px 0;'>{f_cost:.2f} 元</div><div style='font-size:0.8rem; color:#A0AEC0;'>外資主力短線成本</div></div>", unsafe_allow_html=True)
+            with col_cost3:
+                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.85rem;'>月線大戶成本 (20日)</div><div style='font-size:1.35rem; font-weight:bold; color:#E0E0E0; margin:4px 0;'>{m20_cost:.2f} 元</div><div style='font-size:0.8rem; color:#A0AEC0;'>近 20 日中線大戶成本</div></div>", unsafe_allow_html=True)
+            with col_cost4:
+                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.85rem;'>買高買低價差診斷</div><div style='font-size:1.35rem; font-weight:bold; color:{c_status_color}; margin:4px 0;'>{diff_m:+.1f}%</div><div style='font-size:0.8rem; color:{c_status_color}; font-weight:bold;'>{c_status_title}</div></div>", unsafe_allow_html=True)
+
+            st.markdown(f"<div style='background:#181B28; border-left:3px solid {c_status_color}; padding:8px 12px; border-radius:6px; font-size:0.85rem; color:#E0E6ED; margin-bottom:12px;'><b>💡 實戰買高買低評定</b>：{c_diag}</div>", unsafe_allow_html=True)
+
+            with st.expander("📘 【老朱實戰心法教學】大戶均價怎麼看？如何看出主力出場？", expanded=False):
+                st.markdown("""
+                - **你是買高還是買低？**
+                  - **買在主力均價之下或貼近 (±1.5%以內)**：代表你的進場成本跟主力/大戶幾乎一模一樣，甚至比大戶更便宜！此時風險極低，主力有護盤與拉抬誘因，持股最安心。
+                  - **高於主力均價 4% 以上**：代表主力已經拉出獲利空間，若此時追高容易淪為幫主力抬轎，應等待拉回月線/支撐再進場。
+                - **如何看出主力正在出場？（朱家泓老師四大出貨徵兆）**
+                  1. **連續爆量長黑K棒**：股價在高檔卻出現巨額成交量伴隨大黑K，代表主力正在逢高倒貨。
+                  2. **跌破 5MA 操盤線與主力均價**：股價收盤直接摜破 5MA 且跌破 5 日主力均價，代表主力防守線棄守。
+                  3. **籌碼大單連續淨流出**：SpeedyAI 的主力大單 (MF) 或外資 (FI) 連續數日呈現大額負值賣超。
+                  4. **雙線死亡交叉下彎**：5MA 操盤線向下跌破 20MA 趨勢線，且雙線同步下彎，多頭架構徹底破壞。
+                """)
+
+            st.markdown("---")
             # 均線扣抵走勢預判 (CH3 均線力量)
             st.markdown("#### 🔍 均線扣抵與未來走勢預判 (CH3 均線力量)")
             deduct = signals_dict.get('deduction', {})
@@ -1093,18 +1196,20 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
         # TAB 4: 🧑‍🏫 AI 助教 (深度診斷/提問) - 今日盤前 + 個股深度健檢 + 即時提問
         # =========================================================================
         with tab_ai:
-            # 1. 今日 2026.09.15 盤前大盤解盤卡片 (老朱最新音檔與講義)
+            # 1. 今日 2026.09.16 盤前大盤解盤卡片 (老朱最新音檔與講義)
             st.markdown("""
             <div class='ai-card'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
-                    <h4 style='margin:0; color:#60A5FA;'>📢 今日 (2026.09.15) 盤前大盤實戰精要 (老朱音檔速報)</h4>
-                    <span class='tag-badge' style='background:#2563EB;'>晨間 08:45 定調</span>
+                    <h4 style='margin:0; color:#60A5FA;'>📢 今日 (2026.09.16) 盤前大盤實戰精要 (9/16 晨間最新音檔速報)</h4>
+                    <span class='tag-badge' style='background:#E11D48;'>⚠️ 今日台指期結算</span>
                 </div>
                 <div style='margin-top:8px; font-size:0.92rem; line-height:1.6; color:#E2E8F0;'>
-                    • <b>大盤定位</b>：加權指數 45,862 點，昨收雙 T 字棒測試季線支撐。<br>
-                    • <b>美股衝擊</b>：費城半導體大跌 <b>5.86%</b>，早盤台股電子股開低面臨考驗。<br>
-                    • <b>關鍵防守線</b>：開低先看前低 <b>45,839 點</b> 支撐防線；<b>必須收盤拉出長下影線或收紅，才算正式止跌！</b><br>
-                    • <b>實戰紀律叮嚀</b>：早盤急跌嚴禁衝動接刀摸底，等待 <b>12:40 尾盤一點鐘</b> 主力表態，確認轉折紅 K 站上 5MA 才是安全買點！
+                    • <b>大盤致命警訊</b>：加權指數昨收 <b>45,511 點 (-351點)</b>，<b>收盤跌破前低！</b>朱家泓鐵律：「<b>多頭回檔破前低，趨勢改變不再是多頭！</b>」跌破月線，雖月線尚有 4 天低扣抵，但前提是「不能大跌」！<br>
+                    • <b>OTC 櫃買重災區</b>：昨大跌 1.51% 破半年線與前低，<b>確認轉為空頭格局</b>，中小型股空方摜壓沉重！<br>
+                    • <b>三大法人與籌碼</b>：外資昨大賣 <b>626 億</b>（前兩週買超全倒光），三大法人合計大賣 <b>788 億</b>！資減 16 億、券減 3,434 張。<br>
+                    • <b>台指期結算震撼</b>：<b>今日 9/16 為 9 月台指期結算日</b>，外資台指期未平倉空單高達 <b>83,223 口</b> 歷史高檔重壓！<br>
+                    • <b>國際與 Fed 變數</b>：美股跌多漲少，那指跌破季線；明晨 Fed 公布利率決策，市場預期升息 1 碼機率逾九成；美債 10 年期殖利率突破 5%。<br>
+                    • <b>今日實戰操盤紀律</b>：<b>【保守應對、不操作就是好策略、現金為王】</b>！空手者靜待落底打第二隻腳；有持股者逢反彈逃命波先減碼解套；嚴守跌破 5% 停損紀律！
                 </div>
             </div>
             """, unsafe_allow_html=True)

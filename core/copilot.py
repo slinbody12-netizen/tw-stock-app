@@ -228,6 +228,8 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         reasons.append(f"⚖️ <b>絕佳風報比 1 : {stk_swing.get('rr_ratio', item['rr'])}</b>：下方防守空間僅 -{risk_pct}%，上方前高頸線潛在報酬 +{reward_pct}%。")
         if stk.get('chili_count', 1) >= 2:
             reasons.append(f"🌶️ <b>主力籌碼支持</b>：獲得主力特定買盤推升，動能評級達 {stk.get('chili_count')} 根辣椒。")
+        if stk.get('major_cost', 0) > 0:
+            reasons.append(f"💼 <b>大戶成本優勢</b>：主力5日建倉均價 {stk.get('major_cost')} 元，現價評定【{stk.get('cost_badge')}】。")
             
         action_plan = (
             f"⏰ <b>實戰操作指引</b>：今日 <b>12:40 - 13:30 尾盤</b>，若股價維持在 <b>{close_p} 元附近（收盤站穩 5MA）</b>，"
@@ -252,6 +254,10 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             "rr_ratio": stk_swing.get('rr_ratio', item['rr']),
             "ma5": stk.get('sma5', close_p),
             "chili_count": stk.get('chili_count', 1),
+            "major_cost": stk.get('major_cost', 0.0),
+            "foreign_cost": stk.get('foreign_cost', 0.0),
+            "cost_diff_pct": stk.get('cost_diff_pct', 0.0),
+            "cost_badge": stk.get('cost_badge', ''),
             "why_buy": reasons,
             "action_plan": action_plan
         })
