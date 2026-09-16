@@ -369,6 +369,67 @@ def revoke_user_access(user_id: str) -> bool:
             return True
     return False
 
+def reactivate_user_access(user_id: str) -> bool:
+    """最高指揮官恢復解凍某成員權限"""
+    users = get_copilot_users()
+    for u in users:
+        if u.get("user_id") == user_id:
+            u["status"] = "ACTIVE"
+            if "suspended_at" in u:
+                del u["suspended_at"]
+            save_copilot_users(users)
+            return True
+    return False
+
+def delete_copilot_user(user_id: str) -> bool:
+    """最高指揮官徹底刪除某成員及其個人保險庫檔案"""
+    users = get_copilot_users()
+    new_users = [u for u in users if u.get("user_id") != user_id]
+    if len(new_users) != len(users):
+        save_copilot_users(new_users)
+        # 刪除其獨立保險庫檔案
+        p_file = get_portfolio_file(user_id)
+        if os.path.exists(p_file) and user_id != "master":
+            try:
+                os.remove(p_file)
+            except Exception:
+                pass
+        return True
+    return False
+
+def add_direct_vip_user(name: str, email: str, pin: str, reason: str = "指揮官手動建檔") -> tuple[bool, str, dict]:
+    """最高指揮官手動直接新增 VIP 成員 (無需申請單)"""
+    clean_name = name.strip()
+    clean_pin = pin.strip()
+    if not clean_name:
+        return False, "請輸入成員姓名！", {}
+    if not clean_pin:
+        return False, "請指定存取金鑰 (PIN)！", {}
+        
+    users = get_copilot_users()
+    existing_pins = {str(u.get("pin")) for u in users}
+    existing_pins.add(COPILOT_MASTER_PIN)
+    if clean_pin in existing_pins:
+        return False, f"金鑰 `{clean_pin}` 已被其他成員或指揮官佔用，請更換！", {}
+        
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    user_id = f"usr_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{random.randint(100, 999)}"
+    new_user = {
+        "user_id": user_id,
+        "name": clean_name,
+        "email": email.strip(),
+        "reason": reason.strip(),
+        "pin": clean_pin,
+        "role": "VIP_USER",
+        "status": "ACTIVE",
+        "approved_at": now_str
+    }
+    users.append(new_user)
+    save_copilot_users(users)
+    save_portfolio([], user_id=user_id)
+    return True, f"成功手動建立 VIP 成員【{clean_name}】，金鑰為：`{clean_pin}`", new_user
+
+
 
 # ========================================================
 # 核心大腦 1：今日尾盤 AI 唯一首選推薦 (魔鬼級 5 重濾網)

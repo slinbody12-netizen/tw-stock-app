@@ -45,7 +45,8 @@ from core.copilot import (
     load_portfolio, save_portfolio, add_holding, close_holding, delete_holding,
     get_copilot_recommendation, inspect_portfolio, load_preset_user_holdings,
     verify_copilot_pin, submit_access_request, get_auth_requests, approve_access_request,
-    reject_access_request, revoke_user_access, get_copilot_users, COPILOT_MASTER_PIN
+    reject_access_request, revoke_user_access, reactivate_user_access, delete_copilot_user,
+    add_direct_vip_user, get_copilot_users, COPILOT_MASTER_PIN
 )
 
 
@@ -1673,20 +1674,76 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                                 st.rerun()
                                 
             with tab_adm_users:
-                if not active_vips:
-                    st.info("💡 目前尚無已核准的外部 VIP 成員。")
+                st.write("#### 👥 操盤特務已授權名冊監控")
+                st.caption("此處完整列出所有已核准或手動建立之 VIP 成員，您可以即時查詢金鑰、凍結權限或一鍵徹底刪除成員！")
+                
+                # 手動新增 VIP 快速表單
+                with st.expander("➕ 指揮官直接手動開通 VIP (無需等待申請單)", expanded=False):
+                    with st.form("form_manual_add_vip", clear_on_submit=True):
+                        c_m1, c_m2 = st.columns(2)
+                        with c_m1:
+                            m_name = st.text_input("成員姓名 / 暱稱 (必填)", placeholder="例如：張小明")
+                            m_email = st.text_input("電子信箱 (選填)", placeholder="例如：ming@gmail.com")
+                        with c_m2:
+                            m_pin = st.text_input("指定金鑰 PIN (必填)", placeholder="例如：iv1234 或 6 位數字")
+                            m_note = st.text_input("身分備註 (選填)", value="指揮官親自開通")
+                        btn_m_submit = st.form_submit_button("🚀 確認建立並立即開通", type="primary", use_container_width=True)
+                        if btn_m_submit:
+                            ok, msg, new_u = add_direct_vip_user(m_name, m_email, m_pin, m_note)
+                            if ok:
+                                st.success(f"🎉 {msg}")
+                                st.info(f"📋 請複製傳送給對方：\n「嗨 {m_name}，您的操盤副駕駛專屬 VIP 金鑰已開通！金鑰為：{m_pin}，登入後即可享有個人專屬獨立持股守護神！」")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg}")
+                
+                if not all_vip_users:
+                    st.info("💡 目前尚無任何外部 VIP 成員名單。")
                 else:
-                    for u in active_vips:
+                    for u in all_vip_users:
                         uid = u['user_id']
-                        c_u1, c_u2, c_u3 = st.columns([3, 1, 1])
-                        with c_u1:
-                            st.write(f"👤 **{u['name']}** ({u['email']}) · 專屬金鑰: `{u['pin']}` · 開通日: {u.get('approved_at', '')}")
-                        with c_u2:
-                            st.caption(f"身分: {u.get('reason', 'VIP')}")
-                        with c_u3:
-                            if st.button("🚫 停權撤銷", key=f"btn_rev_{uid}", use_container_width=True):
-                                revoke_user_access(uid)
-                                st.warning(f"已停權【{u['name']}】之特務存取。")
+                        u_stat = u.get("status", "ACTIVE")
+                        is_active = (u_stat == "ACTIVE")
+                        badge_color = "#52C41A" if is_active else "#FF4D4F"
+                        badge_label = "🟢 正常使用中" if is_active else "🔴 已凍結停權"
+                        
+                        st.markdown(f"""
+                        <div style="background:#1E202E; border:1px solid #30363D; border-radius:8px; padding:12px 16px; margin-bottom:8px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <b style="font-size:1.05rem; color:white;">👤 {u.get('name', '未命名')}</b>
+                                    <span style="color:#8892B0; font-size:0.86rem; margin-left:8px;">({u.get('email', '無Email')})</span>
+                                    <div style="color:#D3ADF7; font-size:0.84rem; margin-top:3px;">
+                                        🔑 專屬金鑰：<code style="background:#2A1B2D; color:#B37FEB; padding:2px 6px; border-radius:4px; font-weight:bold;">{u.get('pin', '未設')}</code>
+                                        <span style="color:#5A5E78; margin:0 6px;">|</span>
+                                        📅 開通日：{u.get('approved_at', '無')}
+                                        <span style="color:#5A5E78; margin:0 6px;">|</span>
+                                        📝 備註：{u.get('reason', 'VIP')}
+                                    </div>
+                                </div>
+                                <div>
+                                    <span style="background:{badge_color}22; color:{badge_color}; border:1px solid {badge_color}; padding:3px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{badge_label}</span>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        col_act1, col_act2, col_act3 = st.columns([4, 1, 1])
+                        with col_act2:
+                            if is_active:
+                                if st.button("🚫 凍結", key=f"btn_freeze_{uid}", use_container_width=True):
+                                    revoke_user_access(uid)
+                                    st.warning(f"已凍結【{u['name']}】。")
+                                    st.rerun()
+                            else:
+                                if st.button("✅ 解凍", key=f"btn_unfreeze_{uid}", use_container_width=True):
+                                    reactivate_user_access(uid)
+                                    st.success(f"已恢復【{u['name']}】權限。")
+                                    st.rerun()
+                        with col_act3:
+                            if st.button("🗑️ 徹底刪除", key=f"btn_del_u_{uid}", use_container_width=True):
+                                delete_copilot_user(uid)
+                                st.error(f"已徹底刪除【{u['name']}】之帳號與個人保險庫！")
                                 st.rerun()
 
     
