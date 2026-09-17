@@ -146,7 +146,7 @@ def load_preset_user_holdings(user_id: str = "master") -> tuple[int, list]:
     """
     presets = [
         {"code": "1795", "name": "美時", "buy_price": 268.11, "trade_type": "現股", "shares": 500, "buy_reason": "歷史波段建倉 0.5張 (尋求下一波反彈解套賣點)"},
-        {"code": "2838", "name": "聯邦銀", "buy_price": 21.45, "trade_type": "現股", "shares": 1000, "buy_reason": "尾盤精選作戰 1張 (成本 21.45 元，波段續抱守5MA)"},
+        {"code": "2838", "name": "聯邦銀", "buy_price": 21.45, "trade_type": "融資", "shares": 1000, "buy_reason": "尾盤精選作戰 1張 (融資進場，成本 21.45 元，監控維持率與守5MA)"},
         {"code": "3013", "name": "晟銘電", "buy_price": 114.84, "trade_type": "現股", "shares": 10000, "buy_reason": "歷史現股建倉 10張 (尋求反彈高點減碼逃命)"},
         {"code": "3013", "name": "晟銘電", "buy_price": 88.34, "trade_type": "融資", "shares": 1000, "buy_reason": "融資持股 1張 (利息與維持率壓力，鎖定88.5元平手解套)"},
         {"code": "8210", "name": "勤誠", "buy_price": 1088.96, "trade_type": "現股", "shares": 100, "buy_reason": "伺服器龍頭建倉 100股 (尋求月線/反彈波賣點)"},
