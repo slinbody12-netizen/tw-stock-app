@@ -196,37 +196,185 @@ def load_preset_user_holdings(user_id: str = "master") -> tuple[int, list]:
         save_portfolio(portfolio, user_id=user_id)
     return added_count, portfolio
 
-def close_holding(holding_id: str, sell_price: float, sell_reason: str = "手動獲利/停損出場", user_id: str = "master") -> bool:
-    """使用者點擊【我賣了】時，結算獲利並歸檔至專屬歷史戰報"""
+def close_holding(holding_id: str, sell_price: float, sell_reason: str = "手動獲利/停損出場", 
+                  sell_shares: int = None, user_id: str = "master") -> tuple[bool, str, dict]:
+    """使用者點擊【我賣了】時，結算獲利並歸檔至專屬歷史戰報 (支援全數結算或分批減碼)"""
     portfolio = load_portfolio(user_id=user_id)
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
     found = False
+    closed_res = {}
+    msg = ""
+
     for item in portfolio:
         if item.get("id") == holding_id:
-            item["status"] = "CLOSED"
-            item["sell_date"] = today_str
-            item["sell_price"] = float(sell_price)
-            item["sell_reason"] = sell_reason
-            buy_p = float(item["buy_price"])
-            shares = int(item.get("shares", 1000))
-            item["realized_pnl_pct"] = round(((sell_price - buy_p) / buy_p) * 100, 2)
-            item["realized_pnl_amt"] = round((sell_price - buy_p) * shares, 0)
-            item.setdefault("history_logs", []).append({
-                "date": today_str,
-                "event": "SELL",
-                "note": f"以 {sell_price} 元結算出場 ({sell_reason})，實現損益: {item['realized_pnl_pct']}%"
-            })
             found = True
+            buy_p = float(item["buy_price"])
+            total_shares = int(item.get("shares", 1000))
+            name = item.get("name", item.get("code", "標的"))
+            
+            # 判斷是否為分批減碼 (賣出股數小於總股數)
+            is_partial = (sell_shares is not None and 0 < int(sell_shares) < total_shares)
+            
+            if is_partial:
+                act_shares = int(sell_shares)
+                rem_shares = total_shares - act_shares
+                item["shares"] = rem_shares
+                pnl_pct = round(((sell_price - buy_p) / buy_p) * 100, 2)
+                pnl_amt = round((sell_price - buy_p) * act_shares, 0)
+                item.setdefault("history_logs", []).append({
+                    "date": today_str,
+                    "event": "PARTIAL_SELL",
+                    "note": f"分批減碼 {act_shares} 股 (以 {sell_price} 元賣出)，剩餘 {rem_shares} 股繼續守護。"
+                })
+                # 建立一筆獨立的 CLOSED 戰報紀錄
+                closed_res = {
+                    "id": f"{item['id']}_closed_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}",
+                    "code": item["code"],
+                    "name": name,
+                    "buy_date": item.get("buy_date", today_str),
+                    "buy_price": buy_p,
+                    "stop_loss": item.get("stop_loss", 0.0),
+                    "target_price": item.get("target_price", 0.0),
+                    "strategy": item.get("strategy", ""),
+                    "buy_reason": item.get("buy_reason", ""),
+                    "trade_type": item.get("trade_type", "現股"),
+                    "shares": act_shares,
+                    "status": "CLOSED",
+                    "created_at": item.get("created_at", datetime.datetime.now().isoformat()),
+                    "sell_date": today_str,
+                    "sell_price": float(sell_price),
+                    "sell_reason": f"{sell_reason} (分批減碼)",
+                    "realized_pnl_pct": pnl_pct,
+                    "realized_pnl_amt": pnl_amt,
+                    "history_logs": [
+                        {
+                            "date": today_str,
+                            "event": "SELL",
+                            "note": f"分批減碼以 {sell_price} 元結算 {act_shares} 股 ({sell_reason})，實現損益: {pnl_pct}% ({pnl_amt:,.0f} 元)"
+                        }
+                    ]
+                }
+                portfolio.append(closed_res)
+                msg = f"已成功分批減碼賣出【{name}】{act_shares:,} 股！已歸檔至實戰戰報，剩餘 {rem_shares:,} 股繼續在庫守護！"
+            else:
+                act_shares = total_shares if sell_shares is None else int(sell_shares)
+                pnl_pct = round(((sell_price - buy_p) / buy_p) * 100, 2)
+                pnl_amt = round((sell_price - buy_p) * act_shares, 0)
+                item["status"] = "CLOSED"
+                item["sell_date"] = today_str
+                item["sell_price"] = float(sell_price)
+                item["sell_reason"] = sell_reason
+                item["realized_pnl_pct"] = pnl_pct
+                item["realized_pnl_amt"] = pnl_amt
+                item.setdefault("history_logs", []).append({
+                    "date": today_str,
+                    "event": "SELL",
+                    "note": f"全數以 {sell_price} 元結算出場 ({sell_reason})，實現損益: {pnl_pct}% ({pnl_amt:,.0f} 元)"
+                })
+                closed_res = item
+                msg = f"已全數結算【{name}】({act_shares:,} 股)！已自動移至【📜 實戰戰報紀錄】（持股守護神中已自動移除，無需手動刪除）！"
             break
+
     if found:
         save_portfolio(portfolio, user_id=user_id)
-    return found
+        return True, msg, closed_res
+    return False, "找不到該持股部位", {}
+
+def add_closed_holding(code: str, name: str, buy_price: float, sell_price: float, 
+                       shares: int = 1000, trade_type: str = "現股", 
+                       buy_date: str = None, sell_date: str = None, 
+                       sell_reason: str = "手動結算補登", user_id: str = "master") -> dict:
+    """手動補登一筆已完成的歷史實戰交易戰報"""
+    portfolio = load_portfolio(user_id=user_id)
+    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+    b_date = buy_date if buy_date else today_str
+    s_date = sell_date if sell_date else today_str
+    
+    buy_p = float(buy_price)
+    sell_p = float(sell_price)
+    shs = int(shares)
+    pnl_pct = round(((sell_p - buy_p) / buy_p) * 100, 2)
+    pnl_amt = round((sell_p - buy_p) * shs, 0)
+    
+    h_id = f"port_{code}_{trade_type}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_manual"
+    item = {
+        "id": h_id,
+        "code": code,
+        "name": name,
+        "buy_date": b_date,
+        "buy_price": buy_p,
+        "stop_loss": 0.0,
+        "target_price": 0.0,
+        "strategy": "實戰記錄",
+        "buy_reason": "歷史交易補登",
+        "trade_type": trade_type,
+        "shares": shs,
+        "status": "CLOSED",
+        "created_at": datetime.datetime.now().isoformat(),
+        "sell_date": s_date,
+        "sell_price": sell_p,
+        "sell_reason": sell_reason,
+        "realized_pnl_pct": pnl_pct,
+        "realized_pnl_amt": pnl_amt,
+        "history_logs": [
+            {
+                "date": s_date,
+                "event": "MANUAL_LOG",
+                "note": f"手動補登戰報：以 {buy_p} 買進，{sell_p} 結算 ({sell_reason})，實現損益: {pnl_pct}% ({pnl_amt:,.0f} 元)"
+            }
+        ]
+    }
+    portfolio.append(item)
+    save_portfolio(portfolio, user_id=user_id)
+    return item
 
 def delete_holding(holding_id: str, user_id: str = "master") -> bool:
     """刪除單筆紀錄"""
     portfolio = load_portfolio(user_id=user_id)
     portfolio = [p for p in portfolio if p.get("id") != holding_id]
     return save_portfolio(portfolio, user_id=user_id)
+
+def export_portfolio_json(user_id: str = "master") -> str:
+    """匯出當前使用者的完整持股與戰報 JSON 字串"""
+    portfolio = load_portfolio(user_id=user_id)
+    return json.dumps(portfolio, ensure_ascii=False, indent=2)
+
+def import_portfolio_json(json_str: str, user_id: str = "master", mode: str = "merge") -> tuple[bool, str, int]:
+    """
+    從 JSON 字串還原持股與戰報 (支援 merge 合併 或 replace 完整覆蓋)
+    """
+    try:
+        data = json.loads(json_str.strip())
+        if not isinstance(data, list):
+            return False, "JSON 格式錯誤：最外層必須是陣列清單 []", 0
+        
+        valid_items = []
+        for d in data:
+            if isinstance(d, dict) and "code" in d and "buy_price" in d:
+                valid_items.append(d)
+                
+        if not valid_items:
+            return False, "未解析到任何有效的持股資料", 0
+            
+        if mode == "replace":
+            save_portfolio(valid_items, user_id=user_id)
+            return True, f"成功覆蓋還原 {len(valid_items)} 筆持股/戰報！", len(valid_items)
+        else:
+            # 合併模式：依 id 或 code+buy_date+trade_type 去重
+            existing = load_portfolio(user_id=user_id)
+            existing_ids = {x.get("id") for x in existing if x.get("id")}
+            added = 0
+            for item in valid_items:
+                i_id = item.get("id")
+                if not i_id or i_id not in existing_ids:
+                    existing.append(item)
+                    if i_id:
+                        existing_ids.add(i_id)
+                    added += 1
+            save_portfolio(existing, user_id=user_id)
+            return True, f"成功合併匯入 {added} 筆新紀錄（原有紀錄已完整保留）！", added
+    except Exception as e:
+        return False, f"匯入失敗：{e}", 0
 
 # ========================================================
 # 特務權限申請審批與多用戶管理引擎 (SaaS Access Control)

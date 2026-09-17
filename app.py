@@ -46,7 +46,8 @@ from core.copilot import (
     get_copilot_recommendation, inspect_portfolio, load_preset_user_holdings,
     verify_copilot_pin, submit_access_request, get_auth_requests, approve_access_request,
     reject_access_request, revoke_user_access, reactivate_user_access, delete_copilot_user,
-    add_direct_vip_user, get_copilot_users, get_master_pin, set_master_pin, COPILOT_MASTER_PIN
+    add_direct_vip_user, get_copilot_users, get_master_pin, set_master_pin, COPILOT_MASTER_PIN,
+    add_closed_holding, export_portfolio_json, import_portfolio_json
 )
 
 
@@ -1975,31 +1976,33 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                 st.markdown(card_html, unsafe_allow_html=True)
 
                 with st.expander(f"👉 我在尾盤下單買了【{p_name}】！點此將這檔交由【持股守護神】自動盯盤", expanded=False):
-                    col_b1, col_b2, col_b3 = st.columns(3)
-                    with col_b1:
-                        user_buy_price = st.number_input("您的實際成交價 (元)", value=p_price, step=0.1, key=f"buy_p_{p_code}_{p_idx}")
-                    with col_b2:
-                        user_shares = st.number_input("買進張數 (1張=1000股)", value=1, min_value=1, step=1, key=f"buy_s_{p_code}_{p_idx}")
-                    with col_b3:
-                        user_stop_p = st.number_input("自訂防守停損價 (元)", value=p_stop, step=0.1, key=f"buy_sl_{p_code}_{p_idx}")
+                    with st.form(f"form_buy_tail_{p_code}_{p_idx}", clear_on_submit=False):
+                        col_b1, col_b2, col_b3 = st.columns(3)
+                        with col_b1:
+                            user_buy_price = st.number_input("您的實際成交價 (元)", value=p_price, step=0.1, key=f"buy_p_{p_code}_{p_idx}")
+                        with col_b2:
+                            user_shares = st.number_input("買進張數 (1張=1000股)", value=1, min_value=1, step=1, key=f"buy_s_{p_code}_{p_idx}")
+                        with col_b3:
+                            user_stop_p = st.number_input("自訂防守停損價 (元)", value=p_stop, step=0.1, key=f"buy_sl_{p_code}_{p_idx}")
 
-                    if st.button(f"🚀 確認買進【{p_name} ({p_code})】並啟動守護神！", type="primary", use_container_width=True, key=f"confirm_buy_{p_code}_{p_idx}"):
-                        reason_str = f"尾盤 Top {p_idx+1} 精選：{p_strat}，風報比 1:{p_rr}"
-                        add_holding(
-                            code=p_code,
-                            name=p_name,
-                            buy_price=user_buy_price,
-                            stop_loss=user_stop_p,
-                            target_price=p_target,
-                            strategy=p_strat,
-                            buy_reason=reason_str,
-                            shares=user_shares * 1000,
-                            user_id=user_id
-                        )
-                        if "copilot_inspected_cache" in st.session_state:
-                            del st.session_state["copilot_inspected_cache"]
-                        st.success(f"🎉 已將【{p_name} ({p_code})】納入【我的持股守護神】！副駕駛將每日為您盯盤守護！")
-                        st.rerun()
+                        btn_buy_submit = st.form_submit_button(f"🚀 確認買進【{p_name} ({p_code})】並啟動守護神！", type="primary", use_container_width=True)
+                        if btn_buy_submit:
+                            reason_str = f"尾盤 Top {p_idx+1} 精選：{p_strat}，風報比 1:{p_rr}"
+                            add_holding(
+                                code=p_code,
+                                name=p_name,
+                                buy_price=user_buy_price,
+                                stop_loss=user_stop_p,
+                                target_price=p_target,
+                                strategy=p_strat,
+                                buy_reason=reason_str,
+                                shares=user_shares * 1000,
+                                user_id=user_id
+                            )
+                            if "copilot_inspected_cache" in st.session_state:
+                                del st.session_state["copilot_inspected_cache"]
+                            st.session_state["copilot_last_buy_msg"] = f"🎉 已成功將【{p_name} ({p_code})】納入【🛡️ 我的持股守護神】！副駕駛將每日為您盯盤守護！"
+                            st.rerun()
 
 
                 st.markdown("<div style='margin-bottom: 16px;'></div>", unsafe_allow_html=True)
@@ -2014,14 +2017,54 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
         all_holdings = load_portfolio(user_id=user_id)
         active_holdings = [h for h in all_holdings if h.get("status") == "HOLDING"]
 
+        if "copilot_last_settle_msg" in st.session_state:
+            st.success(st.session_state["copilot_last_settle_msg"])
+            del st.session_state["copilot_last_settle_msg"]
+        if "copilot_last_buy_msg" in st.session_state:
+            st.success(st.session_state["copilot_last_buy_msg"])
+            del st.session_state["copilot_last_buy_msg"]
+
+        def _render_backup_restore(uid: str):
+            with st.popover("💾 備份與還原持股", use_container_width=True):
+                st.write("#### 🛡️ 持股保險庫雲端備份與還原")
+                st.caption("雲端版（Streamlit Cloud）重啟或換瀏覽器時，可透過此處一鍵備份與快速還原，持股永不遺失！")
+                tab_bk_exp, tab_bk_imp = st.tabs(["📤 匯出備份", "📥 貼上還原"])
+                with tab_bk_exp:
+                    json_bk = export_portfolio_json(user_id=uid)
+                    st.download_button(
+                        label="💾 下載持股備份檔 (JSON)",
+                        data=json_bk,
+                        file_name=f"tw_stock_portfolio_{uid}.json",
+                        mime="application/json",
+                        use_container_width=True
+                    )
+                    st.text_area("📋 亦可直接複製備份代碼：", value=json_bk, height=130)
+                with tab_bk_imp:
+                    st.write("##### 匯入備份代碼")
+                    mode_choice = st.radio("還原模式", ["合併現有持股 (保留既有)", "完整覆蓋 (以此備份為主)"], horizontal=True, key=f"r_mode_{uid}")
+                    m_val = "replace" if "完整覆蓋" in mode_choice else "merge"
+                    p_text = st.text_area("在此貼上備份 JSON 代碼：", height=110, key=f"p_text_{uid}")
+                    if st.button("🚀 執行一鍵還原持股", type="primary", use_container_width=True, key=f"btn_imp_exec_{uid}"):
+                        if not p_text.strip():
+                            st.warning("請先貼上備份代碼！")
+                        else:
+                            ok_i, msg_i, _ = import_portfolio_json(p_text.strip(), user_id=uid, mode=m_val)
+                            if ok_i:
+                                if "copilot_inspected_cache" in st.session_state:
+                                    del st.session_state["copilot_inspected_cache"]
+                                st.success(f"🎉 {msg_i}")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg_i}")
+
         if is_admin:
-            c_p_add1, c_p_add2, c_p_add3 = st.columns([1.2, 2.0, 1.2])
+            c_p_add1, c_p_add2, c_p_add3, c_p_add4 = st.columns([1.1, 1.8, 1.2, 1.1])
             with c_p_add1:
-                btn_refresh_holdings = st.button("🔄 即時重新診斷行情", key="btn_refresh_holdings", use_container_width=True)
+                btn_refresh_holdings = st.button("🔄 即時診斷", key="btn_refresh_holdings", use_container_width=True)
                 if btn_refresh_holdings and "copilot_inspected_cache" in st.session_state:
                     del st.session_state["copilot_inspected_cache"]
             with c_p_add2:
-                btn_load_presets = st.button("📥 一鍵載入我的 4 檔持股 (美時/麗正/晟銘電/勤誠)", type="primary", key="btn_load_presets", use_container_width=True)
+                btn_load_presets = st.button("📥 一鍵載入持股 (美時/麗正/晟銘電/勤誠)", type="primary", key="btn_load_presets", use_container_width=True)
                 if btn_load_presets:
                     added_num, _ = load_preset_user_holdings(user_id=user_id)
                     if "copilot_inspected_cache" in st.session_state:
@@ -2032,7 +2075,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                         st.info("💡 您的專屬持股（美時、麗正、晟銘電現股與融資、勤誠）已全數在庫守護中！")
                     st.rerun()
             with c_p_add3:
-                with st.popover("➕ 手動新增其他持股", use_container_width=True):
+                with st.popover("➕ 手動新增持股", use_container_width=True):
                     st.write("#### 登錄股票讓副駕駛守護")
                     st_list = load_stock_list()
                     h_opts = [f"{s['code']} {s['name']}" for s in st_list]
@@ -2074,14 +2117,16 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                             del st.session_state["copilot_inspected_cache"]
                         st.success(f"已加入【{h_name}】({h_trade_type})！")
                         st.rerun()
+            with c_p_add4:
+                _render_backup_restore(user_id)
         else:
-            c_p_add1, c_p_add2 = st.columns([1.5, 1.5])
+            c_p_add1, c_p_add2, c_p_add3 = st.columns([1.3, 1.3, 1.2])
             with c_p_add1:
-                btn_refresh_holdings = st.button("🔄 即時重新診斷我的持股行情", key="btn_refresh_holdings", use_container_width=True)
+                btn_refresh_holdings = st.button("🔄 即時診斷行情", key="btn_refresh_holdings", use_container_width=True)
                 if btn_refresh_holdings and "copilot_inspected_cache" in st.session_state:
                     del st.session_state["copilot_inspected_cache"]
             with c_p_add2:
-                with st.popover("➕ 手動新增我的持股", use_container_width=True):
+                with st.popover("➕ 手動新增持股", use_container_width=True):
                     st.write("#### 登錄股票讓副駕駛守護")
                     st_list = load_stock_list()
                     h_opts = [f"{s['code']} {s['name']}" for s in st_list]
@@ -2123,6 +2168,8 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                             del st.session_state["copilot_inspected_cache"]
                         st.success(f"已加入【{h_name}】({h_trade_type})！")
                         st.rerun()
+            with c_p_add3:
+                _render_backup_restore(user_id)
 
         if not active_holdings:
             if is_admin:
@@ -2245,17 +2292,43 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                 with col_act2:
                     with st.popover("🏁 我賣出了 (結算)", use_container_width=True):
                         st.write(f"#### 結算出場【{item_name}】({item_type} · {shares_display})")
-                        sell_p = st.number_input("實際賣出價格", value=item_cp, step=0.1, key=f"sp_{item_id}")
-                        sell_r = st.selectbox("出場原因", ["達到下一波反彈賣點分批賣出", "觸及保命底線停損逃命", "達到成本保本出清", "跌破5MA獲利/停損出場", "達到目標價分批停利", "融資平手出清", "個人資金調整"], key=f"sr_{item_id}")
-                        if st.button("確認結算歸檔", type="primary", use_container_width=True, key=f"btn_sell_ok_{item_id}"):
-                            close_holding(item_id, sell_p, sell_r, user_id=user_id)
+                        with st.form(key=f"sell_form_{item_id}", clear_on_submit=False):
+                            c_sp1, c_sp2 = st.columns(2)
+                            with c_sp1:
+                                sell_p = st.number_input("實際賣出價格 (元)", value=item_cp, step=0.1, key=f"sp_{item_id}")
+                            with c_sp2:
+                                sell_mode = st.radio("賣出方式", ["全數結算賣出", "分批減碼賣出"], horizontal=True, key=f"sm_{item_id}")
+                            
+                            sell_shares_act = item_shares
+                            if sell_mode == "分批減碼賣出":
+                                max_zhang = max(1, item_shares // 1000)
+                                if max_zhang > 1:
+                                    sell_zhang = st.number_input(f"減碼張數 (目前持有 {item_shares // 1000} 張)", value=1, min_value=1, max_value=max_zhang, step=1, key=f"sz_{item_id}")
+                                    sell_shares_act = int(sell_zhang * 1000)
+                                else:
+                                    sell_gu = st.number_input(f"減碼股數 (目前持有 {item_shares:,} 股)", value=min(500, item_shares), min_value=1, max_value=item_shares, step=50, key=f"sg_{item_id}")
+                                    sell_shares_act = int(sell_gu)
 
-                            if "copilot_inspected_cache" in st.session_state:
-                                del st.session_state["copilot_inspected_cache"]
-                            st.success(f"已成功結算【{item_name}】並存入歷史戰報！")
-                            st.rerun()
+                            sell_r = st.selectbox("出場原因", [
+                                "達到下一波反彈賣點分批賣出", 
+                                "跌破5MA獲利/停損出場", 
+                                "觸及保命底線停損逃命", 
+                                "達到成本保本出清", 
+                                "達到目標價分批停利", 
+                                "融資平手出清", 
+                                "個人資金調整"
+                            ], key=f"sr_{item_id}")
+                            
+                            st.caption("💡 點擊確認後，系統會自動歸檔至【📜 實戰戰報紀錄】；若全數賣出則自動從庫存移除，**完全不需要手動刪除**！")
+                            btn_sell_ok = st.form_submit_button("🏁 確認結算歸檔 (自動移入歷史戰報)", type="primary", use_container_width=True)
+                            if btn_sell_ok:
+                                ok, msg, _ = close_holding(item_id, sell_p, sell_r, sell_shares=sell_shares_act, user_id=user_id)
+                                if "copilot_inspected_cache" in st.session_state:
+                                    del st.session_state["copilot_inspected_cache"]
+                                st.session_state["copilot_last_settle_msg"] = f"🎉 {msg}"
+                                st.rerun()
                 with col_act3:
-                    if st.button("🗑️ 刪除紀錄", key=f"btn_del_hold_{item_id}", use_container_width=True):
+                    if st.button("🗑️ 刪除紀錄", key=f"btn_del_hold_{item_id}", use_container_width=True, help="僅供建檔錯誤時撤銷刪除。若是正常賣出請按【我賣出了】，系統會自動移至戰報！"):
                         delete_holding(item_id, user_id=user_id)
                         if "copilot_inspected_cache" in st.session_state:
                             del st.session_state["copilot_inspected_cache"]
@@ -2264,6 +2337,57 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
 
     with tab_copilot3:
         st.subheader("📜 實戰戰報紀錄 · 已結算歷史明細")
+        
+        c_tb1, c_tb2 = st.columns([3, 1.2])
+        with c_tb1:
+            st.caption("當您在持股守護神點擊【我賣出了 (結算)】，已實現損益、勝率與實戰戰績將全自動永久記錄於此！")
+        with c_tb2:
+            with st.popover("➕ 手動補登歷史戰報", use_container_width=True):
+                st.write("#### 手動補登已結算實戰戰報")
+                with st.form("form_manual_add_closed", clear_on_submit=True):
+                    st_list = load_stock_list()
+                    h_opts = [f"{s['code']} {s['name']}" for s in st_list]
+                    c_pick = st.selectbox("選擇股票", h_opts, key="m_c_pick")
+                    c_code = c_pick.split()[0]
+                    c_name = c_pick.split()[1]
+                    c_type = st.radio("交易類別", ["現股", "融資"], horizontal=True, key="m_c_type")
+                    
+                    c_col1, c_col2 = st.columns(2)
+                    with c_col1:
+                        c_zhang = st.number_input("出場張數 (1張=1000股)", value=1.0, min_value=0.01, step=0.5, format="%.2f", key="m_c_zhang")
+                        c_shares = int(round(c_zhang * 1000))
+                        c_buy_p = st.number_input("當初買進價 (元)", value=100.0, step=0.1, key="m_c_buy_p")
+                        c_b_date = st.date_input("買進日期", value=datetime.date.today() - datetime.timedelta(days=3), key="m_c_bdate")
+                    with c_col2:
+                        c_sell_p = st.number_input("實際賣出價 (元)", value=105.0, step=0.1, key="m_c_sell_p")
+                        c_s_date = st.date_input("賣出日期", value=datetime.date.today(), key="m_c_sdate")
+                        c_reason = st.selectbox("出場原因", [
+                            "跌破5MA獲利/停損出場", 
+                            "達到下一波反彈賣點分批賣出", 
+                            "觸及保命底線停損逃命", 
+                            "達到成本保本出清", 
+                            "達到目標價分批停利", 
+                            "融資平手出清", 
+                            "個人資金調整"
+                        ], key="m_c_reason")
+                    
+                    btn_m_c_submit = st.form_submit_button("🚀 確認補登至歷史戰報", type="primary", use_container_width=True)
+                    if btn_m_c_submit:
+                        add_closed_holding(
+                            code=c_code,
+                            name=c_name,
+                            buy_price=c_buy_p,
+                            sell_price=c_sell_p,
+                            shares=c_shares,
+                            trade_type=c_type,
+                            buy_date=c_b_date.strftime("%Y-%m-%d"),
+                            sell_date=c_s_date.strftime("%Y-%m-%d"),
+                            sell_reason=c_reason,
+                            user_id=user_id
+                        )
+                        st.success(f"🎉 已成功補登【{c_name}】歷史戰報！")
+                        st.rerun()
+
         all_h = load_portfolio(user_id=user_id)
         closed_h = [h for h in all_h if h.get("status") == "CLOSED"]
 
