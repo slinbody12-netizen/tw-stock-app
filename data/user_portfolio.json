@@ -33,15 +33,25 @@
     "buy_reason": "歷史建倉 (接近成本，尋求一波反彈保本出清)",
     "trade_type": "現股",
     "shares": 1000,
-    "status": "HOLDING",
+    "status": "CLOSED",
     "created_at": "2026-09-16T10:11:57.228382",
     "history_logs": [
       {
         "date": "2026-09-16",
         "event": "PRESET_LOAD",
         "note": "載入庫存：以 45.37 元買進 現股，啟動套牢解套與高點賣點雷達。"
+      },
+      {
+        "date": "2026-09-17",
+        "event": "SELL",
+        "note": "以 44.6 元結算出場 (達到成本附近保本出場)，實現損益: -1.7% (-770 元)"
       }
-    ]
+    ],
+    "sell_date": "2026-09-17",
+    "sell_price": 44.6,
+    "sell_reason": "達到成本附近保本出場",
+    "realized_pnl_pct": -1.7,
+    "realized_pnl_amt": -770.0
   },
   {
     "id": "port_3013_現股_20260916101157_2",
@@ -106,6 +116,28 @@
         "date": "2026-09-16",
         "event": "PRESET_LOAD",
         "note": "載入庫存：以 1088.96 元買進 現股，啟動套牢解套與高點賣點雷達。"
+      }
+    ]
+  },
+  {
+    "id": "port_2838_現股_20260916132000",
+    "code": "2838",
+    "name": "聯邦銀",
+    "buy_date": "2026-09-16",
+    "buy_price": 21.45,
+    "stop_loss": 20.35,
+    "target_price": 23.6,
+    "strategy": "尾盤精選作戰",
+    "buy_reason": "尾盤精選作戰指示進場 (1張，成本 21.45 元)",
+    "trade_type": "現股",
+    "shares": 1000,
+    "status": "HOLDING",
+    "created_at": "2026-09-16T13:20:00",
+    "history_logs": [
+      {
+        "date": "2026-09-16",
+        "event": "BUY",
+        "note": "以 21.45 元尾盤進場買進 (現股 1,000 股)，防守停損價 20.35 元，波段目標價 23.60 元。"
       }
     ]
   }

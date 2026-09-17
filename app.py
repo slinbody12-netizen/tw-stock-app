@@ -2064,7 +2064,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                 if btn_refresh_holdings and "copilot_inspected_cache" in st.session_state:
                     del st.session_state["copilot_inspected_cache"]
             with c_p_add2:
-                btn_load_presets = st.button("📥 一鍵載入持股 (美時/麗正/晟銘電/勤誠)", type="primary", key="btn_load_presets", use_container_width=True)
+                btn_load_presets = st.button("📥 一鍵載入持股 (美時/聯邦銀/晟銘電/勤誠)", type="primary", key="btn_load_presets", use_container_width=True)
                 if btn_load_presets:
                     added_num, _ = load_preset_user_holdings(user_id=user_id)
                     if "copilot_inspected_cache" in st.session_state:
@@ -2072,7 +2072,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                     if added_num > 0:
                         st.success(f"🎉 成功自動載入 {added_num} 筆持股部位！已全面啟動救援與高點賣點雷達！")
                     else:
-                        st.info("💡 您的專屬持股（美時、麗正、晟銘電現股與融資、勤誠）已全數在庫守護中！")
+                        st.info("💡 您的專屬持股（美時、聯邦銀、晟銘電現股與融資、勤誠）已全數在庫守護中！")
                     st.rerun()
             with c_p_add3:
                 with st.popover("➕ 手動新增持股", use_container_width=True):
