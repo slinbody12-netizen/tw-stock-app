@@ -49,6 +49,10 @@ from core.copilot import (
     add_direct_vip_user, get_copilot_users, get_master_pin, set_master_pin, COPILOT_MASTER_PIN,
     add_closed_holding, export_portfolio_json, import_portfolio_json
 )
+from core.notifier import (
+    get_line_config, save_line_config, send_line_push_message,
+    format_portfolio_alert, format_tail_recommendation
+)
 
 
 
@@ -1734,10 +1738,11 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
         badge_text = f"🚨 待審核特務申請 ({len(pending_reqs)} 筆待處理)" if pending_reqs else "👑 指揮官特務審批與會員管理後台"
         
         with st.expander(badge_text, expanded=bool(pending_reqs)):
-            tab_adm_req, tab_adm_users, tab_adm_pwd = st.tabs([
+            tab_adm_req, tab_adm_users, tab_adm_pwd, tab_adm_line = st.tabs([
                 f"📥 待審核申請單 ({len(pending_reqs)})", 
                 f"👥 已核准 VIP 成員 ({len(all_vip_users)})",
-                "🔐 指揮官金鑰管理"
+                "🔐 指揮官金鑰管理",
+                "📲 指揮官專屬 LINE 盯盤推播 (最高機密)"
             ])
             
             with tab_adm_req:
@@ -1880,6 +1885,114 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                                 st.rerun()
                             else:
                                 st.error(f"❌ {msg}")
+
+            with tab_adm_line:
+                st.write("#### 📲 最高指揮官個人專屬 · LINE 即時盯盤推播")
+                st.caption("🔒 **權限鎖定聲明**：本推播模組為最高指揮官專屬特權，已實施嚴格身分隔離，一般學員與外部用戶完全無權限檢視或存取。")
+                
+                line_cfg = get_line_config()
+                is_ready = line_cfg.get("is_configured", False)
+                
+                status_color = "#52C41A" if is_ready else "#FF4D4F"
+                status_text = "🟢 LINE 推播服務已連線就緒" if is_ready else "🔴 尚未設定 LINE 金鑰（請見下方 3 分鐘教學）"
+                
+                st.markdown(f"""
+                <div style="background:#1E202E; border:1px solid {status_color}; border-radius:8px; padding:12px 16px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <b style="color:white; font-size:1.05rem;">LINE 官方 Messaging API 推播引擎</b>
+                        <div style="color:#8892B0; font-size:0.85rem; margin-top:2px;">專屬個人 Bot 推播 · 支援手機鎖定畫面彈出 5MA 破線、停損與反彈賣點通知</div>
+                    </div>
+                    <div>
+                        <span style="background:{status_color}22; color:{status_color}; border:1px solid {status_color}; padding:4px 10px; border-radius:12px; font-weight:bold; font-size:0.85rem;">{status_text}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                c_line_l, c_line_r = st.columns([1.2, 1.0])
+                with c_line_l:
+                    st.write("##### ⚙️ LINE 機器人金鑰設定")
+                    with st.form("form_line_config", clear_on_submit=False):
+                        t_input = st.text_input(
+                            "Channel Access Token (長期存取權杖)", 
+                            value=line_cfg.get("channel_access_token", ""), 
+                            type="password",
+                            placeholder="請貼上 LINE Messaging API Channel Access Token"
+                        )
+                        u_input = st.text_input(
+                            "Your User ID (指揮官個人 LINE 識別碼，非 LINE ID)", 
+                            value=line_cfg.get("user_id", ""), 
+                            placeholder="例如：U1234567890abcdef1234567890abcdef"
+                        )
+                        e_input = st.checkbox("啟用 LINE 即時推播功能", value=line_cfg.get("enabled", True))
+                        sell_only_input = st.checkbox("僅在出現【出場/減碼/停損】訊號時發送（過濾純續抱訊息）", value=line_cfg.get("alert_on_sell_only", False))
+                        
+                        btn_save_line = st.form_submit_button("💾 保存 LINE 金鑰設定", type="primary", use_container_width=True)
+                        if btn_save_line:
+                            ok_s, msg_s = save_line_config(t_input, u_input, enabled=e_input, alert_on_sell_only=sell_only_input)
+                            if ok_s:
+                                st.success(f"🎉 {msg_s}")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg_s}")
+                                
+                with c_line_r:
+                    st.write("##### 🚀 實戰推播即時測試")
+                    st.caption("點擊下方按鈕，系統將即刻打包最新即時行情並發送至您的手機 LINE！")
+                    
+                    btn_test_ping = st.button("🔔 1. 發送測試連線通知", use_container_width=True, key="btn_test_line_ping")
+                    if btn_test_ping:
+                        test_text = f"🤖【AI操盤副駕駛 · 連線測試成功】\n⏰ 時間：{datetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')}\n\n👑 最高指揮官您好！LINE 即時盯盤推播已成功連線！當持股出現【破5MA、破保命底線、達標停利】或每日尾盤時，系統將第一時間為您發送警報！"
+                        ok_p, msg_p = send_line_push_message(test_text)
+                        if ok_p:
+                            st.success("🎉 測試訊息已成功推播至您的手機 LINE！請查看手機！")
+                        else:
+                            st.error(f"❌ 發送失敗：{msg_p}")
+                            
+                    btn_push_holdings = st.button("📊 2. 立即推播我的持股總體檢", type="primary", use_container_width=True, key="btn_push_line_hold")
+                    if btn_push_holdings:
+                        all_h = load_portfolio(user_id=user_id)
+                        active_h = [h for h in all_h if h.get("status") == "HOLDING"]
+                        if not active_h:
+                            st.info("目前無在庫持股，無需推播。")
+                        else:
+                            with st.spinner("正在運算最新即時行情並組裝 LINE 訊息..."):
+                                inspected = inspect_portfolio(active_h)
+                                hold_msg = format_portfolio_alert(inspected)
+                                ok_h, msg_h = send_line_push_message(hold_msg)
+                                if ok_h:
+                                    st.success("🎉 已成功將在庫持股完整診斷報告推播至您的手機 LINE！")
+                                else:
+                                    st.error(f"❌ 推播失敗：{msg_h}")
+                                    
+                    btn_push_rec = st.button("🎯 3. 立即推播今日尾盤 Top 5 推薦", use_container_width=True, key="btn_push_line_rec")
+                    if btn_push_rec:
+                        with st.spinner("正在生成尾盤推薦清單..."):
+                            rec_d = get_copilot_recommendation(enable_realtime=True)
+                            rec_msg = format_tail_recommendation(rec_d)
+                            ok_r, msg_r = send_line_push_message(rec_msg)
+                            if ok_r:
+                                st.success("🎉 已成功將今日尾盤 Top 5 作戰指示推播至您的手機 LINE！")
+                            else:
+                                st.error(f"❌ 推播失敗：{msg_r}")
+
+                with st.expander("📖 3 分鐘免費取得 LINE 機器人金鑰指南 (完全免費)", expanded=not is_ready):
+                    st.markdown("""
+                    **只要簡單 4 個步驟，即可免費開啟個人專屬 LINE 盯盤機器人：**
+                    
+                    1. **登入 LINE 開發者後台**：
+                       * 前往 [LINE Developers Console](https://developers.line.biz/)，點擊右上角 **Log in**（用您的個人 LINE 帳號直接掃碼登入）。
+                    2. **建立 Messaging API Channel**：
+                       * 點擊 **Create a new provider**（輸入例如：`IvanTrading`）。
+                       * 點選 **Create a Messaging API channel**，輸入 Channel 名稱（例如：`AI持股守護神`）並勾選條款送出。
+                    3. **取得長期 Access Token 與加好友**：
+                       * 進入該 Channel 頁面，切換到 **Messaging API** 分頁：
+                         * 用手機掃描頁面上的 **QR code**，把您自己的機器人加為 LINE 好友。
+                         * 滑到最下方 **Channel access token**，點擊 **Issue** 按鈕生成，將該串長金鑰複製並貼到上方 Token 輸入框。
+                    4. **取得您的個人 User ID**：
+                       * 切換到 **Basic settings** 分頁，滑到最底部找到 **Your user ID**（一串以 `U` 開頭的 33 碼英數字，**非您的 LINE ID**），複製並貼到上方 User ID 輸入框。
+                    5. **點擊保存與測試**：
+                       * 點擊上方【💾 保存 LINE 金鑰設定】，再點擊【🔔 發送測試連線通知】，您的手機 LINE 就會立刻收到警報！
+                    """)
 
 
     
