@@ -321,7 +321,11 @@ def render_stock_card(item, key_prefix="sc"):
     if item.get('in_attention'):
         badge_html += "<span style='background:#D46B08; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>注</span>"
     if item.get('in_disposal'):
-        badge_html += "<span style='background:#CF1322; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>關</span>"
+        disp_tac = item.get('disposal_tactic', '')
+        if disp_tac == "高檔處置":
+            badge_html += "<span style='background:#CF1322; color:white; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='高檔處置：提防主力趁出關倒貨'>⛔ 關 (高檔防出貨)</span>"
+        else:
+            badge_html += "<span style='background:#D97706; color:white; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='起漲處置：第1波起漲關處置，出關若放量常為大飆股'>🔒 關 (起漲出關常飆)</span>"
 
     # 操盤線 (5MA) 狀態勳章：走升 / 下彎，站上 / 跌破
     is_5ma_up = item.get('is_5ma_rising', True)
@@ -336,6 +340,13 @@ def render_stock_card(item, key_prefix="sc"):
         badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>破5MA</span>"
 
     sig = item.get('signals_dict', {})
+    if item.get('iron_man') or sig.get('iron_man', False):
+        badge_html += "<span style='background:linear-gradient(90deg, #D97706, #B45309); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(217,119,6,0.5);'>🏆 無敵鐵金剛</span>"
+    vol_tag = item.get('volume_tag') or sig.get('volume_tag', '常態量')
+    if vol_tag == "起漲放量":
+        badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>🚀 起漲攻擊量</span>"
+    elif vol_tag == "高檔爆量":
+        badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>⚠️ 高檔爆量防倒貨</span>"
     if sig.get('is_multi_bagger', False):
         bagger_m = sig.get('bagger_multiple', 2.0)
         badge_html += f"<span style='background:#EB2F96; color:white; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>⚠️ 已漲{bagger_m}倍(非起漲)</span>"
@@ -728,6 +739,22 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
         # 額外標籤徽章
         extra_badges = ""
+        if signals_dict.get('iron_man', False):
+            extra_badges += "<span class='tag-badge' style='background:linear-gradient(90deg, #D97706, #B45309); font-weight:bold; box-shadow:0 0 6px rgba(217,119,6,0.5);'>🏆 無敵鐵金剛</span>"
+        v_tag = signals_dict.get('volume_tag')
+        if v_tag == "起漲放量":
+            extra_badges += "<span class='tag-badge' style='background:#1D392E; color:#52C41A;'>🚀 起漲攻擊量</span>"
+        elif v_tag == "高檔爆量":
+            extra_badges += "<span class='tag-badge' style='background:#3C1F24; color:#FF7875;'>⚠️ 高檔爆量防出貨</span>"
+
+        # 處置股波段提示
+        chips_tmp = load_speedy_chips()
+        if chips_tmp.get(info['code'], {}).get('in_disposal', False):
+            if signals_dict.get('is_multi_bagger', False) or v_tag == '高檔爆量' or trend.get('trend_status') == '高檔突破':
+                extra_badges += "<span class='tag-badge' style='background:#CF1322;'>⛔ 處置 (高檔防倒貨)</span>"
+            else:
+                extra_badges += "<span class='tag-badge' style='background:#D97706;'>🔒 處置 (起漲出關常飆)</span>"
+
         if signals_dict.get('consolidation_breakout_imminent', False):
             extra_badges += "<span class='tag-badge' style='background:#52C41A;'>⏳ 盤整末端即將表態</span>"
         elif signals_dict.get('is_consolidation', False):
@@ -1090,10 +1117,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 if 'Vol_MA20' in df_k:
                     fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['Vol_MA20'], name="20均量", line=dict(color='#FCC419', width=1.5)), row=2, col=1)
             elif "KD" in k_sub_chart and 'K' in df_k:
-                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['K'], name="K (9)", line=dict(color='#FF4D4F', width=1.6)), row=2, col=1)
-                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['D'], name="D (9)", line=dict(color='#1C7ED6', width=1.6)), row=2, col=1)
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['K'], name="K (9)", line=dict(color='#FF4D4F', width=1.8)), row=2, col=1)
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['D'], name="D (9)", line=dict(color='#1C7ED6', width=1.8)), row=2, col=1)
                 fig2.add_hline(y=80, line_dash="dot", line_color="#E03131", row=2, col=1)
                 fig2.add_hline(y=20, line_dash="dot", line_color="#2F9E44", row=2, col=1)
+                # 高檔鈍化 (80 至 100 紅底) 與低檔鈍化 (0 至 20 綠底) 色塊填滿渲染
+                fig2.add_hrect(y0=80, y1=100, fillcolor="rgba(239, 68, 68, 0.15)", line_width=0, layer="below", row=2, col=1)
+                fig2.add_hrect(y0=0, y1=20, fillcolor="rgba(34, 197, 94, 0.15)", line_width=0, layer="below", row=2, col=1)
             elif "MACD" in k_sub_chart and 'DIF' in df_k:
                 fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['DIF'], name="DIF", line=dict(color='#FFA94D', width=1.6)), row=2, col=1)
                 fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['MACD'], name="MACD", line=dict(color='#339AF0', width=1.6)), row=2, col=1)
@@ -1115,6 +1145,30 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             fig2.update_yaxes(range=k_auto_y, row=1, col=1)
 
             st.plotly_chart(fig2, use_container_width=True, config=chart_config, key=f"k_plot_{query}_{k_period}_{k_sub_chart}")
+
+            if "KD" in k_sub_chart and 'K' in df_k and not df_k.empty:
+                cur_k = float(df_k['K'].iloc[-1])
+                cur_d = float(df_k['D'].iloc[-1])
+                if cur_k >= 80 or cur_d >= 80:
+                    st.markdown(
+                        f"<div style='background:rgba(239,68,68,0.15); border:1px solid #EF4444; border-left:5px solid #EF4444; padding:10px 14px; border-radius:6px; margin-top:8px;'>"
+                        f"<span style='color:#FF7875; font-weight:bold; font-size:1.02rem;'>🔥 KD (9,3,3) 高檔鈍化進行中 (K: {cur_k:.1f} / D: {cur_d:.1f} >= 80)</span><br>"
+                        f"<span style='color:#E2E8F0; font-size:0.9rem;'>💡 <b>朱家泓老師實戰心法</b>：KD 大於 80 高檔鈍化代表這檔股票進入<b>「強勢超漲主升段」</b>！切勿以為超買而急著猜頂賣出。<br>"
+                        f"操盤鐵律：<b>只要收盤守穩 5MA 操盤線，就一路續抱賺足大波段；直到收盤跌破 5MA 才紀律獲利停利！</b></span>"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
+                elif cur_k <= 20 or cur_d <= 20:
+                    st.markdown(
+                        f"<div style='background:rgba(34,197,94,0.15); border:1px solid #22C55E; border-left:5px solid #22C55E; padding:10px 14px; border-radius:6px; margin-top:8px;'>"
+                        f"<span style='color:#52C41A; font-weight:bold; font-size:1.02rem;'>❄️ KD (9,3,3) 低檔鈍化超跌區 (K: {cur_k:.1f} / D: {cur_d:.1f} <= 20)</span><br>"
+                        f"<span style='color:#E2E8F0; font-size:0.9rem;'>💡 <b>朱家泓老師實戰心法</b>：KD 小於 20 進入低檔冰凍區，為暴風雨後的黃金底！不宜在低檔恐慌殺低。<br>"
+                        f"操盤鐵律：隨時留意打底轉折契機，<b>靜待「回後買上漲紅 K 重新站上 5MA」</b>之黃金右腳轉折進場點！</span>"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.caption(f"⚡ 當前 KD 指標值：K = **{cur_k:.1f}**，D = **{cur_d:.1f}**（常態震盪波動區間，依 5MA/20MA 雙線操作）。")
 
         # =========================================================================
         # TAB 3: 💼 主力籌碼 (法人/扣抵) - SpeedyAI 官方真實籌碼整合
@@ -1165,7 +1219,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if c_data.get('in_attention'):
                 badge_html += "<span class='tag-badge' style='background:#F59F00;'>🚨 證交所注意股票</span>"
             if c_data.get('in_disposal'):
-                badge_html += "<span class='tag-badge' style='background:#C92A2A;'>⛔ 處置股票 (分盤撮合)</span>"
+                if signals_dict.get('is_multi_bagger', False) or signals_dict.get('volume_tag') == '高檔爆量' or trend.get('trend_status') == '高檔突破':
+                    badge_html += "<span class='tag-badge' style='background:#C92A2A;'>⛔ 處置股票 (分盤撮合) ｜ ⚠️ 高檔處置：已漲多被關，提防主力趁出關倒貨，切勿追高！</span>"
+                else:
+                    badge_html += "<span class='tag-badge' style='background:#D97706;'>🔒 處置股票 (分盤撮合) ｜ 💡 起漲處置：第1波起漲被關，出關若放量突破常啟動第2波大主升段！</span>"
             badge_html += "</div>"
             st.markdown(badge_html, unsafe_allow_html=True)
 
@@ -1396,7 +1453,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         if dir_val == "多":
             main_mode = st.radio(
                 "選股大類",
-                ["📈 波段策略 (起漲關鍵)", "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)", "⚡ 盤中強勢 (量價齊揚)", "💎 長抱標的 (長期多排)"],
+                ["📈 波段策略 (起漲關鍵)", "🔥 量排行 (位置決定命運)", "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)", "⚡ 盤中強勢 (量價齊揚)", "💎 長抱標的 (長期多排)"],
                 horizontal=True,
                 key="scr_main_mode"
             )
@@ -1414,6 +1471,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             sub_strat = st.radio(
                 "波段核心子策略分類：",
                 [
+                    "🏆 無敵鐵金剛 (三線合一·高勝率旗艦)",
                     "👑 頭高底高 (六字訣多頭確認)",
                     "🎯 回後準進場 (拉回測線有守·短線買點)",
                     "🌱 底部起漲 (含一字底/N字底/圓弧底突破)",
@@ -1423,11 +1481,15 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 horizontal=True,
                 key="scr_sub_strat"
             )
-            st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
-            if "頭高底高" in sub_strat:
+            if "無敵鐵金剛" in sub_strat:
+                target_strategy = "無敵鐵金剛"
+                st.caption("💡 **無敵鐵金剛（三線合一）**：官方 App 勝率最高（7～8成）旗艦戰法！同時滿足「**轉折多頭確立（底底高＋頭頭高）** + **5MA/20MA雙線金叉翻揚** + **今日紅K站穩5MA**」。操盤紀律：**買進後守穩 5MA 一路續抱，跌破 5MA 立即紀律停利出場！**")
+            elif "頭高底高" in sub_strat:
                 target_strategy = "頭高底高"
+                st.caption("💡 **選股 vs 鎖股分工**：此處【👑 頭高底高】是「**六字訣多頭確立、5MA走升且站穩5MA**」之強勢多頭名單。")
             elif "回後準進場" in sub_strat:
                 target_strategy = "回後準進場"
+                st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
             elif "底部起漲" in sub_strat:
                 target_strategy = "底部起漲"
             elif "高檔起漲" in sub_strat:
@@ -1470,6 +1532,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         target_strategy = "盤中排行"
     elif "量排行" in main_mode:
         target_strategy = "量排行"
+        st.caption("💡 **量排行實戰心法（位置決定命運）**：成交量代表主力足跡。若在**低檔起漲放量出紅 K**，為主力建倉進場攻擊量；若在**波段高檔漲多後爆出天量**，為主力短線倒貨出場點，**嚴禁盲目追高**！")
 
     # 價格分級篩選
     col_p1, col_p2 = st.columns([3, 1])

@@ -116,6 +116,8 @@ def calculate_quality_score(s):
         score -= 50.0
 
     # 2. 型態起漲權重
+    if sig.get('iron_man', False):
+        score += 35.0
     if sig.get('golden_cross_5_20', False):
         score += 25.0
     if sig.get('pullback_buy', False):
@@ -349,7 +351,15 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "per": real_chips.get('per', 0.0),
                 "eps": real_chips.get('eps', 0.0),
                 "is_bull": trend.get('higher_highs', False) and trend.get('higher_lows', False),
-                "is_bear": trend.get('lower_highs', False) and trend.get('lower_lows', False)
+                "is_bear": trend.get('lower_highs', False) and trend.get('lower_lows', False),
+                "iron_man": signals_dict.get('iron_man', False),
+                "volume_tag": signals_dict.get('volume_tag', '常態量'),
+                "volume_status": signals_dict.get('volume_status', '常態量'),
+                "vol_ratio": signals_dict.get('vol_ratio', 1.0),
+                "disposal_tactic": (
+                    "高檔處置" if (signals_dict.get('is_multi_bagger') or signals_dict.get('volume_tag') == '高檔爆量' or trend.get('trend_status') == '高檔突破')
+                    else "起漲處置"
+                ) if real_chips.get('in_disposal', False) else ""
             }
             stock_record['quality_score'] = calculate_quality_score(stock_record)
             analyzed.append(stock_record)
@@ -433,6 +443,10 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             # 做多子策略
             if strategy == "全部":
                 match = True
+            elif strategy in ["無敵鐵金剛", "三線合一"] and (signals_dict.get('iron_man', False) or (is_bull and s.get('is_5ma_rising', True) and s.get('above_5ma', True) and s.get('sma5', 0) >= s.get('sma20', 0))):
+                match = True
+            elif strategy in ["量排行", "🔥 量排行"]:
+                match = True
             elif strategy == "頭高底高" and (signals_dict.get('higher_highs_lows', False) or is_bull):
                 # 實戰鐵律：做多買進選股，操盤線(5MA)必須走平或翻揚助漲，且收盤站穩 5MA 之上！
                 if s.get('is_5ma_rising', True) and s.get('above_5ma', True):
@@ -480,7 +494,7 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 float(x.get('volume', 0) or 0)
             ), reverse=True)
     else:
-        if strategy == "量排行":
+        if strategy in ["量排行", "🔥 量排行"]:
             filtered.sort(key=lambda x: float(x.get('volume', 0) or 0), reverse=True)
         else:
             filtered.sort(key=lambda x: float(x.get('quality_score', 0) or 0), reverse=True)

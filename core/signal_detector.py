@@ -28,6 +28,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     signals = []
     signals_dict = {
         # 波段做多子策略
+        "iron_man": False,            # 🏆 無敵鐵金剛 (三線合一頂級波段戰法)
         "higher_highs_lows": False,   # 頭高底高
         "pullback_buy": False,        # 回後準進場
         "bottom_breakout": False,     # 底部起漲
@@ -57,6 +58,11 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         # 鎖股池狀態
         "watchlist_stage": "觀察中",   # 等突破 / 高檔等回檔 / 回檔等上漲
         
+        # 成交量位置研判 (起漲攻擊量 vs 高檔爆量)
+        "volume_tag": "常態量",       # 起漲放量 / 高檔爆量 / 溫和放量 / 量縮整理 / 常態量
+        "volume_status": "常態量",
+        "vol_ratio": 1.0,
+
         # 輔助技術分析
         "bullish_alignment": False,   # 均線多頭排列
         "safety_rating": "🟢 安全首選",# 實戰安全評級
@@ -178,6 +184,19 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if is_cross_today or is_cross_recent:
         signals_dict['golden_cross_5_20'] = True
         signals.append("剛出現雙線黃金交叉 (5MA 向上穿過 20MA)")
+
+    # ----------------------------------------------------
+    # 策略 🏆：無敵鐵金剛 / 三線合一 (官方 App 最高勝率 7~8 成旗艦波段戰法)
+    # 實戰心法鐵律 (朱家泓老師核心心法)：
+    # 1. 轉折波：多頭型態已確認 (底底高 + 頭頭高，即 is_bull)
+    # 2. 雙線翻揚：5MA >= 20MA 且 5MA 走升 (is_5ma_rising)、20MA 走平或向上翻揚
+    # 3. 今日 K 棒：當日收實體紅 K (c >= o) 且收盤價站穩 5MA 操盤線 (c >= sma5)
+    # 操作紀律：買進後守穩 5MA 一路續抱，跌破 5MA 立即紀律停利出場！
+    # ----------------------------------------------------
+    is_20ma_rising = (sma20 >= prev_sma20 * 0.998)
+    if is_bull and sma5 >= sma20 and is_5ma_rising and is_20ma_rising and is_red and (c >= sma5):
+        signals_dict['iron_man'] = True
+        signals.append("🏆 無敵鐵金剛 (多頭確立+雙線翻揚+今日紅K站上5MA)")
 
     # ----------------------------------------------------
     # 策略 C：回後準進場 (經典回後買上漲進場訊號)
@@ -373,6 +392,35 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     signals_dict['is_multi_bagger'] = is_multi_bagger
     signals_dict['bagger_multiple'] = bagger_multiple
+
+    # ----------------------------------------------------
+    # 成交量位階與位置決定命運 (朱家泓老師實戰心法：起漲爆量進場 vs 高檔爆量防出貨)
+    # ----------------------------------------------------
+    is_high_position = is_multi_bagger or (c >= sma20 * 1.15) or (len(df) >= 40 and c >= df.iloc[-40:]['Low'].min() * 1.35)
+    is_low_position = is_near_bottom or (sma5 <= sma60 * 1.08) or (c <= sma20 * 1.06)
+
+    if vol_ratio >= 1.5:  # 顯著爆大量 (超過20日均量 1.5 倍)
+        if is_high_position or has_long_upper_shadow or (not is_red and change_pct <= 0):
+            volume_tag = "高檔爆量"
+            volume_status = "⚠️ 高檔爆量 (防主力倒貨，嚴禁追高)"
+            signals.append("⚠️ 高檔爆量 (短線停利賣點，嚴禁追高)")
+        elif is_low_position or is_red:
+            volume_tag = "起漲放量"
+            volume_status = "🚀 起漲攻擊量 (主力進場買點)"
+            signals.append("🚀 起漲攻擊量 (低檔放量紅K攻擊)")
+        else:
+            volume_tag = "溫和放量"
+            volume_status = "📊 溫和放量推升"
+    elif vol_ratio <= 0.65:
+        volume_tag = "量縮整理"
+        volume_status = "⏳ 量縮整理 (等待出量表態)"
+    else:
+        volume_tag = "常態量"
+        volume_status = "常態量"
+
+    signals_dict['volume_tag'] = volume_tag
+    signals_dict['volume_status'] = volume_status
+    signals_dict['vol_ratio'] = round(vol_ratio, 2)
 
     # ----------------------------------------------------
     # 買兩張（長短配）實戰操盤指引 (經典配置)
