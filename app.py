@@ -749,11 +749,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
         # 處置股波段提示
         chips_tmp = load_speedy_chips()
-        if chips_tmp.get(info['code'], {}).get('in_disposal', False):
+        code_clean = str(info.get('code', '')).replace('.TW', '').replace('.TWO', '').strip()
+        c_chip = chips_tmp.get(code_clean, {}) or chips_tmp.get(info.get('code', ''), {})
+        if c_chip.get('in_disposal', False):
             if signals_dict.get('is_multi_bagger', False) or v_tag == '高檔爆量' or trend.get('trend_status') == '高檔突破':
-                extra_badges += "<span class='tag-badge' style='background:#CF1322;'>⛔ 處置 (高檔防倒貨)</span>"
+                extra_badges += "<span class='tag-badge' style='background:#CF1322; font-weight:bold; font-size:0.85rem; padding:3px 8px;'>⛔ 處置股票 (高檔防主力倒貨)</span>"
             else:
-                extra_badges += "<span class='tag-badge' style='background:#D97706;'>🔒 處置 (起漲出關常飆)</span>"
+                extra_badges += "<span class='tag-badge' style='background:#D97706; font-weight:bold; font-size:0.85rem; padding:3px 8px;'>🔒 處置股票 (起漲第1波·出關常飆)</span>"
 
         if signals_dict.get('consolidation_breakout_imminent', False):
             extra_badges += "<span class='tag-badge' style='background:#52C41A;'>⏳ 盤整末端即將表態</span>"
@@ -1117,13 +1119,25 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 if 'Vol_MA20' in df_k:
                     fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['Vol_MA20'], name="20均量", line=dict(color='#FCC419', width=1.5)), row=2, col=1)
             elif "KD" in k_sub_chart and 'K' in df_k:
-                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['K'], name="K (9)", line=dict(color='#FF4D4F', width=1.8)), row=2, col=1)
-                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['D'], name="D (9)", line=dict(color='#1C7ED6', width=1.8)), row=2, col=1)
-                fig2.add_hline(y=80, line_dash="dot", line_color="#E03131", row=2, col=1)
-                fig2.add_hline(y=20, line_dash="dot", line_color="#2F9E44", row=2, col=1)
+                cur_k_val = float(df_k['K'].iloc[-1]) if not df_k.empty else 50.0
+                cur_d_val = float(df_k['D'].iloc[-1]) if not df_k.empty else 50.0
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['K'], name=f"K(9): {cur_k_val:.1f}", line=dict(color='#FF4D4F', width=2.0)), row=2, col=1)
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['D'], name=f"D(9): {cur_d_val:.1f}", line=dict(color='#1C7ED6', width=2.0)), row=2, col=1)
+                fig2.add_hline(
+                    y=80, line_dash="dash", line_color="#FF4D4F", line_width=1.5,
+                    annotation_text="🔥 80 高檔鈍化線 (守5MA續抱)", annotation_position="top left",
+                    annotation_font=dict(color="#FF7875", size=11),
+                    row=2, col=1
+                )
+                fig2.add_hline(
+                    y=20, line_dash="dash", line_color="#2F9E44", line_width=1.5,
+                    annotation_text="❄️ 20 低檔鈍化線 (超跌等轉折)", annotation_position="bottom left",
+                    annotation_font=dict(color="#52C41A", size=11),
+                    row=2, col=1
+                )
                 # 高檔鈍化 (80 至 100 紅底) 與低檔鈍化 (0 至 20 綠底) 色塊填滿渲染
-                fig2.add_hrect(y0=80, y1=100, fillcolor="rgba(239, 68, 68, 0.15)", line_width=0, layer="below", row=2, col=1)
-                fig2.add_hrect(y0=0, y1=20, fillcolor="rgba(34, 197, 94, 0.15)", line_width=0, layer="below", row=2, col=1)
+                fig2.add_hrect(y0=80, y1=100, fillcolor="rgba(239, 68, 68, 0.22)", line_width=0, layer="below", row=2, col=1)
+                fig2.add_hrect(y0=0, y1=20, fillcolor="rgba(34, 197, 94, 0.22)", line_width=0, layer="below", row=2, col=1)
             elif "MACD" in k_sub_chart and 'DIF' in df_k:
                 fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['DIF'], name="DIF", line=dict(color='#FFA94D', width=1.6)), row=2, col=1)
                 fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['MACD'], name="MACD", line=dict(color='#339AF0', width=1.6)), row=2, col=1)
@@ -1143,6 +1157,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             )
             fig2.update_xaxes(rangeslider_visible=False, range=k_init_x)
             fig2.update_yaxes(range=k_auto_y, row=1, col=1)
+            if "KD" in k_sub_chart:
+                fig2.update_yaxes(
+                    tickvals=[0, 20, 50, 80, 100],
+                    ticktext=["0", "20 (超跌)", "50", "80 (鈍化)", "100"],
+                    range=[-4, 104],
+                    row=2, col=1
+                )
 
             st.plotly_chart(fig2, use_container_width=True, config=chart_config, key=f"k_plot_{query}_{k_period}_{k_sub_chart}")
 
@@ -1175,7 +1196,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
         # =========================================================================
         with tab_chips:
             chips_map = load_speedy_chips()
-            c_data = chips_map.get(info['code'], {})
+            code_clean = str(info.get('code', '')).replace('.TW', '').replace('.TWO', '').strip()
+            c_data = chips_map.get(code_clean, {}) or chips_map.get(info['code'], {})
 
             mf = c_data.get('mf', 0)
             fi = c_data.get('fi', 0)

@@ -39,8 +39,23 @@ def load_speedy_chips():
         return _SPEEDY_CHIPS_CACHE
 
     chips_map = {}
-    speedy_file = r'C:\Users\ivancheng\AppData\Local\speedyAI\stock.txt'
-    if os.path.exists(speedy_file):
+    speedy_local = r'C:\Users\ivancheng\AppData\Local\speedyAI\stock.txt'
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    speedy_repo = os.path.join(base_dir, 'data', 'speedy_stock.txt')
+
+    speedy_file = None
+    if os.path.exists(speedy_local):
+        speedy_file = speedy_local
+        try:
+            if not os.path.exists(speedy_repo) or (os.path.getmtime(speedy_local) > os.path.getmtime(speedy_repo)):
+                import shutil
+                shutil.copyfile(speedy_local, speedy_repo)
+        except Exception:
+            pass
+    elif os.path.exists(speedy_repo):
+        speedy_file = speedy_repo
+
+    if speedy_file and os.path.exists(speedy_file):
         try:
             with open(speedy_file, 'r', encoding='utf-8-sig', errors='ignore') as f:
                 header = f.readline().strip().split('\t')
