@@ -21,6 +21,7 @@ from core.notifier import (
     get_line_config, send_line_push_message,
     format_portfolio_alert, format_tail_recommendation
 )
+from core.tracker import record_copilot_recommendations, update_all_tracking_performance
 
 def run_monitor(mode: str = "auto"):
     print(f"[{datetime.datetime.now()}] 啟動最高指揮官 LINE 智慧盯盤任務 (模式: {mode})...")
@@ -61,7 +62,13 @@ def run_monitor(mode: str = "auto"):
             msg_rec = format_tail_recommendation(rec_data)
             print("正在發送尾盤推薦至手機 LINE...")
             ok_rec, res_rec = send_line_push_message(msg_rec)
-            print(f"尾盤推薦發送結果: {ok_rec} ({res_rec})")
+            # 自動將今日尾盤 Top 5 登錄至推薦追蹤日誌並更新歷史每日績效
+            try:
+                rec_cnt = record_copilot_recommendations(rec_data)
+                update_all_tracking_performance(force_refresh=False)
+                print(f"已自動登錄 {rec_cnt} 檔今日尾盤推薦至追蹤日誌，並完成每日發酵天數更新。")
+            except Exception as trk_err:
+                print(f"自動更新推薦日誌失敗: {trk_err}")
         except Exception as e:
             print(f"計算尾盤推薦失敗: {e}")
             
