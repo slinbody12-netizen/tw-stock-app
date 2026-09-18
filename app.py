@@ -587,7 +587,7 @@ MENU_OPTIONS = [
     "📊 個股技術分析 (轉折波主圖)",
     "🎯 全攻略選股池 (多/空策略)",
     "👁️ 晚間盤後功課 (鎖股名冊監控)",
-    "📅 每日推薦實戰日誌 (戰績復盤)",
+    "📅 每日推薦實戰日誌 (👑 指揮官專屬)",
     "🤖 實戰秘密特務 (操盤副駕駛)",
     "🧑‍🏫 AI 實戰操盤助教"
 ]
@@ -613,10 +613,17 @@ menu = st.sidebar.radio(
 )
 
 if st.session_state.get("copilot_authenticated", False):
-    st.sidebar.markdown(
-        "<div style='background:#2A1B2D; padding:6px 10px; border-radius:6px; border:1px solid #722ED1; color:#D3ADF7; font-size:0.8rem; margin-top:4px; margin-bottom:6px; text-align:center;'>🕵️‍♂️ 秘密特務：已授權解鎖</div>",
-        unsafe_allow_html=True
-    )
+    c_u = st.session_state.get("copilot_user", {})
+    if c_u.get("role") == "ADMIN" or c_u.get("user_id") == "master":
+        st.sidebar.markdown(
+            "<div style='background:#2B2312; padding:6px 10px; border-radius:6px; border:1px solid #FAAD14; color:#FFE58F; font-size:0.8rem; margin-top:4px; margin-bottom:6px; text-align:center;'>👑 最高指揮官：已解鎖專屬日誌與全特權</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        st.sidebar.markdown(
+            f"<div style='background:#2A1B2D; padding:6px 10px; border-radius:6px; border:1px solid #722ED1; color:#D3ADF7; font-size:0.8rem; margin-top:4px; margin-bottom:6px; text-align:center;'>🎖️ VIP 學員：{c_u.get('name', '已授權')}</div>",
+            unsafe_allow_html=True
+        )
     c_btn1, c_btn2 = st.sidebar.columns(2)
     with c_btn1:
         if st.button("🔒 鎖定特務", key="sidebar_lock_copilot", use_container_width=True):
@@ -1656,8 +1663,54 @@ elif "鎖股" in menu or "晚間盤後功課" in menu:
 # 功能分頁：每日推薦實戰日誌 · 漲跌追蹤與勝率大數據分析 (Recommendation Tracker)
 # ----------------------------------------------------
 elif "日誌" in menu or "戰績復盤" in menu:
-    st.header("📅 每日推薦實戰日誌 · 漲跌追蹤與勝率大數據分析")
-    st.caption("✨ **老朱技術分析實戰復盤**：每日自動記錄【波段精選】、【盤中強勢/一點鐘】與【晚間盤後功課】推薦個股的每日收盤變化，精準驗證「大概多久會漲？」與「大部分股票是漲還是跌？」！")
+    # 關鍵資安隔離：每日推薦日誌與勝率大數據為核心機密，僅限最高指揮官 (ADMIN) 存取！
+    is_admin = False
+    if st.session_state.get("copilot_authenticated", False):
+        c_u = st.session_state.get("copilot_user", {})
+        if c_u.get("role") == "ADMIN" or c_u.get("user_id") == "master":
+            is_admin = True
+
+    if not is_admin:
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #1A1C29 0%, #2B2312 100%); padding: 26px 22px; border-radius: 14px; border: 1px solid #FAAD14; text-align: center; margin-bottom: 20px;'>
+            <div style='font-size: 3.2rem; margin-bottom: 10px;'>🔒</div>
+            <h2 style='color: #FFE58F; font-weight: 700; margin-bottom: 6px;'>機密戰略日誌 · 最高指揮官專屬權限</h2>
+            <p style='color: #D4B106; font-size: 0.96rem; margin-bottom: 4px;'>【最高優先級私密模組】每日推薦個股追蹤 · 實戰勝率大數據 · 主力籌碼成本線復盤</p>
+            <p style='color: #8C8C8C; font-size: 0.84rem;'>本專區為<b>最高指揮官專屬私密資產</b>，包含核心選股每日推薦與真實勝率大數據，一般訪客 (8888) 與外部學員無權瀏覽。<br/>若您為最高指揮官，請在下方輸入指揮官專屬安全金鑰 (PIN) 解鎖存取！</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_al, col_am, col_ar = st.columns([1, 1.4, 1])
+        with col_am:
+            with st.form("tracker_admin_auth_form", clear_on_submit=False):
+                admin_pin_input = st.text_input(
+                    "最高指揮官安全金鑰 (PIN)",
+                    type="password",
+                    placeholder="請輸入指揮官金鑰 (預設 7777)",
+                    help="輸入指揮官 Master PIN 以解鎖每日推薦戰績日誌"
+                )
+                auth_submitted = st.form_submit_button("🔓 解鎖指揮官實戰日誌", use_container_width=True)
+                if auth_submitted:
+                    clean_pin = str(admin_pin_input).strip()
+                    if clean_pin == get_master_pin():
+                        st.session_state["authenticated"] = True
+                        st.session_state["copilot_authenticated"] = True
+                        st.session_state["copilot_user"] = {
+                            "user_id": "master",
+                            "name": "最高指揮官 (您)",
+                            "email": "owner@system.local",
+                            "role": "ADMIN",
+                            "status": "ACTIVE"
+                        }
+                        st.success("🎉 最高指揮官身分驗證成功！正在解鎖實戰日誌...")
+                        st.rerun()
+                    else:
+                        st.error("❌ 金鑰錯誤！本專區為最高指揮官專屬最高機密，一般訪客與外部學員無權限查閱。")
+            st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:10px;'>🛡️ 最高機密保護 · 未授權人員無法查閱</div>", unsafe_allow_html=True)
+        st.stop()
+
+    st.header("📅 每日推薦實戰日誌 · 漲跌追蹤與勝率大數據分析 👑 最高指揮官專屬")
+    st.caption("✨ **機密戰報隔離保護中**：本專區僅限最高指揮官 (您) 專屬查閱與操作。每日自動記錄【波段精選】、【盤中強勢/一點鐘】與【晚間盤後功課】推薦個股的每日收盤變化，精準驗證「大概多久會漲？」與「大部分股票是漲還是跌？」！")
 
     # 頂部操作按鈕列
     col_act1, col_act2, col_act3 = st.columns([2, 2, 1.5])
