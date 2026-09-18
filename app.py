@@ -58,7 +58,7 @@ from core.notifier import (
 from core.tracker import (
     load_recommendation_history, save_recommendation_history,
     record_recommendation, update_all_tracking_performance,
-    get_performance_statistics
+    get_performance_statistics, auto_record_daily_all_categories
 )
 
 
@@ -1668,46 +1668,14 @@ elif "日誌" in menu or "戰績復盤" in menu:
             st.success("✅ 每日追蹤行情與發酵天數同步完成！")
             st.rerun()
     with col_act2:
-        if st.button("➕ 登錄今日 12:40 尾盤 Top 5 至日誌", key="btn_log_today_top5", use_container_width=True, help="將今日尾盤精選Top 5正式加入每日追蹤清單"):
-            try:
-                rec_today = get_copilot_recommendation(enable_realtime=True)
-                top_items = rec_today.get("top_candidates", [])
-                t_date = datetime.datetime.now().strftime("%Y-%m-%d")
-                added_cnt = 0
-                for rank_idx, c_item in enumerate(top_items[:5]):
-                    s_info = c_item.get("stock", {})
-                    s_code = s_info.get("code")
-                    s_name = s_info.get("name")
-                    s_price = float(s_info.get("close", 0))
-                    sig_d = s_info.get("signals_dict", {})
-                    
-                    # 組合技術理由
-                    r_parts = []
-                    if sig_d.get("pullback_buy"): r_parts.append("回後買上漲")
-                    if sig_d.get("bottom_breakout"): r_parts.append("底部放量起漲")
-                    if sig_d.get("golden_cross_5_20"): r_parts.append("雙線黃金交叉")
-                    if s_info.get("is_5ma_rising") and s_info.get("above_5ma"): r_parts.append("站穩5MA操盤線")
-                    if s_info.get("volume_tag") == "起漲放量": r_parts.append("起漲攻擊量")
-                    reason_str = " + ".join(r_parts) if r_parts else "尾盤多頭型態精選"
-                    
-                    record_recommendation(
-                        rec_date=t_date,
-                        category="盤中強勢(一點鐘)" if "一點鐘" in s_info.get("intraday_status", "") else "波段精選",
-                        code=s_code,
-                        name=s_name,
-                        entry_price=s_price,
-                        strategy_reason=reason_str,
-                        major_broker=s_info.get("broker_info", "大戶建倉"),
-                        major_cost=float(s_info.get("major_cost", 0)),
-                        foreign_cost=float(s_info.get("foreign_cost", 0)),
-                        market=s_info.get("market", "TWSE"),
-                        industry=s_info.get("industry", "")
-                    )
-                    added_cnt += 1
-                st.success(f"✅ 成功登錄今日 {added_cnt} 檔精選標的至推薦追蹤日誌！")
-                st.rerun()
-            except Exception as e:
-                st.error(f"登錄今日推薦失敗: {e}")
+        if st.button("➕ 一鍵登錄今日全策略推薦 (波段+強勢+功課)", key="btn_log_today_all", use_container_width=True, help="自動將今日【波段精選 Top 5】、【盤中強勢 Top 3】與【晚間盤後功課 Top 4】全數登錄至每日追蹤日誌並更新歷程"):
+            with st.spinner("正在自動篩選今日全策略精選股並登錄至每日日誌..."):
+                try:
+                    res_cnts = auto_record_daily_all_categories()
+                    st.success(f"✅ 成功登錄今日推薦標的！(波段: {res_cnts['copilot_top5']} 檔, 盤中強勢: {res_cnts['intraday_strong']} 檔, 晚間功課: {res_cnts['evening_homework']} 檔) 並已同步最新歷程！")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"登錄今日全策略推薦失敗: {e}")
     with col_act3:
         pass
 

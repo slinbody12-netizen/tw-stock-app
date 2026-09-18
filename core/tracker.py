@@ -163,6 +163,93 @@ def record_copilot_recommendations(rec_data: dict, rec_date: str = None) -> int:
         added += 1
     return added
 
+def auto_record_daily_all_categories(rec_date: str = None) -> Dict[str, int]:
+    """
+    全自動登錄今日所有核心策略之推薦標的：
+    1. 波段精選 / 尾盤 Top 5 (get_copilot_recommendation)
+    2. 盤中強勢 Top 3 (scan_stocks strategy="盤中強勢")
+    3. 晚間盤後功課 (回檔等上漲 Top 2 + 等突破 Top 2)
+    4. 自動同步更新所有歷史追蹤股票的最新每日收盤價與發酵天數
+    """
+    from core.copilot import get_copilot_recommendation
+    from core.screener import scan_stocks
+
+    t_date = rec_date or datetime.datetime.now().strftime("%Y-%m-%d")
+    results = {"copilot_top5": 0, "intraday_strong": 0, "evening_homework": 0}
+
+    # 1. 尾盤 / 波段精選 Top 5
+    try:
+        rec_data = get_copilot_recommendation(enable_realtime=True)
+        results["copilot_top5"] = record_copilot_recommendations(rec_data, rec_date=t_date)
+    except Exception as e:
+        print(f"Error recording copilot top 5: {e}")
+
+    # 2. 盤中強勢 Top 3
+    try:
+        strong_stocks = scan_stocks(strategy="盤中強勢", limit=5, enable_realtime=True)
+        for s in strong_stocks[:3]:
+            sig_d = s.get("signals_dict", {})
+            reason = "盤中強勢量價齊揚 + 站穩5MA操盤線"
+            if sig_d.get("pullback_buy"): reason += " + 回後買上漲"
+            record_recommendation(
+                rec_date=t_date,
+                category="盤中強勢(一點鐘)",
+                code=s.get("code"),
+                name=s.get("name"),
+                entry_price=float(s.get("close", 0)),
+                strategy_reason=reason,
+                major_broker=s.get("broker_info", "大戶主力"),
+                major_cost=float(s.get("major_cost", 0)),
+                foreign_cost=float(s.get("foreign_cost", 0)),
+                market=s.get("market", "TWSE"),
+                industry=s.get("industry", "")
+            )
+            results["intraday_strong"] += 1
+    except Exception as e:
+        print(f"Error recording intraday strong: {e}")
+
+    # 3. 晚間盤後功課 (回檔等上漲 Top 2 + 等突破 Top 2)
+    try:
+        hw_pull = scan_stocks(strategy="全部", watchlist_stage="回檔等上漲", limit=5, enable_realtime=True)
+        for s in hw_pull[:2]:
+            record_recommendation(
+                rec_date=t_date,
+                category="晚間盤後功課",
+                code=s.get("code"),
+                name=s.get("name"),
+                entry_price=float(s.get("close", 0)),
+                strategy_reason="回檔等上漲 (測線有守等待轉折紅K) + 站上關鍵均線",
+                major_broker=s.get("broker_info", "大戶主力"),
+                major_cost=float(s.get("major_cost", 0)),
+                foreign_cost=float(s.get("foreign_cost", 0)),
+                market=s.get("market", "TWSE"),
+                industry=s.get("industry", "")
+            )
+            results["evening_homework"] += 1
+
+        hw_break = scan_stocks(strategy="全部", watchlist_stage="等突破", limit=5, enable_realtime=True)
+        for s in hw_break[:2]:
+            record_recommendation(
+                rec_date=t_date,
+                category="晚間盤後功課",
+                code=s.get("code"),
+                name=s.get("name"),
+                entry_price=float(s.get("close", 0)),
+                strategy_reason="等突破 (均線高度糾結整理末端) + 等待長紅放量表態",
+                major_broker=s.get("broker_info", "大戶主力"),
+                major_cost=float(s.get("major_cost", 0)),
+                foreign_cost=float(s.get("foreign_cost", 0)),
+                market=s.get("market", "TWSE"),
+                industry=s.get("industry", "")
+            )
+            results["evening_homework"] += 1
+    except Exception as e:
+        print(f"Error recording evening homework: {e}")
+
+    # 4. 更新全部追蹤歷史
+    update_all_tracking_performance(force_refresh=False)
+    return results
+
 def update_all_tracking_performance(force_refresh: bool = False) -> List[Dict[str, Any]]:
     """
     自動調用真實歷史 K 線，更新所有推薦個股自推薦日以來的每日收盤價、漲跌歷程、最高獲利率與發酵天數
