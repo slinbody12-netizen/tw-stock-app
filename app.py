@@ -810,6 +810,65 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
         )
         st.markdown(header_html, unsafe_allow_html=True)
 
+        # 快捷操作列：一鍵加入每日日誌追蹤 / 一鍵加入副駕駛持股守護
+        c_quick_t1, c_quick_t2, c_quick_t3 = st.columns([1.5, 1.5, 3])
+        with c_quick_t1:
+            with st.popover("📌 加入【每日日誌追蹤】", use_container_width=True):
+                st.write(f"#### 📌 將【{info['name']}】加入每日日誌追蹤")
+                st.caption("加入後，系統每日自動更新此股收盤價、T+1~T+N 發酵天數，並比對主力成本！")
+                q_p = st.number_input("基準/進場價格 (元)", value=float(info['close']), step=0.1, key=f"q_trk_p_{query}")
+                q_cat = st.selectbox("追蹤分類", ["👑 指揮官自選精選", "波段自選", "轉折突破觀察", "長抱價值精選"], key=f"q_trk_cat_{query}")
+                q_r_default = " + ".join(signals_list[:2]) if signals_list else f"{trend['trend_status']} + 站穩5MA"
+                q_reason = st.text_input("選股理由/條件", value=q_r_default, key=f"q_trk_r_{query}")
+                st.caption(f"💼 主力成本比對：主力均價 {float(info.get('major_cost', 0)):.2f} 元 | 外資均價 {float(info.get('foreign_cost', 0)):.2f} 元")
+                if st.button("🚀 確認加入每日追蹤日誌", type="primary", use_container_width=True, key=f"btn_q_add_trk_{query}"):
+                    record_recommendation(
+                        rec_date=datetime.datetime.now().strftime("%Y-%m-%d"),
+                        category=q_cat,
+                        code=info['code'],
+                        name=info['name'],
+                        entry_price=q_p,
+                        strategy_reason=q_reason,
+                        major_broker=info.get("broker_info", "大戶主力"),
+                        major_cost=float(info.get("major_cost", 0.0)),
+                        foreign_cost=float(info.get("foreign_cost", 0.0)),
+                        industry=info.get("industry", "")
+                    )
+                    update_all_tracking_performance(force_refresh=False)
+                    st.success(f"🎉 已將【{info['name']}】加入【📅 每日推薦實戰日誌】！")
+                    st.rerun()
+
+        with c_quick_t2:
+            with st.popover("🛡️ 加入【副駕駛持股守護】", use_container_width=True):
+                st.write(f"#### 🛡️ 將【{info['name']}】加入副駕駛持股守護")
+                st.caption("登錄買進價格與持股張數，副駕駛將每日即時盯盤、計算停損與反彈目標，並於破線時主動提醒！")
+                q_hold_p = st.number_input("買進成交價 (元)", value=float(info['close']), step=0.1, key=f"q_hold_p_{query}")
+                q_hold_zh = st.number_input("持有張數", value=1.0, min_value=0.01, step=0.5, key=f"q_hold_zh_{query}")
+                q_hold_type = st.radio("交易方式", ["現股", "融資"], horizontal=True, key=f"q_hold_type_{query}")
+                q_hold_stop = st.number_input("停損防守價 (預設-5%)", value=round(float(info['close']) * 0.95, 2), step=0.1, key=f"q_hold_stop_{query}")
+                q_hold_tgt = st.number_input("波段目標價 (預設+10%)", value=round(float(info['close']) * 1.10, 2), step=0.1, key=f"q_hold_tgt_{query}")
+                if st.button("🚀 確認加入持股守護庫存", type="primary", use_container_width=True, key=f"btn_q_add_hold_{query}"):
+                    curr_u = st.session_state.get("copilot_user", {"user_id": "master"})
+                    add_holding(
+                        code=info['code'],
+                        name=info['name'],
+                        buy_price=q_hold_p,
+                        stop_loss=q_hold_stop,
+                        target_price=q_hold_tgt,
+                        strategy="主圖自選建倉",
+                        buy_reason=f"{trend['trend_status']} 自選加入守護",
+                        shares=int(round(q_hold_zh * 1000)),
+                        trade_type=q_hold_type,
+                        user_id=curr_u.get("user_id", "master")
+                    )
+                    if "copilot_inspected_cache" in st.session_state:
+                        del st.session_state["copilot_inspected_cache"]
+                    st.success(f"🎉 已將【{info['name']}】加入操盤副駕駛持股庫存！")
+                    st.rerun()
+
+        with c_quick_t3:
+            pass
+
         # 📱 手機優先：4 大模組化分頁切換 (一頁只專注一件事，告別無限滾動)
         tab_tech, tab_kline, tab_chips, tab_ai = st.tabs([
             "🎯 技術分析 (頭底/壓力支撐)",
@@ -1730,7 +1789,62 @@ elif "日誌" in menu or "戰績復盤" in menu:
                 except Exception as e:
                     st.error(f"登錄今日全策略推薦失敗: {e}")
     with col_act3:
-        pass
+        with st.popover("➕ 手動新增自選追蹤", use_container_width=True, help="自行挑選心儀股票，加入每日日誌滾動追蹤"):
+            st.write("#### ➕ 新增自選股票至每日追蹤日誌")
+            st.caption("您可以自由輸入任何股票代碼，系統會自動比對大戶主力成本，並每日滾動更新收盤價、發酵天數與勝率！")
+            st_list = load_stock_list()
+            h_opts = [f"{s['code']} {s['name']}" for s in st_list]
+            c_pick = st.selectbox("選擇股票 (代碼/名稱)", h_opts, key="trk_man_pick")
+            c_code = c_pick.split()[0]
+            c_name = c_pick.split()[1]
+
+            cur_p = 100.0
+            m_broker = "大戶主力"
+            m_cost = 0.0
+            f_cost = 0.0
+            auto_reason = "突破關鍵壓力 + 站穩5MA"
+            try:
+                df_tmp, inf_tmp = fetch_stock_kline(c_code, period="3mo")
+                if not df_tmp.empty:
+                    cur_p = float(inf_tmp.get("close", 100.0))
+                    m_broker = inf_tmp.get("broker_info", "大戶主力")
+                    m_cost = float(inf_tmp.get("major_cost", 0.0))
+                    f_cost = float(inf_tmp.get("foreign_cost", 0.0))
+                    pts_tmp, _, _, _ = calculate_turning_points(df_tmp, ma_period=5)
+                    tr_tmp = analyze_trend(df_tmp, pts_tmp)
+                    sig_tmp, _ = detect_signals(df_tmp, tr_tmp)
+                    r_list = []
+                    if sig_tmp.get("pullback_buy"): r_list.append("回後買上漲")
+                    if sig_tmp.get("bottom_breakout"): r_list.append("底部放量起漲")
+                    if sig_tmp.get("golden_cross_5_20"): r_list.append("5/20MA黃金交叉")
+                    if inf_tmp.get("is_5ma_rising") and inf_tmp.get("above_5ma"): r_list.append("站穩5MA操盤線")
+                    if r_list: auto_reason = " + ".join(r_list)
+            except Exception:
+                pass
+
+            with st.form("form_manual_tracker_add", clear_on_submit=False):
+                c_cat = st.selectbox("追蹤分類", ["👑 指揮官自選精選", "波段精選", "盤中強勢(一點鐘)", "晚間盤後功課", "長抱價值精選"], key="trk_man_cat")
+                c_entry_p = st.number_input("進場/觀察基準價 (元)", value=cur_p, step=0.1, key="trk_man_price")
+                c_date = st.date_input("推薦/進場基準日", value=datetime.date.today(), key="trk_man_date")
+                c_reason = st.text_input("最初選股理由 / 技術條件", value=auto_reason, key="trk_man_reason")
+                st.caption(f"💼 籌碼面自動比對：主力買均 <b>{m_cost:.2f}</b> 元 | 外資均價 <b>{f_cost:.2f}</b> 元", unsafe_allow_html=True)
+                
+                btn_add_trk = st.form_submit_button("🚀 確認加入每日日誌追蹤", type="primary", use_container_width=True)
+                if btn_add_trk:
+                    record_recommendation(
+                        rec_date=c_date.strftime("%Y-%m-%d"),
+                        category=c_cat,
+                        code=c_code,
+                        name=c_name,
+                        entry_price=c_entry_p,
+                        strategy_reason=c_reason,
+                        major_broker=m_broker,
+                        major_cost=m_cost,
+                        foreign_cost=f_cost
+                    )
+                    update_all_tracking_performance(force_refresh=False)
+                    st.success(f"🎉 已成功將【{c_name} ({c_code})】加入每日追蹤日誌！")
+                    st.rerun()
 
     # 取得大數據統計
     stats = get_performance_statistics()
@@ -1799,7 +1913,15 @@ elif "日誌" in menu or "戰績復盤" in menu:
 
     f_col1, f_col2, f_col3 = st.columns([1.5, 1.5, 2])
     with f_col1:
-        cat_choices = ["全部策略", "波段精選", "盤中強勢(一點鐘)", "晚間盤後功課"]
+        existing_cats = []
+        for c_cand in ["👑 指揮官自選精選", "波段精選", "盤中強勢(一點鐘)", "晚間盤後功課", "長抱價值精選"]:
+            if any(item.get("category") == c_cand for item in history):
+                existing_cats.append(c_cand)
+        for item in history:
+            c_k = item.get("category", "")
+            if c_k and c_k not in existing_cats:
+                existing_cats.append(c_k)
+        cat_choices = ["全部策略"] + existing_cats
         sel_cat = st.selectbox("篩選推薦分類", cat_choices, key="trk_filter_cat")
     with f_col2:
         all_dates = sorted(list(set(item.get("date") for item in history)), reverse=True)
@@ -1869,6 +1991,12 @@ elif "日誌" in menu or "戰績復盤" in menu:
             elif "晚間" in cat or "功課" in cat:
                 cat_bg = "#24251B"
                 cat_color = "#FAAD14"
+            elif "指揮官" in cat or "自選" in cat:
+                cat_bg = "#2B2312"
+                cat_color = "#FFE58F"
+            elif "長抱" in cat or "價值" in cat:
+                cat_bg = "#1B2A2B"
+                cat_color = "#13C2C2"
 
             # 主力成本標籤
             cost_badge_html = ""
