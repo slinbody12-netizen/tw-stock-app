@@ -58,7 +58,8 @@ from core.notifier import (
 from core.tracker import (
     load_recommendation_history, save_recommendation_history,
     record_recommendation, update_all_tracking_performance,
-    get_performance_statistics, auto_record_daily_all_categories
+    get_performance_statistics, auto_record_daily_all_categories,
+    delete_recommendation
 )
 
 
@@ -2071,14 +2072,20 @@ elif "日誌" in menu or "戰績復盤" in menu:
                     st.session_state.goto_chart = True
                     st.rerun()
             with btn_col2:
-                toggle_txt = "標記為已結清" if status == "TRACKING" else "恢復為追蹤中"
-                if st.button(toggle_txt, key=f"btn_status_{item_id}", use_container_width=True):
+                toggle_txt = "⏸️ 標記為結清 (停止追蹤)" if status == "TRACKING" else "🟢 恢復追蹤中"
+                if st.button(toggle_txt, key=f"btn_status_{item_id}", use_container_width=True, help="將標的標記為已結清，不再計入進行中的發酵標的，但完整保留歷史戰績與天數歷程"):
                     new_status = "CLOSED" if status == "TRACKING" else "TRACKING"
                     item['status'] = new_status
                     save_recommendation_history(history)
                     st.rerun()
             with btn_col3:
-                pass
+                with st.popover("🗑️ 徹底刪除此股", use_container_width=True):
+                    st.write(f"#### 🗑️ 確認徹底刪除【{name} ({code})】？")
+                    st.caption(f"此操作將自每日日誌中徹底移除【{name}】({rec_date}) 的整筆紀錄與每日歷程，無法復原。")
+                    if st.button("⚠️ 確認徹底刪除", key=f"btn_del_rec_{item_id}", type="primary", use_container_width=True):
+                        delete_recommendation(item_id)
+                        st.success(f"已徹底刪除【{name} ({code})】！")
+                        st.rerun()
 
 # ----------------------------------------------------
 # 功能分頁 5：實戰秘密特務 · 操盤副駕駛 (Trading Copilot)

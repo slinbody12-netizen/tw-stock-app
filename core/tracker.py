@@ -163,6 +163,17 @@ def record_copilot_recommendations(rec_data: dict, rec_date: str = None) -> int:
         added += 1
     return added
 
+def delete_recommendation(rec_id: str) -> bool:
+    """
+    自每日推薦追蹤資料庫中徹底刪除指定個股紀錄
+    """
+    history = load_recommendation_history()
+    new_history = [item for item in history if item.get("id") != rec_id]
+    if len(new_history) < len(history):
+        save_recommendation_history(new_history)
+        return True
+    return False
+
 def auto_record_daily_all_categories(rec_date: str = None) -> Dict[str, int]:
     """
     全自動登錄今日所有核心策略之推薦標的：
