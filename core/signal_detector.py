@@ -34,6 +34,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "bottom_breakout": False,     # 底部起漲
         "high_breakout": False,       # 高檔起漲
         "golden_cross_5_20": False,   # 雙線黃金交叉
+        "ma_squeeze_breakout": False, # 🌀 均線糾結突破 (朱老師 3-5 四線糾結起漲第一根)
         "flat_base_breakout": False,  # 一字底
         "n_pattern_bottom": False,    # N字底
         "rounding_bottom": False,     # 圓弧底
@@ -44,6 +45,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "top_breakdown": False,       # 頂部起跌 (高檔頭部放量長黑破線)
         "low_breakdown": False,       # 低檔起跌 (破前低弱勢續殺)
         "death_cross_5_20": False,    # 雙線死亡交叉 / 雙線下彎
+        "ma_squeeze_breakdown": False,# 🌀 均線糾結跌破 (朱老師 3-5 四線空排崩跌初跌段)
+        "bearish_alignment_4ma": False,# 均線四線空排 (5 < 10 < 20 < 60MA 全數下彎)
+        "ma20_death_break": False,    # 🔴 跌破月線3天助漲未回且月線下彎 (多頭終結清倉)
         "flat_top_breakdown": False,  # 一字頭 (平躺橫盤跌破)
         "n_pattern_top": False,       # 倒N字底 (反彈不過前高再破低)
         "rounding_top": False,        # 圓弧頂 (頭部蓋頂)
@@ -111,7 +115,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     sma60 = round(float(last.get('SMA_60', sma20)), 2)
 
     prev_sma5 = round(float(prev['SMA_5']), 2)
+    prev_sma10 = round(float(prev['SMA_10']), 2) if 'SMA_10' in prev and not np.isnan(prev['SMA_10']) else prev_sma5
     prev_sma20 = round(float(prev['SMA_20']), 2) if 'SMA_20' in prev and not np.isnan(prev['SMA_20']) else prev_sma5
+    prev_sma60 = round(float(prev.get('SMA_60', prev_sma20)), 2)
 
     # 1. 均線扣抵
     deduction = {}
@@ -235,17 +241,29 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("高檔起漲 (多頭高檔突破再創高)")
 
     # ----------------------------------------------------
-    # 策略 F：一字底 (60天狹幅橫盤平躺糾結 + 放量突破)
+    # 策略 F：均線糾結突破 (朱老師 CH3 3-5 四線高度糾結放量突破起漲第一根)
     # ----------------------------------------------------
-    if len(df) >= 40:
+    if len(df) >= 30:
         sub_period = df.iloc[-50:-1] if len(df) >= 50 else df.iloc[:-1]
         rng_max = sub_period['High'].max()
         rng_min = sub_period['Low'].min()
         amplitude = (rng_max - rng_min) / (rng_min + 1e-9)
-        ma_squeeze = abs(sma5 - sma20) / (sma20 + 1e-9)
-        if amplitude <= 0.22 and ma_squeeze <= 0.05 and c >= rng_max * 0.985 and is_red and is_5ma_rising:
+
+        # 計算四線糾結度 (5MA, 10MA, 20MA, 60MA)
+        ma_list = [sma5, sma10, sma20, sma60] if len(df) >= 60 else [sma5, sma10, sma20]
+        max_ma = max(ma_list)
+        min_ma = min(ma_list)
+        ma_dispersion = (max_ma - min_ma) / (min_ma + 1e-9)
+
+        # 四線離散在 5.2% 以內（四線高度靠攏平躺），且過去 30~50 天橫盤振幅小於 25% (低檔長期打底)
+        is_ma_squeezed = (ma_dispersion <= 0.052) or (abs(sma5 - sma20) / (sma20 + 1e-9) <= 0.035 and abs(sma10 - sma20) / (sma20 + 1e-9) <= 0.035)
+        # 一口氣站上/突破四線糾結
+        is_standing_all_mas = (c >= sma5 and c >= sma10 and c >= sma20 and c >= (sma60 * 0.992))
+
+        if amplitude <= 0.25 and is_ma_squeezed and is_standing_all_mas and is_red and is_5ma_rising and (c >= rng_max * 0.98 or vol_ratio >= 1.05 or change_pct >= 0.8):
+            signals_dict['ma_squeeze_breakout'] = True
             signals_dict['flat_base_breakout'] = True
-            signals.append("一字底 (均線高度糾結放量突破)")
+            signals.append("均線糾結突破 (四線糾結起漲第一根)")
 
     # ----------------------------------------------------
     # 策略 G：N字底 (第二隻腳不破前低，向上推升)
@@ -341,6 +359,37 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if c <= sma60 and sma5 < sma20 and change_pct <= -1.2 and is_black and (c <= df.iloc[-10:-1]['Low'].min() * 1.01) and is_5ma_falling:
         signals_dict['low_breakdown'] = True
         signals.append("低檔起跌 (弱勢跌破前低續殺)")
+
+    # 策略 F_空：均線糾結跌破 / 四線空排 (朱老師 CH3 3-5 親授：如講義波若威 3163 崩跌)
+    is_4ma_bear_order = (sma5 <= sma10 and sma10 <= sma20 and sma20 <= sma60)
+    is_4ma_falling = (is_5ma_falling and sma20 <= prev_sma20)
+    if is_4ma_bear_order and is_4ma_falling:
+        signals_dict['bearish_alignment_4ma'] = True
+
+    if len(df) >= 25:
+        sub_period_short = df.iloc[-40:-1] if len(df) >= 40 else df.iloc[:-1]
+        rng_min_short = sub_period_short['Low'].min()
+        ma_list_prev = [prev_sma5, prev_sma10, prev_sma20, prev_sma60] if len(df) >= 60 else [prev_sma5, prev_sma10, prev_sma20]
+        prev_dispersion = (max(ma_list_prev) - min(ma_list_prev)) / (min(ma_list_prev) + 1e-9)
+
+        # 均線糾結跌破：先前四線糾結 (離散度 <= 6%) 或平台整理，今日長黑摜破四線與低點支撐
+        is_breakdown_all_mas = (c <= sma5 and c <= sma10 and c <= sma20 and c <= sma60)
+        if (prev_dispersion <= 0.06 or c <= rng_min_short * 1.01) and is_breakdown_all_mas and is_black and is_5ma_falling:
+            signals_dict['ma_squeeze_breakdown'] = True
+            signals_dict['flat_top_breakdown'] = True
+            signals.append("均線糾結跌破 (四線空排崩跌初跌段)")
+
+    # ----------------------------------------------------
+    # 朱老師月線鐵律：做多要在月線上 (跌破月線3天助漲未回且月線下彎 = 多頭終結)
+    # ----------------------------------------------------
+    if len(df) >= 3:
+        past3_closes = df.iloc[-3:]['Close']
+        past3_sma20s = df.iloc[-3:]['SMA_20'] if 'SMA_20' in df else past3_closes
+        days_below_ma20 = (past3_closes < past3_sma20s).sum()
+        is_20ma_falling = (sma20 < prev_sma20 * 0.999)
+        if days_below_ma20 >= 3 and is_20ma_falling:
+            signals_dict['ma20_death_break'] = True
+            signals.append("🔴 朱老師月線鐵律：跌破月線3天助漲未回且月線下彎 (多頭終結清倉)")
 
     # 策略 J_空：一點鐘放空 (1:00 PM 尾盤選股)
     if is_black and c <= sma5 and is_5ma_falling and change_pct <= -0.5:
@@ -515,11 +564,13 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         safety_reasons.append("今日爆量過猛 (超過均量3.5倍)，常伴隨前波解套賣壓，依助教指引宜等次日回測支撐再上漲")
     if res_price > c and (res_price - c) / c <= 0.028:
         safety_reasons.append(f"上方緊臨密集前高頭部壓力 ({res_price:.2f} 元)，空間狹窄風報比差，突破易遇解套回測")
+    if signals_dict.get('ma20_death_break', False):
+        safety_reasons.append("跌破月線已超過 3 天且月線下彎，依朱老師 CH3 3-5 鐵律『做多要在月線上，跌破3天助漲未回多頭徹底終結』，嚴禁逆勢做多！")
 
-    if is_multi_bagger or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red):
-        signals_dict['safety_rating'] = "🟡 警訊注意"
-    elif up_days >= 4 or bias20 >= 12.0:
+    if signals_dict.get('ma20_death_break', False) or up_days >= 4 or bias20 >= 12.0:
         signals_dict['safety_rating'] = "🔴 嚴禁追高"
+    elif is_multi_bagger or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red):
+        signals_dict['safety_rating'] = "🟡 警訊注意"
     else:
         signals_dict['safety_rating'] = "🟢 安全首選"
 

@@ -644,11 +644,12 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         
         # 1. 策略必須是做多攻擊/轉折型態之一
         is_pullback = sig.get('pullback_buy', False)
-        is_bottom = sig.get('bottom_breakout', False) or sig.get('consolidation_breakout_imminent', False)
+        is_squeeze = sig.get('ma_squeeze_breakout', False)
+        is_bottom = sig.get('bottom_breakout', False) or sig.get('consolidation_breakout_imminent', False) or is_squeeze
         is_bull_break = (sig.get('higher_highs_lows', False) or s.get('is_bull', False)) and float(s.get('change_pct', 0)) >= 0
         is_gold_cross = sig.get('golden_cross_5_20', False)
         
-        if not (is_pullback or is_bottom or is_bull_break or is_gold_cross):
+        if not (is_pullback or is_bottom or is_bull_break or is_gold_cross or is_squeeze):
             continue
             
         # 2. 操盤線 5MA 走升且收盤站穩 5MA
@@ -675,7 +676,9 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             
         # 優先分數加權
         score = float(s.get('quality_score', 0))
-        if is_pullback:
+        if is_squeeze:
+            score += 30  # 朱老師 3-5 均線糾結起漲第一根 (波段翻倍潛力大)
+        elif is_pullback:
             score += 25  # 回後準進場是尾盤最高勝率型態
         elif is_bottom:
             score += 20  # 底部突破
@@ -692,6 +695,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             "stock": s,
             "score": score,
             "is_pullback": is_pullback,
+            "is_squeeze": is_squeeze,
             "is_bottom": is_bottom,
             "rr": rr
         })
@@ -700,23 +704,29 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         return {
             "has_pick": False,
             "picks": [],
-            "advice_title": "🛑 今日大盤偏弱或無完美訊號，建議【空手觀望，現金為王】",
-            "advice_detail": "經技術分析全攻略引擎 5 重嚴格濾網檢驗，全市場今日無符合「回後測線有守且風報比合格」之安全買點。實戰心法：『看不懂不買、沒條件不買』，寧可錯過也不要貿然追高！"
+            "code": "",
+            "name": "",
+            "market": "",
+            "industry": "",
+            "close": 0.0,
+            "change_pct": 0.0,
+            "strategy": "",
+            "stop_loss": 0.0,
+            "target_price": 0.0,
+            "risk_pct": 0.0,
+            "reward_pct": 0.0,
+            "rr_ratio": 0.0,
+            "why_buy": ["今日盤面無符合『回後準進場/均線糾結突破/底部放量起漲』之頂級高勝率標的，建議空手觀望保持耐心！"],
+            "action_plan": "無推薦個股。嚴守老朱心法：寧可錯過，絕不做錯！"
         }
         
-    # 依加權分數排序
+    # 依分數排序取 Top 5
     qualified.sort(key=lambda x: x['score'], reverse=True)
     top_items = qualified[:5]
     
-    badges = [
-        "👑 No.1 唯一首選",
-        "🥈 No.2 戰術精選",
-        "🥉 No.3 戰術精選",
-        "🎖️ No.4 戰術精選",
-        "🎖️ No.5 戰術精選"
-    ]
-    
+    badges = ["👑 今日唯一首選 No.1", "🥈 戰略精選 No.2", "🥉 戰略精選 No.3", "🎖️ 戰略精選 No.4", "🎖️ 戰略精選 No.5"]
     picks = []
+    
     for idx, item in enumerate(top_items):
         stk = item['stock']
         stk_sig = stk.get('signals_dict', {})
@@ -727,10 +737,19 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         risk_pct = round(((close_p - stop_p) / close_p) * 100, 1)
         reward_pct = round(((target_p - close_p) / close_p) * 100, 1)
         
-        strat_name = "回後準進場 (回後買上漲)" if item['is_pullback'] else ("底部起漲 (放量起跑點)" if item.get('is_bottom') else "多頭確認 (強勢起漲)")
+        if item.get('is_squeeze'):
+            strat_name = "均線糾結突破 (四線起漲第一根)"
+        elif item['is_pullback']:
+            strat_name = "回後準進場 (回後買上漲)"
+        elif item.get('is_bottom'):
+            strat_name = "底部起漲 (放量起跑點)"
+        else:
+            strat_name = "多頭確認 (強勢起漲)"
         
         reasons = []
-        if item['is_pullback']:
+        if item.get('is_squeeze'):
+            reasons.append("🌀 <b>四線高度糾結突破</b>：5/10/20/60MA 底部平躺糾結 1~3 個月，今日長紅放量首度突破四線！朱老師 3-5 親授心法：糾結突破後面常有 2~3 倍大波段，次日若未漲停鎖死，開平或小漲可把握進場！")
+        elif item['is_pullback']:
             reasons.append("🎯 <b>拉回測線有守</b>：前幾日回測均線支撐未跌破，今日轉折紅K確認站回 5MA 操盤線。")
         elif item.get('is_bottom'):
             reasons.append("🌱 <b>低檔放量起跑</b>：橫盤打底完成，首度出量紅K突破均線糾結。")
@@ -922,26 +941,36 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_desc = f"⚠️ <b>短線轉弱注意</b>：今日股價跌破 5MA ({sma5:.2f}元)，反彈推升動能受阻。下方絕對保命底線在 <b>{floor_stop}元</b> (若再跌破必須砍單逃命)。若今日尾盤無法站回 5MA，建議可先減碼部分部位防守，避免反彈行情夭折。"
             else:
                 # 【常態波段獲利守護模式】
-                if high_p >= custom_target or curr_p >= custom_target:
-                    status_type = "TARGET_HIT"
-                    status_badge = "🏁 達標停利！"
-                    status_color = "#FAAD14"
-                    status_desc = f"🎉 <b>恭喜達標</b>：股價已達前波壓力目標價 ({custom_target}元)！建議先獲利了結 1/2 入袋為安，剩餘張數守 5MA 讓獲利奔馳！"
-                elif curr_p < custom_stop:
+                # 計算是否觸發朱老師月線鐵律：做多要在月線上，跌破月線3天助漲未回且月線下彎，多頭終結！
+                days_below_ma20 = (df.iloc[-3:]['Close'] < df.iloc[-3:]['SMA_20']).sum() if len(df) >= 3 and 'SMA_20' in df else 0
+                prev_sma20 = float(df.iloc[-2].get('SMA_20', sma20)) if len(df) >= 2 else sma20
+                is_ma20_down = (sma20 < prev_sma20 * 0.999)
+
+                if curr_p < custom_stop:
                     status_type = "STOP_LOSS"
                     status_badge = "🚨 跌破停損點！"
                     status_color = "#FF4D4F"
                     status_desc = f"⚠️ <b>緊急警報</b>：當前股價 ({curr_p}元) 已摜破設定之防守價 ({custom_stop}元)！請於今日尾盤 13:00~13:30 嚴格執行紀律停損，杜絕損失擴大！"
+                elif days_below_ma20 >= 3 and is_ma20_down:
+                    status_type = "BREAK_MA20_DEATH"
+                    status_badge = "🔴 破月線3天未回·多頭終結！"
+                    status_color = "#FF4D4F"
+                    status_desc = f"🚨 <b>【朱老師月線鐵律·多頭終結清倉】</b>：當前股價已連續 3 天跌在月線 (20MA, {sma20:.2f}元) 之下，且月線已向下彎助跌！朱老師 CH3 3-5 鐵律親授：『做多要在月線上，跌破月線3天助漲不上來且月線下彎，多頭徹底終結變空頭！』絕不可再心存僥倖，請於今日尾盤全數獲利結算或清倉離場！"
+                elif high_p >= custom_target or curr_p >= custom_target:
+                    status_type = "TARGET_HIT"
+                    status_badge = "🏁 達標停利！"
+                    status_color = "#FAAD14"
+                    status_desc = f"🎉 <b>恭喜達標</b>：股價已達前波壓力目標價 ({custom_target}元)！建議先獲利了結 1/2 入袋為安，剩餘張數守 5MA 讓獲利奔馳！"
                 elif curr_p < sma5 and not sig_dict.get('pullback_buy', False):
                     status_type = "BREAK_MA5"
                     status_badge = "🛑 跌破 5MA 操盤線！"
                     status_color = "#FAAD14"
-                    status_desc = f"⚠️ <b>轉弱注意</b>：收盤價跌破 5MA ({sma5:.2f}元)，短線波段慣性改變，若今日尾盤無法站回，建議先獲利了結或減碼防守！"
+                    status_desc = f"⚠️ <b>【朱老師波段停利心法】</b>：收盤價跌破 5MA ({sma5:.2f}元)，波段第一波獲利出場點（停利10%以上入袋）！只要下方月線 (20MA, {sma20:.2f}元) 守穩未破，後續若再度轉折站上 5MA，即可進場啟動第二波、第三波操作（有三波做三波）！"
                 elif sig_dict.get('pullback_buy', False):
                     status_type = "ADD_POSITION"
-                    status_badge = "➕ 回測有守·加碼點！"
+                    status_badge = "➕ 回測有守·第二/三波買點！"
                     status_color = "#1890FF"
-                    status_desc = f"🔥 <b>戰術加碼</b>：持股拉回測線有守，今日再度浮現【回後準進場】轉折紅K，符合『買兩張長短配』加碼訊號，尾盤可加碼第 2 張！"
+                    status_desc = f"🔥 <b>【朱老師 3-5 心法：有三波做三波】</b>：持股拉回月線上方有守，今日再度浮現【回後買上漲】轉折紅K站上5MA，為第二波/第三波黃金攻擊加碼點！"
                 else:
                     status_type = "HOLD"
                     status_badge = "🛡️ 安心續抱"

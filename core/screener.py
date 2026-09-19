@@ -133,6 +133,8 @@ def calculate_quality_score(s):
     # 2. 型態起漲權重
     if sig.get('iron_man', False):
         score += 35.0
+    if sig.get('ma_squeeze_breakout', False):
+        score += 35.0  # 朱老師 CH3 3-5 均線糾結突破 (初升段翻倍黃金起漲點)
     if sig.get('golden_cross_5_20', False):
         score += 25.0
     if sig.get('pullback_buy', False):
@@ -143,6 +145,8 @@ def calculate_quality_score(s):
         score += 20.0
     if sig.get('bullish_alignment', False):
         score += 15.0
+    if sig.get('ma20_death_break', False):
+        score -= 40.0  # 跌破月線3天助漲未回且下彎 (多頭終結)
 
     # 3. 盤整末端突破潛力
     if sig.get('consolidation_breakout_imminent', False):
@@ -439,6 +443,8 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             # 做空子策略 (空方波段與即時大類)
             if strategy in ["全部", "盤中排行", "量排行"]:
                 match = True
+            elif strategy in ["均線糾結跌破", "四線空排", "均線糾結跌破 (四線空排)"] and (signals_dict.get('ma_squeeze_breakdown', False) or signals_dict.get('bearish_alignment_4ma', False)):
+                match = True
             elif strategy == "頭低底低" and (signals_dict.get('lower_highs_lows', False) or is_bear):
                 if not s.get('is_5ma_rising', False) and not s.get('above_5ma', True):
                     match = True
@@ -459,6 +465,8 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             if strategy == "全部":
                 match = True
             elif strategy in ["無敵鐵金剛", "三線合一"] and (signals_dict.get('iron_man', False) or (is_bull and s.get('is_5ma_rising', True) and s.get('above_5ma', True) and s.get('sma5', 0) >= s.get('sma20', 0))):
+                match = True
+            elif strategy in ["均線糾結突破", "四線糾結突破", "均線糾結突破 (四線糾結起漲第一根)"] and (signals_dict.get('ma_squeeze_breakout', False) or signals_dict.get('flat_base_breakout', False)):
                 match = True
             elif strategy in ["量排行", "🔥 量排行"]:
                 match = True
