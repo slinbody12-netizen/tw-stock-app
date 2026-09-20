@@ -127,12 +127,18 @@ def calculate_quality_score(s):
         score += 45.0
     elif "警訊注意" in safety:
         score += 10.0
+    elif "命中淘汰" in safety:
+        score -= 60.0
     elif "嚴禁追高" in safety:
         score -= 50.0
 
     # 2. 型態起漲權重
     if sig.get('iron_man', False):
         score += 35.0
+    if sig.get('main_wave_2nd', False):
+        score += 35.0  # 朱老師 CH5-5 鎖第一波做第二波主升段
+    if sig.get('is_turnover_success', False):
+        score += 30.0  # 朱老師 CH4-3 換手量成功強勢過高
     if sig.get('ma_squeeze_breakout', False):
         score += 35.0  # 朱老師 CH3 3-5 均線糾結突破 (初升段翻倍黃金起漲點)
     if sig.get('golden_cross_5_20', False):
@@ -143,10 +149,18 @@ def calculate_quality_score(s):
         score += 20.0
     if sig.get('higher_highs_lows', False) or s.get('is_bull', False):
         score += 20.0
+    if sig.get('is_attack_vol', False):
+        score += 15.0  # 朱老師 CH4-2 5MA 攻擊量
+    if sig.get('is_stop_fall_vol', False):
+        score += 10.0  # 朱老師 CH4-2 止跌量
     if sig.get('bullish_alignment', False):
         score += 15.0
     if sig.get('ma20_death_break', False):
         score -= 40.0  # 跌破月線3天助漲未回且下彎 (多頭終結)
+    if sig.get('is_false_breakout_dump', False):
+        score -= 50.0  # 朱老師 CH4-4 假突破誘多出貨
+    if sig.get('is_volume_price_divergence', False):
+        score -= 20.0  # 朱老師 CH4-2 量價背離
 
     # 3. 盤整末端突破潛力
     if sig.get('consolidation_breakout_imminent', False):
@@ -194,6 +208,12 @@ def calculate_quality_score(s):
         score += 8.0   # 貼近主力成本區，同一艘船上
     elif cost_diff > 6.0:
         score -= 15.0  # 大幅脫離主力建倉成本，幫主力抬轎風險高
+
+    # 8. 朱老師 CH5-3 14大淘汰選股扣分機制
+    elim_info = sig.get('elimination_info') or {}
+    if elim_info.get('is_eliminated', False):
+        elim_cnt = elim_info.get('eliminated_count', 1)
+        score -= min(60.0, elim_cnt * 25.0)
 
     return round(float(score), 1)
 
@@ -372,6 +392,13 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "is_bull": trend.get('higher_highs', False) and trend.get('higher_lows', False),
                 "is_bear": trend.get('lower_highs', False) and trend.get('lower_lows', False),
                 "iron_man": signals_dict.get('iron_man', False),
+                "main_wave_2nd": signals_dict.get('main_wave_2nd', False),
+                "is_turnover_success": signals_dict.get('is_turnover_success', False),
+                "is_false_breakout_dump": signals_dict.get('is_false_breakout_dump', False),
+                "is_attack_vol": signals_dict.get('is_attack_vol', False),
+                "is_stop_fall_vol": signals_dict.get('is_stop_fall_vol', False),
+                "is_volume_price_divergence": signals_dict.get('is_volume_price_divergence', False),
+                "elimination_info": signals_dict.get('elimination_info', {"is_eliminated": False, "reasons": []}),
                 "volume_tag": signals_dict.get('volume_tag', '常態量'),
                 "volume_status": signals_dict.get('volume_status', '常態量'),
                 "vol_ratio": signals_dict.get('vol_ratio', 1.0),
@@ -465,6 +492,10 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             if strategy == "全部":
                 match = True
             elif strategy in ["無敵鐵金剛", "三線合一"] and (signals_dict.get('iron_man', False) or (is_bull and s.get('is_5ma_rising', True) and s.get('above_5ma', True) and s.get('sma5', 0) >= s.get('sma20', 0))):
+                match = True
+            elif strategy in ["主升段第二波", "🚀 主升段第二波", "🚀 主升段第二波 (鎖一做二·飆股再發動)"] and signals_dict.get('main_wave_2nd', False):
+                match = True
+            elif strategy in ["換手成功", "🔥 換手成功強勢股", "🔥 換手成功強勢股 (高檔爆量再創新高)"] and signals_dict.get('is_turnover_success', False):
                 match = True
             elif strategy in ["均線糾結突破", "四線糾結突破", "均線糾結突破 (四線糾結起漲第一根)"] and (signals_dict.get('ma_squeeze_breakout', False) or signals_dict.get('flat_base_breakout', False)):
                 match = True

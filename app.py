@@ -355,11 +355,29 @@ def render_stock_card(item, key_prefix="sc"):
     sig = item.get('signals_dict', {})
     if item.get('iron_man') or sig.get('iron_man', False):
         badge_html += "<span style='background:linear-gradient(90deg, #D97706, #B45309); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(217,119,6,0.5);'>🏆 無敵鐵金剛</span>"
+    if item.get('main_wave_2nd') or sig.get('main_wave_2nd', False):
+        badge_html += "<span style='background:linear-gradient(90deg, #1890FF, #722ED1); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚀 主升第二波</span>"
+    if item.get('is_turnover_success') or sig.get('is_turnover_success', False):
+        badge_html += "<span style='background:linear-gradient(90deg, #FA541C, #F5222D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🔥 換手成功</span>"
+    if item.get('is_false_breakout_dump') or sig.get('is_false_breakout_dump', False):
+        badge_html += "<span style='background:#A8071A; color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚨 假突破出貨</span>"
+    
+    elim = item.get('elimination_info') or sig.get('elimination_info') or {}
+    if elim.get('is_eliminated', False):
+        badge_html += f"<span style='background:#780614; color:#FFA39E; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='{'; '.join(elim.get('reasons', []))}'>⛔ 淘汰({elim.get('eliminated_count', 1)}項)</span>"
+
     vol_tag = item.get('volume_tag') or sig.get('volume_tag', '常態量')
-    if vol_tag == "起漲放量":
-        badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>🚀 起漲攻擊量</span>"
+    if vol_tag == "起漲放量" or vol_tag == "爆量起漲":
+        badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>🚀 起漲放量</span>"
+    elif vol_tag == "攻擊量":
+        badge_html += "<span style='background:#092B00; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>⚡ 5MA攻擊量</span>"
+    elif vol_tag == "止跌量":
+        badge_html += "<span style='background:#111D2C; color:#40A9FF; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>🛡️ 止跌量</span>"
     elif vol_tag == "高檔爆量":
         badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>⚠️ 高檔爆量防倒貨</span>"
+    
+    if sig.get('is_volume_price_divergence', False):
+        badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>⚠️ 量價背離</span>"
     if sig.get('is_multi_bagger', False):
         bagger_m = sig.get('bagger_multiple', 2.0)
         badge_html += f"<span style='background:#EB2F96; color:white; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>⚠️ 已漲{bagger_m}倍(非起漲)</span>"
@@ -1578,6 +1596,8 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 "波段核心子策略分類：",
                 [
                     "🏆 無敵鐵金剛 (三線合一·高勝率旗艦)",
+                    "🚀 主升段第二波 (鎖一做二·飆股再發動)",
+                    "🔥 換手成功強勢股 (高檔爆量再創新高)",
                     "👑 頭高底高 (六字訣多頭確認)",
                     "🎯 回後準進場 (拉回測線有守·短線買點)",
                     "🌀 均線糾結突破 (四線糾結起漲第一根)",
@@ -1591,6 +1611,12 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             if "無敵鐵金剛" in sub_strat:
                 target_strategy = "無敵鐵金剛"
                 st.caption("💡 **無敵鐵金剛（三線合一）**：官方 App 勝率最高（7～8成）旗艦戰法！同時滿足「**轉折多頭確立（底底高＋頭頭高）** + **5MA/20MA雙線金叉翻揚** + **今日紅K站穩5MA**」。操盤紀律：**買進後守穩 5MA 一路續抱，跌破 5MA 立即紀律停利出場！**")
+            elif "主升段第二波" in sub_strat:
+                target_strategy = "主升段第二波"
+                st.caption("💡 **【朱老師 CH5-5 親授】鎖第一波，做第二波 (強勢飆股主升段)**：鎖定第一波連噴 15%~30% 的市場龍頭，拉回洗盤跌破 5MA 但守穩月線 (20MA)，今日出放量紅K過昨高站回 5MA，為第二波主升段絕佳買點！")
+            elif "換手成功" in sub_strat:
+                target_strategy = "換手成功"
+                st.caption("💡 **【朱老師 CH4-3 親授】高檔爆量換手成功**：高檔爆大量黑K或變盤線後 3 天內，強勢收盤突破該爆量K棒最高點！主力洗盤換手完畢，新主力籌碼進駐續噴主升段！")
             elif "頭高底高" in sub_strat:
                 target_strategy = "頭高底高"
                 st.caption("💡 **選股 vs 鎖股分工**：此處【👑 頭高底高】是「**六字訣多頭確立、5MA走升且站穩5MA**」之強勢多頭名單。")
@@ -3109,6 +3135,10 @@ elif "AI" in menu or "助教" in menu:
             key="qa_ask_mode"
         )
         preset_options = [
+            "買進股票前必須過關的「進場六問」是什麼？(CH5-6 朱老師親授)",
+            "選股如何快狠準？朱老師「14大淘汰選股法」有哪些負面剔除條件？(CH5-3 朱老師親授)",
+            "高檔爆量一定是出貨嗎？如何分辨調節量、換手量與出貨量？(CH4-3 朱老師親授)",
+            "如何抓到最強飆股的主升段？「鎖第一波做第二波」戰法為何？(CH5-5 朱老師親授)",
             "均線糾結要怎麼看？如何把握突破與避開四線空排崩跌？(CH3 3-5 朱老師親授)",
             "做多為什麼一定要在月線上？波段如何做到三波、四波？(CH3 3-5 朱老師親授)",
             "做多與做空哪種賺比較多？為什麼高檔很少均線糾結？(CH3 3-5 朱老師親授)",

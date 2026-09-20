@@ -21,6 +21,131 @@
 import pandas as pd
 import numpy as np
 
+def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Series, prev: pd.Series, signals_dict: dict) -> dict:
+    """
+    朱家泓老師 CH5-3 實戰淘汰選股法 (14大負面剔除清單)：
+    命中以下任何一條，即代表技術型態存在重大瑕疵或高檔倒貨風險，不得納入主升段追蹤！
+    1. 未打底 (未出現第二隻腳、仍在探底或底底低)
+    2. 區間整理方向不明 (量能極凍且均線糾結無表態)
+    3. 無量 / 量能背離 (價漲量急縮背離，或長久窒息量無主力)
+    4. 漲幅已達 1 倍 (100%) 以上高檔 (末升段，風險極大)
+    5. 高檔爆量連三黑 (主力高檔連續倒貨三黑烏鴉)
+    6. 前波爆量黑K重壓未化解 (上檔巨量套牢區阻擋)
+    7. 高檔爆量長黑K (高檔出貨日大長黑)
+    8. 回檔跌破月線且月線下彎 (20MA 下彎助跌，月線走空)
+    9. 回檔跌破前低 (底底低，多頭架構被破壞)
+    10. 漲 1 倍以上且趨勢頭頭低 (高檔轉弱走性格局)
+    11. 指標 (KD) 高檔背離 (股價創高但KD未能過80且頭頭低)
+    12. 法人高檔連續賣超 (三大法人於高檔連續倒貨)
+    13. 線型雜亂 (連續上下長影線、走勢密集震盪無秩序)
+    14. 有基本面但技術面走空 (頭頭低底底低空頭走勢，嚴禁逆勢做多)
+    """
+    reasons = []
+    
+    c = float(last['Close'])
+    o = float(last['Open'])
+    h = float(last['High'])
+    l = float(last['Low'])
+    prev_c = float(prev['Close'])
+    sma5 = float(last.get('SMA_5', c))
+    sma20 = float(last.get('SMA_20', c))
+    prev_sma20 = float(prev.get('SMA_20', sma20))
+    sma60 = float(last.get('SMA_60', sma20))
+    vol_ratio = float(signals_dict.get('vol_ratio', 1.0))
+    is_high = signals_dict.get('is_multi_bagger', False) or (c >= sma20 * 1.15)
+    
+    # 規則 1：未打底 (仍在探底或無底底高)
+    if not trend_info.get('higher_lows', False) and (trend_info.get('lower_lows', False) or (c < sma60 and not signals_dict.get('bottom_breakout', False))):
+        reasons.append("【規則1·未打底】尚未走出第二隻腳打底完成訊號，仍在探底或底底低，不可盲目猜底")
+        
+    # 規則 2：區間整理方向不明
+    if signals_dict.get('is_consolidation', False) and not signals_dict.get('consolidation_breakout_imminent', False) and vol_ratio < 0.85:
+        reasons.append("【規則2·區間整理方向未明】箱型整理未放量表態，提前進場容易卡死資金")
+        
+    # 規則 3：無量 / 量能背離
+    if signals_dict.get('is_volume_price_divergence', False):
+        reasons.append("【規則3·量價背離】價漲量急縮背離或高檔滯漲，攻擊量能匱乏動能衰竭")
+    elif vol_ratio <= 0.35 and not signals_dict.get('is_stop_fall_vol', False):
+        reasons.append("【規則3·成交量極度窒息】量能大幅低於均量，缺乏主力資金與流動性")
+        
+    # 規則 4：漲幅已達 1 倍 (100%) 以上高檔
+    if signals_dict.get('is_multi_bagger', False):
+        bagger_m = signals_dict.get('bagger_multiple', 1.0)
+        reasons.append(f"【規則4·暴漲{bagger_m:.1f}倍高檔區】波段漲幅已翻倍，主力獲利豐厚隨時出貨，嚴禁長抱")
+        
+    # 規則 5：高檔爆量連三黑
+    if len(df) >= 3 and (is_high or signals_dict.get('is_multi_bagger', False)):
+        last3 = df.iloc[-3:]
+        all_black = (last3['Close'] <= last3['Open']).all()
+        any_heavy = (last3['Volume'] >= last3.get('Vol_MA5', last3['Volume']) * 1.25).any()
+        if all_black and any_heavy:
+            reasons.append("【規則5·高檔爆量連三黑】高檔連續收黑倒貨，典型三黑烏鴉出貨訊號")
+            
+    # 規則 6：前波爆量黑K重壓未化解
+    if signals_dict.get('unresolved_blacks'):
+        reasons.append(f"【規則6·爆量黑K套牢重壓】前方有巨量黑K高點 ({signals_dict['unresolved_blacks'][-1]['high']}元) 重壓未化解")
+        
+    # 規則 7：高檔爆量長黑K
+    if (is_high or signals_dict.get('is_multi_bagger', False)) and (c < o) and (vol_ratio >= 1.45):
+        change_rate = (o - c) / o if o > 0 else 0
+        if change_rate >= 0.02 or (c - prev_c) / prev_c <= -0.02:
+            reasons.append("【規則7·高檔爆量長黑】高檔爆巨量收長黑K，主力帶頭倒貨大逃殺")
+            
+    # 規則 8：回檔跌破月線且月線下彎
+    if signals_dict.get('ma20_death_break', False) or (c < sma20 and sma20 < prev_sma20 * 0.999):
+        reasons.append("【規則8·跌破月線且20MA下彎】跌破月線且月線下彎助跌，空頭轉折嚴禁做多")
+        
+    # 規則 9：回檔跌破前低 (底底低)
+    if trend_info.get('lower_lows', False) or (trend_info.get('support') and c < float(trend_info['support']) * 0.998):
+        reasons.append("【規則9·跌破前低底底低】跌破前波支撐低點，破壞多頭底底高架構")
+        
+    # 規則 10：漲 1 倍以上且趨勢頭頭低
+    if signals_dict.get('is_multi_bagger', False) and trend_info.get('lower_highs', False):
+        reasons.append("【規則10·翻倍股頭頭低】倍數大漲後反彈不過前高，確認高檔做頭轉空")
+        
+    # 規則 11：指標 (KD) 高檔背離
+    if len(df) >= 12 and 'K' in df.columns:
+        recent_bars = df.iloc[-12:]
+        if c >= float(recent_bars['Close'].max()) * 0.992:
+            max_k = float(recent_bars['K'].max())
+            cur_k = float(last.get('K', 50))
+            if cur_k < 78 and cur_k < max_k - 12:
+                reasons.append("【規則11·KD高檔背離】股價創新高但KD未能突破80且頭頭低，動能背離衰竭")
+                
+    # 規則 12：法人高檔連續賣超
+    if 'Foreign_Buy' in df.columns and len(df) >= 3 and is_high:
+        recent_f = df['Foreign_Buy'].tail(3).sum()
+        if recent_f < -1000:
+            reasons.append("【規則12·法人高檔連賣】外資等三大法人於高檔連續數日大幅調節賣超")
+            
+    # 規則 13：線型雜亂
+    if len(df) >= 10:
+        past10 = df.iloc[-10:]
+        shadow_cnt = 0
+        for _, row in past10.iterrows():
+            bar_rng = max(0.01, float(row['High']) - float(row['Low']))
+            u_shd = float(row['High']) - max(float(row['Open']), float(row['Close']))
+            d_shd = min(float(row['Open']), float(row['Close'])) - float(row['Low'])
+            if (u_shd / bar_rng >= 0.42) or (d_shd / bar_rng >= 0.42):
+                shadow_cnt += 1
+        if shadow_cnt >= 5:
+            reasons.append("【規則13·線型雜亂無序】連續頻繁出現長上下影線，主力控盤紊亂缺乏趨勢性")
+            
+    # 規則 14：有基本面但技術面走空
+    if signals_dict.get('lower_highs_lows', False) or (trend_info.get('trend_status') == "空頭趨勢" and not signals_dict.get('bottom_breakout', False)):
+        reasons.append("【規則14·技術面走空】頭頭低底底低空頭趨勢確立，技術面凌駕消息面，嚴禁逆勢買進")
+
+    # 補充致命警訊：假突破誘多出貨 (朱老師 CH4-4)
+    if signals_dict.get('is_false_breakout_dump', False):
+        reasons.append("【致命警訊·假突破誘多】突破長紅3天內長黑灌破低點，多頭誘多出貨必跑！")
+
+    return {
+        "is_eliminated": len(reasons) > 0,
+        "eliminated_count": len(reasons),
+        "reasons": reasons
+    }
+
+
 def detect_signals(df: pd.DataFrame, trend_info: dict):
     """
     偵測所有關鍵技術分析訊號與官方 App 策略
@@ -31,6 +156,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "iron_man": False,            # 🏆 無敵鐵金剛 (三線合一頂級波段戰法)
         "higher_highs_lows": False,   # 頭高底高
         "pullback_buy": False,        # 回後準進場
+        "main_wave_2nd": False,       # 🚀 主升段第二波 (朱老師 CH5-5 鎖第一波做第二波)
+        "is_turnover_success": False, # 🔥 換手量成功 (朱老師 CH4-3 爆量黑K/變盤線3天內強勢過高)
+        "is_false_breakout_dump": False, # 🚨 假突破誘多出貨 (朱老師 CH4-4 突破長紅3天內破最低點)
         "bottom_breakout": False,     # 底部起漲
         "high_breakout": False,       # 高檔起漲
         "golden_cross_5_20": False,   # 雙線黃金交叉
@@ -38,6 +166,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "flat_base_breakout": False,  # 一字底
         "n_pattern_bottom": False,    # N字底
         "rounding_bottom": False,     # 圓弧底
+        "is_attack_vol": False,       # 攻擊量 (5MA量 1.25倍以上)
+        "is_stop_fall_vol": False,    # 止跌量 (5MA量 50%以下急縮且不破低)
+        "is_volume_price_divergence": False, # 量價背離 (價漲量縮 / 價平量增)
+        "elimination_info": {"is_eliminated": False, "reasons": []}, # 朱老師 14大淘汰檢核
 
         # 波段做空核心子策略
         "lower_highs_lows": False,    # 頭低底低 (六字訣空頭確認)
@@ -87,9 +219,15 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     h = round(float(last['High']), 2)
     l = round(float(last['Low']), 2)
     v = float(last['Volume'])
-    v_ma20 = float(last['Vol_MA20']) if not np.isnan(last['Vol_MA20']) else v
+    v_ma5 = float(last['Vol_MA5']) if 'Vol_MA5' in last and not np.isnan(last['Vol_MA5']) else (float(df['Volume'].tail(5).mean()) if len(df) >= 5 else v)
+    v_ma20 = float(last['Vol_MA20']) if 'Vol_MA20' in last and not np.isnan(last['Vol_MA20']) else v
+    vol_ratio_5 = round(v / v_ma5, 2) if v_ma5 > 0 else 1.0
+    vol_ratio_20 = round(v / v_ma20, 2) if v_ma20 > 0 else 1.0
+    vol_ratio = vol_ratio_5  # 朱老師 CH4-2 標準：以 5MA 基本量為基準比率
 
     prev_c = round(float(prev['Close']), 2)
+    prev_h = round(float(prev['High']), 2)
+    prev_l = round(float(prev['Low']), 2)
     change_pct = ((c - prev_c) / prev_c) * 100 if prev_c > 0 else 0
     is_red = (c >= o)
 
@@ -222,6 +360,69 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if (is_bull or signals_dict['golden_cross_5_20'] or sma5 >= sma20) and tested_ma and not_broken_support and is_red and stand_on_5ma and is_5ma_turning:
         signals_dict['pullback_buy'] = True
         signals.append("回後準進場 (拉回測線有守，轉折紅K站回5MA)")
+
+    # ----------------------------------------------------
+    # 策略 C-2：主升段第二波 (朱老師 CH5-5 強勢飆股主升段：鎖第一波，做第二波)
+    # 實戰心法鐵律：
+    # 1. 過去 10~25 天曾出現強勢第一波 (累計漲幅 >= 15%，有連續急漲)
+    # 2. 回檔跌破 5MA 降溫洗盤，但低點守穩在月線之上 (Low >= SMA_20 * 0.985) 且 20MA 向上
+    # 3. 今日出攻擊量收實體長紅站上 5MA (過昨高)，為第二波主升段起漲點！
+    # ----------------------------------------------------
+    is_main_wave_2nd = False
+    if len(df) >= 20 and is_red and (c >= sma5) and is_5ma_rising:
+        prev_high = float(prev['High'])
+        is_over_prev_high = (c > prev_high)
+        is_supported_by_ma20 = (l >= sma20 * 0.985) and (c >= sma20) and (sma20 >= prev_sma20 * 0.998)
+        prior_period = df.iloc[-25:-3] if len(df) >= 25 else df.iloc[:-3]
+        prior_min = float(prior_period['Low'].min())
+        prior_max = float(prior_period['High'].max())
+        had_strong_wave1 = (prior_max - prior_min) / (prior_min + 1e-9) >= 0.14
+        had_pullback = (df.iloc[-4:-1]['Close'] < df.iloc[-4:-1]['SMA_5']).any()
+        has_volume = (vol_ratio_5 >= 1.15 or change_pct >= 1.0)
+        if had_strong_wave1 and had_pullback and is_supported_by_ma20 and is_over_prev_high and has_volume:
+            is_main_wave_2nd = True
+
+    if is_main_wave_2nd:
+        signals_dict['main_wave_2nd'] = True
+        signals.append("🚀 主升段第二波 (鎖第一波做第二波·強勢飆股發動)")
+
+    # ----------------------------------------------------
+    # 朱老師 CH4-3：換手量成功 (高檔爆量黑K/變盤線後，3天內強勢突破最高點)
+    # ----------------------------------------------------
+    is_turnover_success = False
+    if len(df) >= 5 and is_red and (c >= sma5):
+        past4 = df.iloc[-5:-1]
+        for _, bar in past4.iterrows():
+            b_vol = float(bar['Volume'])
+            b_vma5 = float(bar.get('Vol_MA5', b_vol))
+            b_is_heavy = (b_vma5 > 0 and b_vol >= b_vma5 * 1.45)
+            b_is_black_or_doji = (bar['Close'] <= bar['Open'] * 1.005) or (abs(bar['Close'] - bar['Open']) <= (bar['High'] - bar['Low']) * 0.25)
+            if b_is_heavy and b_is_black_or_doji:
+                if c > float(bar['High']):
+                    is_turnover_success = True
+                    break
+    if is_turnover_success:
+        signals_dict['is_turnover_success'] = True
+        signals.append("🔥 換手量成功 (高檔爆量後強勢過高，籌碼換手完畢續噴)")
+
+    # ----------------------------------------------------
+    # 朱老師 CH4-4：假突破誘多出貨 (突破長紅後3天內長黑跌破該長紅最低點)
+    # ----------------------------------------------------
+    is_false_breakout_dump = False
+    if len(df) >= 5:
+        past4 = df.iloc[-5:-1]
+        for _, bar in past4.iterrows():
+            b_vol = float(bar['Volume'])
+            b_vma5 = float(bar.get('Vol_MA5', b_vol))
+            b_is_red_long = (bar['Close'] > bar['Open']) and (bar['Close'] >= bar['Low'] * 1.02)
+            b_is_vol_expand = (b_vma5 > 0 and b_vol >= b_vma5 * 1.2)
+            if b_is_red_long and b_is_vol_expand:
+                if c < float(bar['Low']) and not is_red:
+                    is_false_breakout_dump = True
+                    break
+    if is_false_breakout_dump:
+        signals_dict['is_false_breakout_dump'] = True
+        signals.append("🚨 假突破誘多出貨 (突破長紅後3天內跌破最低點，必跑！)")
 
     # ----------------------------------------------------
     # 策略 D：底部起漲 (低檔整理首度帶量長紅突破)
@@ -444,28 +645,65 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     # ----------------------------------------------------
     # 成交量位階與位置決定命運 (朱家泓老師實戰心法：起漲爆量進場 vs 高檔爆量防出貨)
+    # 朱老師 CH4-2: 基本量為 5MA 量；攻擊量 >= 1.25倍 5MA量；爆量 >= 2.0倍 5MA量
     # ----------------------------------------------------
     is_high_position = is_multi_bagger or (c >= sma20 * 1.15) or (len(df) >= 40 and c >= df.iloc[-40:]['Low'].min() * 1.35)
     is_low_position = is_near_bottom or (sma5 <= sma60 * 1.08) or (c <= sma20 * 1.06)
+    signals_dict['is_high_position'] = is_high_position
 
-    if vol_ratio >= 1.5:  # 顯著爆大量 (超過20日均量 1.5 倍)
+    # 攻擊量 (5MA量 1.25倍以上，且收紅K站上5MA)
+    is_attack_vol = (vol_ratio_5 >= 1.25) and is_red and (c >= sma5)
+    # 爆大量 (5MA量 或 20MA量 2.0倍以上)
+    is_heavy_vol = (vol_ratio_5 >= 2.0 or vol_ratio_20 >= 2.0)
+    # 止跌量 (量縮至 5MA量 55% 以下且不破昨低)
+    is_stop_fall_vol = (vol_ratio_5 <= 0.55) and (l >= prev_l * 0.995) and (c >= l + (h - l) * 0.25)
+
+    # 量價背離：價漲量急縮背離 或 高檔滯漲爆量
+    is_vp_div_bull = (change_pct >= 1.2 and vol_ratio_5 <= 0.7)
+    is_vp_div_bear = (abs(change_pct) <= 0.4 and vol_ratio_5 >= 1.8 and is_high_position)
+    is_volume_price_divergence = is_vp_div_bull or is_vp_div_bear
+
+    signals_dict['is_attack_vol'] = is_attack_vol
+    signals_dict['is_stop_fall_vol'] = is_stop_fall_vol
+    signals_dict['is_volume_price_divergence'] = is_volume_price_divergence
+
+    if is_false_breakout_dump:
+        volume_tag = "假突破誘多"
+        volume_status = "🚨 假突破誘多出貨 (長黑灌破長紅低點，嚴禁做多)"
+    elif is_turnover_success:
+        volume_tag = "換手成功"
+        volume_status = "🔥 換手量成功 (高檔爆量後強勢過高，主力換手完畢續噴)"
+    elif is_heavy_vol:
         if is_high_position or has_long_upper_shadow or (not is_red and change_pct <= 0):
             volume_tag = "高檔爆量"
-            volume_status = "⚠️ 高檔爆量 (防主力倒貨，嚴禁追高)"
-            signals.append("⚠️ 高檔爆量 (短線停利賣點，嚴禁追高)")
+            volume_status = "⚠️ 高檔爆大量 (防主力倒貨，嚴禁追高)"
+            signals.append("⚠️ 高檔爆量 (短線停利賣點，防主力倒貨)")
         elif is_low_position or is_red:
-            volume_tag = "起漲放量"
-            volume_status = "🚀 起漲攻擊量 (主力進場買點)"
-            signals.append("🚀 起漲攻擊量 (低檔放量紅K攻擊)")
+            volume_tag = "爆量起漲"
+            volume_status = "🚀 爆量攻擊起漲 (主力強勢介入表態)"
+            signals.append("🚀 爆量攻擊起漲 (低檔爆大量紅K表態)")
         else:
-            volume_tag = "溫和放量"
-            volume_status = "📊 溫和放量推升"
-    elif vol_ratio <= 0.65:
+            volume_tag = "高檔巨量"
+            volume_status = "📊 爆量巨量推升"
+    elif is_attack_vol:
+        volume_tag = "攻擊量"
+        volume_status = "⚡ 5MA攻擊量 (放量達標，多方發動攻擊)"
+        signals.append("⚡ 5MA攻擊量 (放量達標，多方強勢發動)")
+    elif is_stop_fall_vol:
+        volume_tag = "止跌量"
+        volume_status = "🛡️ 止跌量 (量縮半且不破低，短線防守)"
+        signals.append("🛡️ 止跌量 (量縮半且不破低，短線防守契機)")
+    elif vol_ratio <= 0.60:
         volume_tag = "量縮整理"
-        volume_status = "⏳ 量縮整理 (等待出量表態)"
+        volume_status = "⏳ 量縮整理 (等待主力補量表態)"
     else:
         volume_tag = "常態量"
-        volume_status = "常態量"
+        volume_status = "常態量 (量能平穩)"
+
+    if is_vp_div_bull:
+        signals.append("⚠️ 量價背離 (價漲量急縮，多方動能匱乏注意拉回)")
+    elif is_vp_div_bear:
+        signals.append("⚠️ 量價背離 (高檔出量滯漲，防主力倒貨)")
 
     signals_dict['volume_tag'] = volume_tag
     signals_dict['volume_status'] = volume_status
@@ -546,6 +784,12 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals_dict['watchlist_stage'] = "等突破"
 
     # ----------------------------------------------------
+    # 朱家泓老師 CH5-3：14大淘汰選股法即時檢核
+    # ----------------------------------------------------
+    elim_info = check_14_elimination_rules(df, trend_info, last, prev, signals_dict)
+    signals_dict['elimination_info'] = elim_info
+
+    # ----------------------------------------------------
     # 助教把關：實戰安全評級 (Safety Rating)
     # ----------------------------------------------------
     safety_reasons = []
@@ -566,10 +810,18 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         safety_reasons.append(f"上方緊臨密集前高頭部壓力 ({res_price:.2f} 元)，空間狹窄風報比差，突破易遇解套回測")
     if signals_dict.get('ma20_death_break', False):
         safety_reasons.append("跌破月線已超過 3 天且月線下彎，依朱老師 CH3 3-5 鐵律『做多要在月線上，跌破3天助漲未回多頭徹底終結』，嚴禁逆勢做多！")
+    if is_false_breakout_dump:
+        safety_reasons.append("【致命警訊·假突破誘多】突破長紅3天內長黑灌破最低點，主力誘多出貨必跑！")
 
-    if signals_dict.get('ma20_death_break', False) or up_days >= 4 or bias20 >= 12.0:
-        signals_dict['safety_rating'] = "🔴 嚴禁追高"
-    elif is_multi_bagger or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red):
+    # 加入 14 大淘汰檢核項目 (前2項代表性警示)
+    if elim_info['is_eliminated']:
+        for r in elim_info['reasons'][:2]:
+            if r not in safety_reasons:
+                safety_reasons.append(f"⚠️ {r}")
+
+    if is_false_breakout_dump or signals_dict.get('ma20_death_break', False) or elim_info['eliminated_count'] >= 2 or up_days >= 4 or bias20 >= 12.0:
+        signals_dict['safety_rating'] = "🔴 命中淘汰" if elim_info['is_eliminated'] else "🔴 嚴禁追高"
+    elif elim_info['is_eliminated'] or is_multi_bagger or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red):
         signals_dict['safety_rating'] = "🟡 警訊注意"
     else:
         signals_dict['safety_rating'] = "🟢 安全首選"

@@ -643,13 +643,15 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         c = float(s.get('close', 0))
         
         # 1. 策略必須是做多攻擊/轉折型態之一
+        is_main_wave = sig.get('main_wave_2nd', False)
+        is_turnover = sig.get('is_turnover_success', False)
         is_pullback = sig.get('pullback_buy', False)
         is_squeeze = sig.get('ma_squeeze_breakout', False)
         is_bottom = sig.get('bottom_breakout', False) or sig.get('consolidation_breakout_imminent', False) or is_squeeze
         is_bull_break = (sig.get('higher_highs_lows', False) or s.get('is_bull', False)) and float(s.get('change_pct', 0)) >= 0
         is_gold_cross = sig.get('golden_cross_5_20', False)
         
-        if not (is_pullback or is_bottom or is_bull_break or is_gold_cross or is_squeeze):
+        if not (is_main_wave or is_turnover or is_pullback or is_bottom or is_bull_break or is_gold_cross or is_squeeze):
             continue
             
         # 2. 操盤線 5MA 走升且收盤站穩 5MA
@@ -660,13 +662,18 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         if sig.get('has_long_upper_shadow', False):
             continue
             
-        # 4. 暴漲高檔剔除
+        # 4. 暴漲高檔剔除與朱老師 14 大淘汰檢核
         if sig.get('is_multi_bagger', False):
+            continue
+        elim_info = sig.get('elimination_info') or {}
+        if elim_info.get('is_eliminated', False):
+            continue
+        if sig.get('is_false_breakout_dump', False):
             continue
             
         # 5. 安全評級排除嚴禁追高
         safety = s.get('safety_rating', '')
-        if "嚴禁" in safety:
+        if "嚴禁" in safety or "淘汰" in safety:
             continue
             
         # 6. 風報比檢驗 (至少 1.1 以上)
@@ -676,7 +683,11 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             
         # 優先分數加權
         score = float(s.get('quality_score', 0))
-        if is_squeeze:
+        if is_main_wave:
+            score += 35  # 朱老師 CH5-5 鎖第一波做第二波主升段起漲點
+        elif is_turnover:
+            score += 30  # 朱老師 CH4-3 換手量成功強勢過高
+        elif is_squeeze:
             score += 30  # 朱老師 3-5 均線糾結起漲第一根 (波段翻倍潛力大)
         elif is_pullback:
             score += 25  # 回後準進場是尾盤最高勝率型態
@@ -694,6 +705,8 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         qualified.append({
             "stock": s,
             "score": score,
+            "is_main_wave": is_main_wave,
+            "is_turnover": is_turnover,
             "is_pullback": is_pullback,
             "is_squeeze": is_squeeze,
             "is_bottom": is_bottom,
@@ -716,7 +729,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             "risk_pct": 0.0,
             "reward_pct": 0.0,
             "rr_ratio": 0.0,
-            "why_buy": ["今日盤面無符合『回後準進場/均線糾結突破/底部放量起漲』之頂級高勝率標的，建議空手觀望保持耐心！"],
+            "why_buy": ["今日盤面無符合『主升段第二波/換手成功/回後準進場/均線糾結突破』之頂級高勝率標的，建議空手觀望保持耐心！"],
             "action_plan": "無推薦個股。嚴守老朱心法：寧可錯過，絕不做錯！"
         }
         
@@ -737,7 +750,11 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         risk_pct = round(((close_p - stop_p) / close_p) * 100, 1)
         reward_pct = round(((target_p - close_p) / close_p) * 100, 1)
         
-        if item.get('is_squeeze'):
+        if item.get('is_main_wave'):
+            strat_name = "主升段第二波 (鎖一做二·飆股發動)"
+        elif item.get('is_turnover'):
+            strat_name = "換手量成功 (高檔爆量強勢過高)"
+        elif item.get('is_squeeze'):
             strat_name = "均線糾結突破 (四線起漲第一根)"
         elif item['is_pullback']:
             strat_name = "回後準進場 (回後買上漲)"
@@ -747,7 +764,11 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             strat_name = "多頭確認 (強勢起漲)"
         
         reasons = []
-        if item.get('is_squeeze'):
+        if item.get('is_main_wave'):
+            reasons.append("🚀 <b>主升段第二波發動</b>：朱老師 CH5-5 強勢飆股戰法，第一波急漲拉回洗盤守穩月線，今日放量過昨高站回 5MA，為第二波主升段絕佳買點！")
+        elif item.get('is_turnover'):
+            reasons.append("🔥 <b>高檔爆量換手成功</b>：朱老師 CH4-3 實戰心法，爆量黑K或變盤線後 3 天內強勢突破高點，主力換手完畢籌碼洗淨，後續強勢續推！")
+        elif item.get('is_squeeze'):
             reasons.append("🌀 <b>四線高度糾結突破</b>：5/10/20/60MA 底部平躺糾結 1~3 個月，今日長紅放量首度突破四線！朱老師 3-5 親授心法：糾結突破後面常有 2~3 倍大波段，次日若未漲停鎖死，開平或小漲可把握進場！")
         elif item['is_pullback']:
             reasons.append("🎯 <b>拉回測線有守</b>：前幾日回測均線支撐未跌破，今日轉折紅K確認站回 5MA 操盤線。")
@@ -946,7 +967,12 @@ def inspect_portfolio(portfolio: list) -> list:
                 prev_sma20 = float(df.iloc[-2].get('SMA_20', sma20)) if len(df) >= 2 else sma20
                 is_ma20_down = (sma20 < prev_sma20 * 0.999)
 
-                if curr_p < custom_stop:
+                if sig_dict.get('is_false_breakout_dump', False):
+                    status_type = "FALSE_BREAKOUT_DUMP"
+                    status_badge = "🚨 假突破誘多·全數逃命！"
+                    status_color = "#FF4D4F"
+                    status_desc = f"🚨 <b>【朱老師 CH4-4 假突破出貨警報】</b>：突破長紅後 3 天內長黑摜破該長紅最低點！主力誘多倒貨完畢，多頭陷阱無疑，絕不可心存僥倖，請於今日尾盤全數出清逃命！"
+                elif curr_p < custom_stop:
                     status_type = "STOP_LOSS"
                     status_badge = "🚨 跌破停損點！"
                     status_color = "#FF4D4F"
@@ -961,6 +987,11 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_badge = "🏁 達標停利！"
                     status_color = "#FAAD14"
                     status_desc = f"🎉 <b>恭喜達標</b>：股價已達前波壓力目標價 ({custom_target}元)！建議先獲利了結 1/2 入袋為安，剩餘張數守 5MA 讓獲利奔馳！"
+                elif sig_dict.get('is_turnover_success', False):
+                    status_type = "TURNOVER_SUCCESS"
+                    status_badge = "🔥 換手量成功·續抱噴出！"
+                    status_color = "#1890FF"
+                    status_desc = f"🔥 <b>【朱老師 CH4-3 換手量成功】</b>：高檔爆量黑K或變盤線後 3 天內強勢過高！主力籌碼換手完畢，多頭續推主升段，安心抱緊享受獲利奔馳！"
                 elif curr_p < sma5 and not sig_dict.get('pullback_buy', False):
                     status_type = "BREAK_MA5"
                     status_badge = "🛑 跌破 5MA 操盤線！"

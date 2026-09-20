@@ -106,6 +106,7 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['SMA_60'] = df['Close'].rolling(window=60).mean()
 
     # 均量
+    df['Vol_MA5'] = df['Volume'].rolling(window=5).mean()   # 基本量 (朱老師 CH4-2 標準)
     df['Vol_MA20'] = df['Volume'].rolling(window=20).mean()
 
     # KD (9, 3, 3)
