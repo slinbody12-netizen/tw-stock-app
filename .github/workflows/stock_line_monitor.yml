@@ -32,5 +32,6 @@ jobs:
         env:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          LINE_ENABLED: "true"
         run: |
           python scripts/line_monitor.py --mode tail

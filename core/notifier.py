@@ -27,14 +27,32 @@ def get_line_config() -> dict:
         "updated_at": ""
     }
     
-    # 支援環境變數優先
+    # 1. 支援 Streamlit Secrets (若在 Streamlit Cloud 運行)
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            if "LINE_CHANNEL_ACCESS_TOKEN" in st.secrets:
+                cfg["channel_access_token"] = str(st.secrets["LINE_CHANNEL_ACCESS_TOKEN"]).strip()
+            if "LINE_USER_ID" in st.secrets:
+                cfg["user_id"] = str(st.secrets["LINE_USER_ID"]).strip()
+            if "LINE_ENABLED" in st.secrets:
+                cfg["enabled"] = bool(st.secrets["LINE_ENABLED"])
+    except Exception:
+        pass
+
+    # 2. 支援環境變數優先 (GitHub Actions / 本地環境)
     env_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
     env_uid = os.getenv("LINE_USER_ID")
-    if env_token:
+    env_enabled = os.getenv("LINE_ENABLED")
+    if env_token and env_token.strip():
         cfg["channel_access_token"] = env_token.strip()
-    if env_uid:
+    if env_uid and env_uid.strip():
         cfg["user_id"] = env_uid.strip()
+    if env_enabled is not None:
+        cfg["enabled"] = str(env_enabled).lower() in ("true", "1", "yes")
         
+    # 3. 讀取 admin_config.json 設定
+    has_saved_enabled = False
     if os.path.exists(ADMIN_CONFIG_FILE):
         try:
             with open(ADMIN_CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -43,14 +61,19 @@ def get_line_config() -> dict:
                     cfg["channel_access_token"] = saved.get("line_channel_access_token", "").strip()
                 if not cfg["user_id"] and saved.get("line_user_id"):
                     cfg["user_id"] = saved.get("line_user_id", "").strip()
-                cfg["enabled"] = bool(saved.get("line_enabled", False))
+                if "line_enabled" in saved:
+                    cfg["enabled"] = bool(saved.get("line_enabled", False))
+                    has_saved_enabled = True
                 cfg["alert_on_sell_only"] = bool(saved.get("line_alert_on_sell_only", False))
                 cfg["updated_at"] = saved.get("line_updated_at", "")
         except Exception as e:
             print(f"Error reading LINE config: {e}")
             
+    # 4. 若 Token 與 User ID 齊全，且未被顯式關閉，預設為啟用狀態
     if cfg["channel_access_token"] and cfg["user_id"]:
         cfg["is_configured"] = True
+        if env_enabled is None and not has_saved_enabled:
+            cfg["enabled"] = True
     else:
         cfg["is_configured"] = False
         

@@ -34,7 +34,9 @@ def run_monitor(mode: str = "auto"):
         print("警告：尚未設定 LINE Token 或 User ID，無法發送。")
         return
         
-    portfolio = load_portfolio(user_id="master")
+    vip_file = os.path.join(BASE_DIR, "data", "portfolios", "portfolio_usr_iv1234_vip.json")
+    target_user_id = "usr_iv1234_vip" if os.path.exists(vip_file) else "master"
+    portfolio = load_portfolio(user_id=target_user_id)
     active_holdings = [h for h in portfolio if h.get("status") == "HOLDING"]
     
     # 1. 診斷在庫持股
