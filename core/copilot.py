@@ -672,9 +672,13 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         if sig.get('is_false_breakout_dump', False):
             continue
             
-        # 5. 安全評級排除嚴禁追高
+        # 5. 安全評級排除嚴禁追高與尾盤防追高熔斷
         safety = s.get('safety_rating', '')
         if "嚴禁" in safety or "淘汰" in safety:
+            continue
+        # 朱老師尾盤鐵律：尾盤切忌追漲幅 > 6.5% 的標的 (避免次日當沖/隔日沖客倒貨洗盤)
+        chg_pct = float(s.get('change_pct', 0))
+        if chg_pct > 6.5:
             continue
             
         # 6. 風報比檢驗 (至少 1.1 以上)
@@ -685,7 +689,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         # 優先分數加權
         score = float(s.get('quality_score', 0))
         if is_main_wave:
-            score += 35  # 朱老師 CH5-5 鎖第一波做第二波主升段起漲點
+            score += 45  # 朱老師 CH5-5 鎖第一波做第二波主升段起漲點 (爆發力最強)
         elif is_turnover:
             score += 30  # 朱老師 CH4-3 換手量成功強勢過高
         elif is_squeeze:
@@ -698,8 +702,10 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             score += 15
         if s.get('chili_count', 1) >= 2:
             score += 15  # 主力動能支持
-        if rr >= 2.0:
-            score += 20  # 風報比極佳
+        if rr >= 3.0:
+            score += 30  # 風報比極佳 (>= 3.0)
+        elif rr >= 2.0:
+            score += 20
         elif rr >= 1.5:
             score += 10
             
@@ -734,9 +740,28 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             "action_plan": "無推薦個股。嚴守老朱心法：寧可錯過，絕不做錯！"
         }
         
-    # 依分數排序取 Top 5
+    # 依分數排序，並實施【產業分散濾網】：
+    # 避免單一產業過度集中 (例如同一產業最多 1~2 檔)，建立攻守兼備的多樣化投資組合
     qualified.sort(key=lambda x: x['score'], reverse=True)
-    top_items = qualified[:5]
+    
+    industry_count = {}
+    top_items = []
+    for item in qualified:
+        ind = item['stock'].get('industry', '其他')
+        if industry_count.get(ind, 0) >= 1:
+            continue  # 該產業已有名額，保留給其他潛力產業
+        top_items.append(item)
+        industry_count[ind] = industry_count.get(ind, 0) + 1
+        if len(top_items) >= 5:
+            break
+            
+    # 若分散後不足 5 檔，放寬產業限制補足
+    if len(top_items) < 5:
+        for item in qualified:
+            if item not in top_items:
+                top_items.append(item)
+                if len(top_items) >= 5:
+                    break
     
     badges = ["👑 今日唯一首選 No.1", "🥈 戰略精選 No.2", "🥉 戰略精選 No.3", "🎖️ 戰略精選 No.4", "🎖️ 戰略精選 No.5"]
     picks = []
