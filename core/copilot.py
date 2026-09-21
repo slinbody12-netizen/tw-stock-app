@@ -886,7 +886,7 @@ def inspect_portfolio(portfolio: list) -> list:
             pnl_amt = round((curr_p - buy_p) * shares, 0)
             breakeven_diff_pct = round(((buy_p - curr_p) / curr_p) * 100, 2) if curr_p > 0 and curr_p < buy_p else 0.0
             
-            # --- 計算三大關鍵解套作戰點位 ---
+            # --- 計算三大關鍵作戰點位 ---
             # 1. 🛑 底線保命價 (Stop Floor)
             if lowest_20 < curr_p:
                 floor_stop = lowest_20
@@ -894,21 +894,43 @@ def inspect_portfolio(portfolio: list) -> list:
                 floor_stop = round(curr_p * 0.95, 2)
             if trade_type == "融資":
                 floor_stop = max(floor_stop, lowest_20)
+
+            # --- 判斷持股狀態：是否進入「套牢救援雷達」---
+            # 朱老師核心操盤心法：做多守 5MA 與月線。
+            # 若個股穩居 5MA 與 20MA 之上，且回檔幅度在正常波段洗盤範圍內 (虧損 < 3.5%)，
+            # 屬於健康的多頭常態波段持股，應守 5MA 安心續抱，絕非套牢！
+            # 只有當符合下列情況之一，才判定為套牢需要啟動「救援與解套高點賣點雷達」：
+            # 1. 策略或進場原因明訂為解套/歷史套牢持股
+            # 2. 股價摜破月線且處於虧損狀態 (curr_p < sma20 且 curr_p < buy_p)
+            # 3. 股價跌破 5MA 且虧損幅度擴大 (curr_p < sma5 且 curr_p < buy_p * 0.965)
+            # 4. 虧損深度超過 5%
+            strategy_str = str(item.get("strategy", ""))
+            buy_reason_str = str(item.get("buy_reason", ""))
+            is_explicit_rescue = ("解套" in strategy_str or "救援" in strategy_str or "歷史" in buy_reason_str)
+            
+            is_below_ma20_loss = (curr_p < sma20 and curr_p < buy_p)
+            is_below_ma5_loss = (curr_p < sma5 and curr_p < buy_p * 0.965)
+            is_deep_loss = (curr_p < buy_p * 0.95)
+            
+            if curr_p >= sma5 and curr_p >= sma20 and not is_explicit_rescue:
+                is_trapped = False
+            else:
+                is_trapped = (is_explicit_rescue and curr_p < buy_p) or is_below_ma20_loss or is_below_ma5_loss or is_deep_loss
                 
-            # 2. 🎯 下一波第一反彈賣點 (Target Rebound 1)
+            # 2. 🎯 下一波第一反彈賣點 / 波段目標價 (Target Rebound 1)
             if curr_p < sma20:
                 target_rebound_1 = round(sma20, 2)
             else:
                 target_rebound_1 = round(min(highest_20, curr_p * 1.08), 2)
-            # 若距離成本 < 8%，第一賣點直接鎖定買進成本 (求保本出清)
-            if curr_p < buy_p and abs(curr_p - buy_p) / buy_p < 0.08:
+            # 只有在確診為套牢持股且距離成本 < 8% 時，第一賣點才鎖定買進成本 (求保本出清)
+            if is_trapped and curr_p < buy_p and abs(curr_p - buy_p) / buy_p < 0.08:
                 target_rebound_1 = buy_p
                 
             # 3. 🏁 極限解套高點 (Target Rebound Extreme)
             target_rebound_extreme = round(min(highest_20, max(sma60, sma20 * 1.05)), 2)
             if target_rebound_extreme < target_rebound_1:
                 target_rebound_extreme = round(target_rebound_1 * 1.05, 2)
-            if buy_p > target_rebound_1 and buy_p < target_rebound_extreme:
+            if is_trapped and buy_p > target_rebound_1 and buy_p < target_rebound_extreme:
                 target_rebound_extreme = buy_p
 
             # 融資維持率估算
@@ -925,8 +947,6 @@ def inspect_portfolio(portfolio: list) -> list:
                 custom_target = target_rebound_1
 
             # --- 智能狀態裁決 ---
-            is_trapped = (curr_p < buy_p)
-            
             if is_trapped:
                 # 【套牢持股救援與高點賣點雷達】
                 if trade_type == "融資" and (curr_p <= floor_stop or (margin_ratio and margin_ratio < 135.0)):
@@ -1004,9 +1024,9 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_desc = f"🔥 <b>【朱老師 3-5 心法：有三波做三波】</b>：持股拉回月線上方有守，今日再度浮現【回後買上漲】轉折紅K站上5MA，為第二波/第三波黃金攻擊加碼點！"
                 else:
                     status_type = "HOLD"
-                    status_badge = "🛡️ 安心續抱"
+                    status_badge = "🛡️ 守穩5MA·安心續抱"
                     status_color = "#52C41A"
-                    status_desc = f"股價 ({curr_p}元) 穩穩守在 5MA ({sma5:.2f}元) 之上，多頭走勢健康，無轉弱跡象，抱緊波段！"
+                    status_desc = f"📈 <b>守穩5MA多頭走揚</b>：股價 ({curr_p}元) 穩居 5MA ({sma5:.2f}元) 與月線 ({sma20:.2f}元) 之上，多頭結構健全無虞！朱老師鐵律：『做多守5MA，收盤未跌破一路續抱』，切勿因微幅震盪驚慌，安心抱緊波段！"
                 
             results.append({
                 "id": item["id"],
