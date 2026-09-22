@@ -1495,27 +1495,71 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             # 3. AI 助教即時互動問答 (Inline Q&A)
             st.markdown("#### 💬 向 AI 助教即時請教（個股疑難、操作策略、技術面觀念）")
             
-            cq1, cq2, cq3, cq4 = st.columns(4)
-            quick_prompt = None
-            if cq1.button("👉 這檔現在可以買嗎？", use_container_width=True, key=f"qp1_{query}"):
-                quick_prompt = f"請問 {info['name']} ({info['code']}) 現在適合進場買進嗎？"
-            if cq2.button("👉 支撐壓力和停損點在哪？", use_container_width=True, key=f"qp2_{query}"):
-                quick_prompt = f"請問 {info['name']} ({info['code']}) 的支撐壓力與停損點應該怎麼設定？"
-            if cq3.button("👉 什麼是一字底突破？", use_container_width=True, key=f"qp3_{query}"):
-                quick_prompt = "請詳細解說一字底飆股型態的四個標準條件與進場點？"
-            if cq4.button("👉 回後買上漲四大要件？", use_container_width=True, key=f"qp4_{query}"):
-                quick_prompt = "請問回後買上漲的四大必備要件是什麼？"
+            ai_ans_key = f"ai_current_answer_{query}"
+            ai_inp_key = f"ai_input_{query}"
+            if ai_inp_key not in st.session_state:
+                st.session_state[ai_inp_key] = ""
 
-            user_q = st.text_input("輸入您的問題：", value=quick_prompt if quick_prompt else "", placeholder=f"例如：{info['name']} 跌破 5MA 要停損嗎？ 或是 均線扣抵怎麼看？", key=f"ai_input_{query}")
-            if user_q:
-                with st.spinner("🧑‍🏫 AI 助教正在分析講義規範與盤面結構 ..."):
+            cq1, cq2, cq3, cq4 = st.columns(4)
+            if cq1.button("👉 這檔現在可以買嗎？", use_container_width=True, key=f"qp1_{query}"):
+                st.session_state[ai_inp_key] = f"請問 {info['name']} ({info['code']}) 現在適合進場買進嗎？"
+                st.session_state[f"ai_trigger_{query}"] = f"請問 {info['name']} ({info['code']}) 現在適合進場買進嗎？"
+            if cq2.button("👉 支撐壓力和停損點在哪？", use_container_width=True, key=f"qp2_{query}"):
+                st.session_state[ai_inp_key] = f"請問 {info['name']} ({info['code']}) 的支撐壓力與停損點應該怎麼設定？"
+                st.session_state[f"ai_trigger_{query}"] = f"請問 {info['name']} ({info['code']}) 的支撐壓力與停損點應該怎麼設定？"
+            if cq3.button("👉 什麼是一字底突破？", use_container_width=True, key=f"qp3_{query}"):
+                st.session_state[ai_inp_key] = "請詳細解說一字底飆股型態的四個標準條件與進場點？"
+                st.session_state[f"ai_trigger_{query}"] = "請詳細解說一字底飆股型態的四個標準條件與進場點？"
+            if cq4.button("👉 回後買上漲四大要件？", use_container_width=True, key=f"qp4_{query}"):
+                st.session_state[ai_inp_key] = "請問回後買上漲的四大必備要件是什麼？"
+                st.session_state[f"ai_trigger_{query}"] = "請問回後買上漲的四大必備要件是什麼？"
+
+            c_inp, c_ask_btn = st.columns([5, 1])
+            with c_inp:
+                user_q = st.text_input(
+                    "輸入您的問題：",
+                    value=st.session_state.get(ai_inp_key, ""),
+                    placeholder=f"例如：{info['name']} 跌破 5MA 要停損嗎？ 或是 均線扣抵怎麼看？",
+                    key=f"text_field_{query}"
+                )
+            with c_ask_btn:
+                st.markdown("<div style='margin-top:28px;'></div>", unsafe_allow_html=True)
+                send_clicked = st.button("🚀 送出提問", use_container_width=True, key=f"ai_send_{query}")
+
+            # 判定是否有觸發問題
+            prompt_to_execute = None
+            if st.session_state.get(f"ai_trigger_{query}"):
+                prompt_to_execute = st.session_state[f"ai_trigger_{query}"]
+                st.session_state[f"ai_trigger_{query}"] = None
+            elif send_clicked and user_q:
+                prompt_to_execute = user_q
+            elif user_q and user_q != st.session_state.get(f"ai_last_exec_{query}"):
+                prompt_to_execute = user_q
+
+            if prompt_to_execute:
+                with st.spinner("🧑‍🏫 AI 助教正在分析技術規範與盤面結構 ..."):
                     try:
-                        ai_reply = answer_question(user_q, stock_context={"code": info['code'], "df": df, "info": info})
+                        ai_reply = answer_question(prompt_to_execute, stock_context={"code": info['code'], "df": df, "info": info})
                     except TypeError:
-                        ai_reply = answer_question(user_q, stock_context={"code": info['code']})
+                        ai_reply = answer_question(prompt_to_execute, stock_context={"code": info['code']})
                     except Exception as e:
                         ai_reply = f"抱歉，分析過程中發生異常：{e}"
-                st.markdown(f"<div style='background:#1E2235; border:1px solid #3B82F6; border-radius:10px; padding:18px 20px; margin-top:12px;'>{ai_reply}</div>", unsafe_allow_html=True)
+                    st.session_state[ai_ans_key] = {
+                        "question": prompt_to_execute,
+                        "answer": ai_reply
+                    }
+                    st.session_state[f"ai_last_exec_{query}"] = prompt_to_execute
+
+            if ai_ans_key in st.session_state and st.session_state[ai_ans_key]:
+                q_data = st.session_state[ai_ans_key]
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #1E2235 0%, #151824 100%); border: 1px solid #3B82F6; border-radius: 10px; padding: 16px 20px; margin-top: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.3);'>
+                    <div style='color: #60A5FA; font-weight: 700; font-size: 1.02rem; margin-bottom: 8px;'>
+                        💬 提問：{q_data['question']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown(q_data['answer'])
 
         # 底部快捷返回列 (看完圖表後不必滑回最上方)
         st.markdown("---")
