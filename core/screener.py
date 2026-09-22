@@ -136,11 +136,11 @@ def calculate_quality_score(s):
     if sig.get('iron_man', False):
         score += 35.0
     if sig.get('main_wave_2nd', False):
-        score += 35.0  # 朱老師 CH5-5 鎖第一波做第二波主升段
+        score += 35.0  # 主升段第二波 (鎖第一波做第二波)
     if sig.get('is_turnover_success', False):
-        score += 30.0  # 朱老師 CH4-3 換手量成功強勢過高
+        score += 30.0  # 高檔巨量換手成功強勢過高
     if sig.get('ma_squeeze_breakout', False):
-        score += 35.0  # 朱老師 CH3 3-5 均線糾結突破 (初升段翻倍黃金起漲點)
+        score += 35.0  # 四線糾結突破 (初升段翻倍黃金起漲點)
     if sig.get('golden_cross_5_20', False):
         score += 25.0
     if sig.get('pullback_buy', False):
@@ -150,17 +150,17 @@ def calculate_quality_score(s):
     if sig.get('higher_highs_lows', False) or s.get('is_bull', False):
         score += 20.0
     if sig.get('is_attack_vol', False):
-        score += 15.0  # 朱老師 CH4-2 5MA 攻擊量
+        score += 15.0  # 5MA 攻擊量
     if sig.get('is_stop_fall_vol', False):
-        score += 10.0  # 朱老師 CH4-2 止跌量
+        score += 10.0  # 止跌量
     if sig.get('bullish_alignment', False):
         score += 15.0
     if sig.get('ma20_death_break', False):
         score -= 40.0  # 跌破月線3天助漲未回且下彎 (多頭終結)
     if sig.get('is_false_breakout_dump', False):
-        score -= 50.0  # 朱老師 CH4-4 假突破誘多出貨
+        score -= 50.0  # 假突破誘多出貨
     if sig.get('is_volume_price_divergence', False):
-        score -= 20.0  # 朱老師 CH4-2 量價背離
+        score -= 20.0  # 量價背離警示
 
     # 3. 盤整末端突破潛力
     if sig.get('consolidation_breakout_imminent', False):
@@ -209,7 +209,7 @@ def calculate_quality_score(s):
     elif cost_diff > 6.0:
         score -= 15.0  # 大幅脫離主力建倉成本，幫主力抬轎風險高
 
-    # 8. 朱老師 CH5-3 14大淘汰選股扣分機制
+    # 8. 14大淘汰選股扣分機制
     elim_info = sig.get('elimination_info') or {}
     if elim_info.get('is_eliminated', False):
         elim_cnt = elim_info.get('eliminated_count', 1)

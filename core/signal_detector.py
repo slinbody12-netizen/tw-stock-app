@@ -23,7 +23,7 @@ import numpy as np
 
 def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Series, prev: pd.Series, signals_dict: dict) -> dict:
     """
-    朱家泓老師 CH5-3 實戰淘汰選股法 (14大負面剔除清單)：
+    14大實戰淘汰選股法 (負面剔除清單)：
     命中以下任何一條，即代表技術型態存在重大瑕疵或高檔倒貨風險，不得納入主升段追蹤！
     1. 未打底 (未出現第二隻腳、仍在探底或底底低)
     2. 區間整理方向不明 (量能極凍且均線糾結無表態)
@@ -135,7 +135,7 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
     if signals_dict.get('lower_highs_lows', False) or (trend_info.get('trend_status') == "空頭趨勢" and not signals_dict.get('bottom_breakout', False)):
         reasons.append("【規則14·技術面走空】頭頭低底底低空頭趨勢確立，技術面凌駕消息面，嚴禁逆勢買進")
 
-    # 補充致命警訊：假突破誘多出貨 (朱老師 CH4-4)
+    # 補充致命警訊：假突破誘多出貨
     if signals_dict.get('is_false_breakout_dump', False):
         reasons.append("【致命警訊·假突破誘多】突破長紅3天內長黑灌破低點，多頭誘多出貨必跑！")
 
@@ -156,20 +156,20 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "iron_man": False,            # 🏆 無敵鐵金剛 (三線合一頂級波段戰法)
         "higher_highs_lows": False,   # 頭高底高
         "pullback_buy": False,        # 回後準進場
-        "main_wave_2nd": False,       # 🚀 主升段第二波 (朱老師 CH5-5 鎖第一波做第二波)
-        "is_turnover_success": False, # 🔥 換手量成功 (朱老師 CH4-3 爆量黑K/變盤線3天內強勢過高)
-        "is_false_breakout_dump": False, # 🚨 假突破誘多出貨 (朱老師 CH4-4 突破長紅3天內破最低點)
+        "main_wave_2nd": False,       # 🚀 主升段第二波 (鎖第一波做第二波)
+        "is_turnover_success": False, # 🔥 換手量成功 (爆量黑K/變盤線3天內強勢過高)
+        "is_false_breakout_dump": False, # 🚨 假突破誘多出貨 (突破長紅3天內破最低點)
         "bottom_breakout": False,     # 底部起漲
         "high_breakout": False,       # 高檔起漲
         "golden_cross_5_20": False,   # 雙線黃金交叉
-        "ma_squeeze_breakout": False, # 🌀 均線糾結突破 (朱老師 3-5 四線糾結起漲第一根)
+        "ma_squeeze_breakout": False, # 🌀 均線糾結突破 (四線糾結起漲第一根)
         "flat_base_breakout": False,  # 一字底
         "n_pattern_bottom": False,    # N字底
         "rounding_bottom": False,     # 圓弧底
         "is_attack_vol": False,       # 攻擊量 (5MA量 1.25倍以上)
         "is_stop_fall_vol": False,    # 止跌量 (5MA量 50%以下急縮且不破低)
         "is_volume_price_divergence": False, # 量價背離 (價漲量縮 / 價平量增)
-        "elimination_info": {"is_eliminated": False, "reasons": []}, # 朱老師 14大淘汰檢核
+        "elimination_info": {"is_eliminated": False, "reasons": []}, # 14大淘汰檢核
 
         # 波段做空核心子策略
         "lower_highs_lows": False,    # 頭低底低 (六字訣空頭確認)
@@ -177,7 +177,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "top_breakdown": False,       # 頂部起跌 (高檔頭部放量長黑破線)
         "low_breakdown": False,       # 低檔起跌 (破前低弱勢續殺)
         "death_cross_5_20": False,    # 雙線死亡交叉 / 雙線下彎
-        "ma_squeeze_breakdown": False,# 🌀 均線糾結跌破 (朱老師 3-5 四線空排崩跌初跌段)
+        "ma_squeeze_breakdown": False,# 🌀 均線糾結跌破 (四線空排崩跌初跌段)
         "bearish_alignment_4ma": False,# 均線四線空排 (5 < 10 < 20 < 60MA 全數下彎)
         "ma20_death_break": False,    # 🔴 跌破月線3天助漲未回且月線下彎 (多頭終結清倉)
         "flat_top_breakdown": False,  # 一字頭 (平躺橫盤跌破)
@@ -223,7 +223,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     v_ma20 = float(last['Vol_MA20']) if 'Vol_MA20' in last and not np.isnan(last['Vol_MA20']) else v
     vol_ratio_5 = round(v / v_ma5, 2) if v_ma5 > 0 else 1.0
     vol_ratio_20 = round(v / v_ma20, 2) if v_ma20 > 0 else 1.0
-    vol_ratio = vol_ratio_5  # 朱老師 CH4-2 標準：以 5MA 基本量為基準比率
+    vol_ratio = vol_ratio_5  # 標準：以 5MA 基本量為基準比率
 
     prev_c = round(float(prev['Close']), 2)
     prev_h = round(float(prev['High']), 2)
@@ -331,7 +331,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     # ----------------------------------------------------
     # 策略 🏆：無敵鐵金剛 / 三線合一 (官方 App 最高勝率 7~8 成旗艦波段戰法)
-    # 實戰心法鐵律 (朱家泓老師核心心法)：
+    # 實戰心法鐵律 (大師核心操盤心法)：
     # 1. 轉折波：多頭型態已確認 (底底高 + 頭頭高，即 is_bull)
     # 2. 雙線翻揚：5MA >= 20MA 且 5MA 走升 (is_5ma_rising)、20MA 走平或向上翻揚
     # 3. 今日 K 棒：當日收實體紅 K (c >= o) 且收盤價站穩 5MA 操盤線 (c >= sma5)
@@ -362,7 +362,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("回後準進場 (拉回測線有守，轉折紅K站回5MA)")
 
     # ----------------------------------------------------
-    # 策略 C-2：主升段第二波 (朱老師 CH5-5 強勢飆股主升段：鎖第一波，做第二波)
+    # 策略 C-2：主升段第二波 (強勢飆股主升段：鎖第一波，做第二波)
     # 實戰心法鐵律：
     # 1. 過去 10~25 天曾出現強勢第一波 (累計漲幅 >= 15%，有連續急漲)
     # 2. 回檔跌破 5MA 降溫洗盤，但低點守穩在月線之上 (Low >= SMA_20 * 0.985) 且 20MA 向上
@@ -387,7 +387,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("🚀 主升段第二波 (鎖第一波做第二波·強勢飆股發動)")
 
     # ----------------------------------------------------
-    # 朱老師 CH4-3：換手量成功 (高檔爆量黑K/變盤線後，3天內強勢突破最高點)
+    # 高檔爆量換手成功 (高檔爆量黑K/變盤線後，3天內強勢突破最高點)
     # ----------------------------------------------------
     is_turnover_success = False
     if len(df) >= 5 and is_red and (c >= sma5):
@@ -406,7 +406,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("🔥 換手量成功 (高檔爆量後強勢過高，籌碼換手完畢續噴)")
 
     # ----------------------------------------------------
-    # 朱老師 CH4-4：假突破誘多出貨 (突破長紅後3天內長黑跌破該長紅最低點)
+    # 假突破誘多出貨 (突破長紅後3天內長黑跌破該長紅最低點)
     # ----------------------------------------------------
     is_false_breakout_dump = False
     if len(df) >= 5:
@@ -442,7 +442,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("高檔起漲 (多頭高檔突破再創高)")
 
     # ----------------------------------------------------
-    # 策略 F：均線糾結突破 (朱老師 CH3 3-5 四線高度糾結放量突破起漲第一根)
+    # 策略 F：均線糾結突破 (四線高度糾結放量突破起漲第一根)
     # ----------------------------------------------------
     if len(df) >= 30:
         sub_period = df.iloc[-50:-1] if len(df) >= 50 else df.iloc[:-1]
@@ -561,7 +561,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals_dict['low_breakdown'] = True
         signals.append("低檔起跌 (弱勢跌破前低續殺)")
 
-    # 策略 F_空：均線糾結跌破 / 四線空排 (朱老師 CH3 3-5 親授：如講義波若威 3163 崩跌)
+    # 策略 F_空：均線糾結跌破 / 四線空排 (四線空排崩跌警訊)
     is_4ma_bear_order = (sma5 <= sma10 and sma10 <= sma20 and sma20 <= sma60)
     is_4ma_falling = (is_5ma_falling and sma20 <= prev_sma20)
     if is_4ma_bear_order and is_4ma_falling:
@@ -581,7 +581,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             signals.append("均線糾結跌破 (四線空排崩跌初跌段)")
 
     # ----------------------------------------------------
-    # 朱老師月線鐵律：做多要在月線上 (跌破月線3天助漲未回且月線下彎 = 多頭終結)
+    # 趨勢線鐵律：做多要在月線上 (跌破月線3天助漲未回且月線下彎 = 多頭終結)
     # ----------------------------------------------------
     if len(df) >= 3:
         past3_closes = df.iloc[-3:]['Close']
@@ -590,7 +590,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         is_20ma_falling = (sma20 < prev_sma20 * 0.999)
         if days_below_ma20 >= 3 and is_20ma_falling:
             signals_dict['ma20_death_break'] = True
-            signals.append("🔴 朱老師月線鐵律：跌破月線3天助漲未回且月線下彎 (多頭終結清倉)")
+            signals.append("🔴 趨勢線鐵律：跌破月線3天助漲未回且月線下彎 (多頭終結清倉)")
 
     # 策略 J_空：一點鐘放空 (1:00 PM 尾盤選股)
     if is_black and c <= sma5 and is_5ma_falling and change_pct <= -0.5:
@@ -644,8 +644,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     signals_dict['bagger_multiple'] = bagger_multiple
 
     # ----------------------------------------------------
-    # 成交量位階與位置決定命運 (朱家泓老師實戰心法：起漲爆量進場 vs 高檔爆量防出貨)
-    # 朱老師 CH4-2: 基本量為 5MA 量；攻擊量 >= 1.25倍 5MA量；爆量 >= 2.0倍 5MA量
+    # 成交量位階與位置決定命運 (經典量價操盤心法：起漲爆量進場 vs 高檔爆量防出貨)
+    # 基本量為 5MA 量；攻擊量 >= 1.25倍 5MA量；爆量 >= 2.0倍 5MA量
     # ----------------------------------------------------
     is_high_position = is_multi_bagger or (c >= sma20 * 1.15) or (len(df) >= 40 and c >= df.iloc[-40:]['Low'].min() * 1.35)
     is_low_position = is_near_bottom or (sma5 <= sma60 * 1.08) or (c <= sma20 * 1.06)
@@ -784,7 +784,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals_dict['watchlist_stage'] = "等突破"
 
     # ----------------------------------------------------
-    # 朱家泓老師 CH5-3：14大淘汰選股法即時檢核
+    # 14大淘汰選股法即時檢核
     # ----------------------------------------------------
     elim_info = check_14_elimination_rules(df, trend_info, last, prev, signals_dict)
     signals_dict['elimination_info'] = elim_info
@@ -809,7 +809,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if res_price > c and (res_price - c) / c <= 0.028:
         safety_reasons.append(f"上方緊臨密集前高頭部壓力 ({res_price:.2f} 元)，空間狹窄風報比差，突破易遇解套回測")
     if signals_dict.get('ma20_death_break', False):
-        safety_reasons.append("跌破月線已超過 3 天且月線下彎，依朱老師 CH3 3-5 鐵律『做多要在月線上，跌破3天助漲未回多頭徹底終結』，嚴禁逆勢做多！")
+        safety_reasons.append("跌破月線已超過 3 天且月線下彎，依趨勢線鐵律『做多要在月線上，跌破3天助漲未回多頭徹底終結』，嚴禁逆勢做多！")
     if is_false_breakout_dump:
         safety_reasons.append("【致命警訊·假突破誘多】突破長紅3天內長黑灌破最低點，主力誘多出貨必跑！")
 

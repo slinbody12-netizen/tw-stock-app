@@ -663,7 +663,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         if sig.get('has_long_upper_shadow', False):
             continue
             
-        # 4. 暴漲高檔剔除與朱老師 14 大淘汰檢核
+        # 4. 暴漲高檔剔除與 14 大淘汰檢核
         if sig.get('is_multi_bagger', False):
             continue
         elim_info = sig.get('elimination_info') or {}
@@ -676,7 +676,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         safety = s.get('safety_rating', '')
         if "嚴禁" in safety or "淘汰" in safety:
             continue
-        # 朱老師尾盤鐵律：尾盤切忌追漲幅 > 6.5% 的標的 (避免次日當沖/隔日沖客倒貨洗盤)
+        # 尾盤風控鐵律：尾盤切忌追漲幅 > 6.5% 的標的 (避免次日當沖/隔日沖客倒貨洗盤)
         chg_pct = float(s.get('change_pct', 0))
         if chg_pct > 6.5:
             continue
@@ -689,11 +689,11 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         # 優先分數加權
         score = float(s.get('quality_score', 0))
         if is_main_wave:
-            score += 45  # 朱老師 CH5-5 鎖第一波做第二波主升段起漲點 (爆發力最強)
+            score += 45  # 鎖第一波做第二波主升段起漲點 (爆發力最強)
         elif is_turnover:
-            score += 30  # 朱老師 CH4-3 換手量成功強勢過高
+            score += 30  # 高檔巨量換手成功強勢過高
         elif is_squeeze:
-            score += 30  # 朱老師 3-5 均線糾結起漲第一根 (波段翻倍潛力大)
+            score += 30  # 均線糾結起漲第一根 (波段翻倍潛力大)
         elif is_pullback:
             score += 25  # 回後準進場是尾盤最高勝率型態
         elif is_bottom:
@@ -737,7 +737,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             "reward_pct": 0.0,
             "rr_ratio": 0.0,
             "why_buy": ["今日盤面無符合『主升段第二波/換手成功/回後準進場/均線糾結突破』之頂級高勝率標的，建議空手觀望保持耐心！"],
-            "action_plan": "無推薦個股。嚴守老朱心法：寧可錯過，絕不做錯！"
+            "action_plan": "無推薦個股。嚴守量化操盤心法：寧可錯過，絕不做錯！"
         }
         
     # 依分數排序，並實施【產業分散濾網】：
@@ -791,11 +791,11 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         
         reasons = []
         if item.get('is_main_wave'):
-            reasons.append("🚀 <b>主升段第二波發動</b>：朱老師 CH5-5 強勢飆股戰法，第一波急漲拉回洗盤守穩月線，今日放量過昨高站回 5MA，為第二波主升段絕佳買點！")
+            reasons.append("🚀 <b>主升段第二波發動</b>：強勢飆股主升段戰法，第一波急漲拉回洗盤守穩月線，今日放量過昨高站回 5MA，為第二波主升段絕佳買點！")
         elif item.get('is_turnover'):
-            reasons.append("🔥 <b>高檔爆量換手成功</b>：朱老師 CH4-3 實戰心法，爆量黑K或變盤線後 3 天內強勢突破高點，主力換手完畢籌碼洗淨，後續強勢續推！")
+            reasons.append("🔥 <b>高檔爆量換手成功</b>：量價結構實戰心法，爆量黑K或變盤線後 3 天內強勢突破高點，主力換手完畢籌碼洗淨，後續強勢續推！")
         elif item.get('is_squeeze'):
-            reasons.append("🌀 <b>四線高度糾結突破</b>：5/10/20/60MA 底部平躺糾結 1~3 個月，今日長紅放量首度突破四線！朱老師 3-5 親授心法：糾結突破後面常有 2~3 倍大波段，次日若未漲停鎖死，開平或小漲可把握進場！")
+            reasons.append("🌀 <b>四線高度糾結突破</b>：5/10/20/60MA 底部平躺糾結 1~3 個月，今日長紅放量首度突破四線！四線糾結放量突破後面常有倍數大波段，次日若未漲停鎖死，開平或小漲可把握進場！")
         elif item['is_pullback']:
             reasons.append("🎯 <b>拉回測線有守</b>：前幾日回測均線支撐未跌破，今日轉折紅K確認站回 5MA 操盤線。")
         elif item.get('is_bottom'):
@@ -922,7 +922,7 @@ def inspect_portfolio(portfolio: list) -> list:
                 floor_stop = max(floor_stop, lowest_20)
 
             # --- 判斷持股狀態：是否進入「套牢救援雷達」---
-            # 朱老師核心操盤心法：做多守 5MA 與月線。
+            # 核心操盤心法：做多守 5MA 與月線。
             # 若個股穩居 5MA 與 20MA 之上，且回檔幅度在正常波段洗盤範圍內 (虧損 < 3.5%)，
             # 屬於健康的多頭常態波段持股，應守 5MA 安心續抱，絕非套牢！
             # 只有當符合下列情況之一，才判定為套牢需要啟動「救援與解套高點賣點雷達」：
@@ -1008,7 +1008,7 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_desc = f"⚠️ <b>短線轉弱注意</b>：今日股價跌破 5MA ({sma5:.2f}元)，反彈推升動能受阻。下方絕對保命底線在 <b>{floor_stop}元</b> (若再跌破必須砍單逃命)。若今日尾盤無法站回 5MA，建議可先減碼部分部位防守，避免反彈行情夭折。"
             else:
                 # 【常態波段獲利守護模式】
-                # 計算是否觸發朱老師月線鐵律：做多要在月線上，跌破月線3天助漲未回且月線下彎，多頭終結！
+                # 計算是否觸發趨勢線鐵律：做多要在月線上，跌破月線3天助漲未回且月線下彎，多頭終結！
                 days_below_ma20 = (df.iloc[-3:]['Close'] < df.iloc[-3:]['SMA_20']).sum() if len(df) >= 3 and 'SMA_20' in df else 0
                 prev_sma20 = float(df.iloc[-2].get('SMA_20', sma20)) if len(df) >= 2 else sma20
                 is_ma20_down = (sma20 < prev_sma20 * 0.999)
@@ -1017,7 +1017,7 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_type = "FALSE_BREAKOUT_DUMP"
                     status_badge = "🚨 假突破誘多·全數逃命！"
                     status_color = "#FF4D4F"
-                    status_desc = f"🚨 <b>【朱老師 CH4-4 假突破出貨警報】</b>：突破長紅後 3 天內長黑摜破該長紅最低點！主力誘多倒貨完畢，多頭陷阱無疑，絕不可心存僥倖，請於今日尾盤全數出清逃命！"
+                    status_desc = f"🚨 <b>【假突破出貨警報】</b>：突破長紅後 3 天內長黑摜破該長紅最低點！主力誘多倒貨完畢，多頭陷阱無疑，絕不可心存僥倖，請於今日尾盤全數出清逃命！"
                 elif curr_p < custom_stop:
                     status_type = "STOP_LOSS"
                     status_badge = "🚨 跌破停損點！"
@@ -1027,7 +1027,7 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_type = "BREAK_MA20_DEATH"
                     status_badge = "🔴 破月線3天未回·多頭終結！"
                     status_color = "#FF4D4F"
-                    status_desc = f"🚨 <b>【朱老師月線鐵律·多頭終結清倉】</b>：當前股價已連續 3 天跌在月線 (20MA, {sma20:.2f}元) 之下，且月線已向下彎助跌！朱老師 CH3 3-5 鐵律親授：『做多要在月線上，跌破月線3天助漲不上來且月線下彎，多頭徹底終結變空頭！』絕不可再心存僥倖，請於今日尾盤全數獲利結算或清倉離場！"
+                    status_desc = f"🚨 <b>【趨勢線鐵律·多頭終結清倉】</b>：當前股價已連續 3 天跌在月線 (20MA, {sma20:.2f}元) 之下，且月線已向下彎助跌！核心鐵律：『做多要在月線上，跌破月線3天助漲不上來且月線下彎，多頭徹底終結變空頭！』絕不可再心存僥倖，請於今日尾盤全數獲利結算或清倉離場！"
                 elif high_p >= custom_target or curr_p >= custom_target:
                     status_type = "TARGET_HIT"
                     status_badge = "🏁 達標停利！"
@@ -1037,22 +1037,22 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_type = "TURNOVER_SUCCESS"
                     status_badge = "🔥 換手量成功·續抱噴出！"
                     status_color = "#1890FF"
-                    status_desc = f"🔥 <b>【朱老師 CH4-3 換手量成功】</b>：高檔爆量黑K或變盤線後 3 天內強勢過高！主力籌碼換手完畢，多頭續推主升段，安心抱緊享受獲利奔馳！"
+                    status_desc = f"🔥 <b>【高檔巨量換手成功】</b>：高檔爆量黑K或變盤線後 3 天內強勢過高！主力籌碼換手完畢，多頭續推主升段，安心抱緊享受獲利奔馳！"
                 elif curr_p < sma5 and not sig_dict.get('pullback_buy', False):
                     status_type = "BREAK_MA5"
                     status_badge = "🛑 跌破 5MA 操盤線！"
                     status_color = "#FAAD14"
-                    status_desc = f"⚠️ <b>【朱老師波段停利心法】</b>：收盤價跌破 5MA ({sma5:.2f}元)，波段第一波獲利出場點（停利10%以上入袋）！只要下方月線 (20MA, {sma20:.2f}元) 守穩未破，後續若再度轉折站上 5MA，即可進場啟動第二波、第三波操作（有三波做三波）！"
+                    status_desc = f"⚠️ <b>【量化波段停利心法】</b>：收盤價跌破 5MA ({sma5:.2f}元)，波段第一波獲利出場點（停利10%以上入袋）！只要下方月線 (20MA, {sma20:.2f}元) 守穩未破，後續若再度轉折站上 5MA，即可進場啟動第二波、第三波操作（有三波做三波）！"
                 elif sig_dict.get('pullback_buy', False):
                     status_type = "ADD_POSITION"
                     status_badge = "➕ 回測有守·第二/三波買點！"
                     status_color = "#1890FF"
-                    status_desc = f"🔥 <b>【朱老師 3-5 心法：有三波做三波】</b>：持股拉回月線上方有守，今日再度浮現【回後買上漲】轉折紅K站上5MA，為第二波/第三波黃金攻擊加碼點！"
+                    status_desc = f"🔥 <b>【波段心法：有三波做三波】</b>：持股拉回月線上方有守，今日再度浮現【回後買上漲】轉折紅K站上5MA，為第二波/第三波黃金攻擊加碼點！"
                 else:
                     status_type = "HOLD"
                     status_badge = "🛡️ 守穩5MA·安心續抱"
                     status_color = "#52C41A"
-                    status_desc = f"📈 <b>守穩5MA多頭走揚</b>：股價 ({curr_p}元) 穩居 5MA ({sma5:.2f}元) 與月線 ({sma20:.2f}元) 之上，多頭結構健全無虞！朱老師鐵律：『做多守5MA，收盤未跌破一路續抱』，切勿因微幅震盪驚慌，安心抱緊波段！"
+                    status_desc = f"📈 <b>守穩5MA多頭走揚</b>：股價 ({curr_p}元) 穩居 5MA ({sma5:.2f}元) 與月線 ({sma20:.2f}元) 之上，多頭結構健全無虞！操盤鐵律：『做多守5MA，收盤未跌破一路續抱』，切勿因微幅震盪驚慌，安心抱緊波段！"
                 
             results.append({
                 "id": item["id"],
