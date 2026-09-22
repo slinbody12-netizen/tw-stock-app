@@ -539,6 +539,8 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 match = True
             elif strategy == "一點鐘" and signals_dict.get('one_pm_strategy', False):
                 match = True
+            elif strategy in ["主流族群", "主流族群飆股", "🌊 主流族群飆股 (資金風口龍頭)"] and (s.get('is_top_mainstream', False) or s.get('sector_rank', 99) <= 5):
+                match = True
             elif strategy == "盤中強勢" and (signals_dict.get('intraday_strong', False) or s.get('intraday_tag') in ['突破起漲', '盤整等突破']):
                 match = True
             elif strategy == "等突破" and stage == "等突破":

@@ -60,18 +60,25 @@ def resolve_broad_sector(raw_industry: str) -> str:
     raw = raw_industry.strip()
     return BROAD_SECTOR_MAP.get(raw, raw)
 
-def calculate_sector_heat_rankings(stocks_data: list, force_refresh=False) -> list:
+def calculate_sector_heat_rankings(stocks_data: list = None, force_refresh=False) -> list:
     """
     依全市場股票數據，即時運算全市場族群熱度排行榜 (Sector Heat Rankings)
     回傳按熱度降序排列之族群字典清單
     """
     global _SECTOR_HEAT_CACHE, _SECTOR_HEAT_TIME
     now = time.time()
-    if not force_refresh and _SECTOR_HEAT_CACHE is not None and (now - _SECTOR_HEAT_TIME) < 60:
+    if not force_refresh and _SECTOR_HEAT_CACHE is not None and (now - _SECTOR_HEAT_TIME) < 180:
         return _SECTOR_HEAT_CACHE
 
+    if stocks_data is None:
+        try:
+            from core.screener import get_all_analyzed_stocks
+            stocks_data = get_all_analyzed_stocks(enable_realtime=False)
+        except Exception:
+            stocks_data = []
+
     if not stocks_data:
-        return []
+        return _SECTOR_HEAT_CACHE or []
 
     sector_groups = defaultdict(lambda: {
         'count': 0,
@@ -180,6 +187,10 @@ def calculate_sector_heat_rankings(stocks_data: list, force_refresh=False) -> li
     _SECTOR_HEAT_CACHE = ranked_sectors
     _SECTOR_HEAT_TIME = now
     return ranked_sectors
+
+def get_sector_heat_rankings(stocks_data: list = None, force_refresh=False) -> list:
+    """便捷獲取主流族群熱度排行榜（優先讀取記憶體快取）"""
+    return calculate_sector_heat_rankings(stocks_data=stocks_data, force_refresh=force_refresh)
 
 def get_stock_sector_info(stock_record: dict, sector_rankings: list = None) -> dict:
     """

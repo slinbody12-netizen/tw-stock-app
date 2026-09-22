@@ -24,6 +24,7 @@ import core.wave_engine
 import core.trend_analyzer
 import core.signal_detector
 import core.screener
+import core.sector_radar
 import core.ai_assistant
 import core.copilot
 import core.tracker
@@ -33,6 +34,7 @@ importlib.reload(core.wave_engine)
 importlib.reload(core.trend_analyzer)
 importlib.reload(core.signal_detector)
 importlib.reload(core.screener)
+importlib.reload(core.sector_radar)
 importlib.reload(core.ai_assistant)
 importlib.reload(core.copilot)
 importlib.reload(core.tracker)
@@ -41,7 +43,8 @@ from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, 
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
-from core.screener import scan_stocks, load_speedy_chips
+from core.screener import scan_stocks, load_speedy_chips, get_all_analyzed_stocks
+from core.sector_radar import calculate_sector_heat_rankings, get_stock_sector_info, get_sector_heat_rankings
 from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query, diagnose_stock_deeply
 from core.copilot import (
     load_portfolio, save_portfolio, add_holding, close_holding, delete_holding,
@@ -812,6 +815,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             bagger_m = signals_dict.get('bagger_multiple', 2.0)
             extra_badges += f"<span class='tag-badge' style='background:#EB2F96;'>⚠️ 波段已大漲 {bagger_m} 倍</span>"
 
+        # 主流族群熱度徽章
+        sec_info = get_stock_sector_info({'industry': info.get('industry', '')})
+        sec_badge_html = ""
+        if sec_info and sec_info.get('badge'):
+            sec_badge_html = f"<span class='tag-badge' style='background:#1E2235; border:1px solid {sec_info['badge_color']}; color:{sec_info['badge_color']}; margin-left:4px;' title='所屬主流族群：{sec_info['sector']} (熱度排行第 {sec_info['rank']} 名，評分 {sec_info['heat_score']} 分)'>{sec_info['badge']} · {sec_info['sector']}</span> "
+
         # 頂部個股精緻大卡片 (手機自適應排版)
         header_html = (
             f'<div class="main-header">'
@@ -819,6 +828,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             f'<div>'
             f'<h2 style="margin: 0; display: inline-block; font-size: 1.65rem;">{info["name"]} ({info["code"]})</h2> '
             f'<span class="tag-badge" style="background: #3B5998; margin-left: 6px;">{info["industry"]}</span> '
+            f'{sec_badge_html}'
             f'<span class="tag-badge" style="background: {trend["trend_color"]};">{trend["trend_badge"]}</span> '
             f'{rt_badge} '
             f'{extra_badges}'
@@ -1623,44 +1633,74 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     # ----------------------------------------------------
     # 🔥 全市場主流族群即時熱度雷達 (Top-Down 資金流向與熱門板塊)
     # ----------------------------------------------------
+    hot_sectors = []
     try:
-        from core.sector_radar import calculate_sector_heat_rankings
-        cached_stocks = get_all_analyzed_stocks(enable_realtime=False)
-        hot_sectors = calculate_sector_heat_rankings(cached_stocks)
-        
-        with st.expander("🔥 【全市場主流族群即時熱度雷達】點擊查看資金流向 Top 5 主流板塊與熱度排行", expanded=True):
-            st.markdown(
-                "<div style='color:#94A3B8; font-size:0.86rem; margin-bottom:10px;'>"
-                "🌊 <b>Top-Down 宏觀選股雷達</b>：即時運算全市場<b>成交金額佔比 (45%)</b>、<b>板塊均漲強度 (35%)</b> 與<b>多頭齊漲廣度 (20%)</b>，"
-                "優先鎖定市場熱錢瘋狂狂炒的風口族群！"
-                "</div>",
-                unsafe_allow_html=True
-            )
-            top5_secs = hot_sectors[:5]
+        hot_sectors = get_sector_heat_rankings()
+    except Exception as e:
+        st.caption(f"主流族群雷達運算中... ({e})")
+
+    if hot_sectors:
+        top5_secs = hot_sectors[:5]
+        st.markdown(
+            """
+            <div style='background: linear-gradient(135deg, #181C2C 0%, #151824 100%); border: 1.5px solid #3B82F6; border-radius: 12px; padding: 14px 18px; margin-bottom: 18px; box-shadow: 0 4px 18px rgba(0,0,0,0.35);'>
+                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;'>
+                    <div style='font-size: 1.18rem; font-weight: 800; color: #FFFFFF; display: flex; align-items: center; gap: 8px;'>
+                        🔥 全市場主流族群即時熱度雷達 <span style='font-size: 0.78rem; background: #FF4D4F; color: white; padding: 2px 8px; border-radius: 10px; font-weight: 700;'>Top-Down 資金風口</span>
+                    </div>
+                    <div style='font-size: 0.8rem; color: #94A3B8;'>
+                        量化三維度模型：<b>成交金佔比 (45%)</b> ＋ <b>板塊均漲 (35%)</b> ＋ <b>多頭齊漲 (20%)</b>
+                    </div>
+                </div>
+                <div style='color: #CBD5E1; font-size: 0.85rem; margin-bottom: 12px; line-height: 1.5;'>
+                    🌊 <b>實戰量化法則</b>：主力大資金必然進駐主流板塊！操盤「順風順水」首選 <b>Top 5 資金風口族群</b> 中的轉折起漲領頭羊，避開乏人問津的邊緣冷門股！
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        if top5_secs:
             cols = st.columns(len(top5_secs))
             for i, sec in enumerate(top5_secs):
                 with cols[i]:
                     chg_c = "#EF4444" if sec['avg_chg'] >= 0 else "#22C55E"
                     chg_sign = "+" if sec['avg_chg'] >= 0 else ""
+                    leaders_str = "、".join(sec.get('leader_names', [])[:3]) if sec.get('leader_names') else "無"
                     st.markdown(f"""
-                    <div style='background:#1E2235; border:1px solid {sec['badge_color']}; border-radius:8px; padding:10px 12px; margin-bottom:8px; box-shadow: 0 4px 10px rgba(0,0,0,0.25);'>
+                    <div style='background:#1E2235; border:1.5px solid {sec['badge_color']}; border-radius:10px; padding:12px 14px; margin-bottom:12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);'>
                         <div style='display:flex; justify-content:space-between; align-items:center;'>
                             <span style='color:{sec['badge_color']}; font-weight:700; font-size:0.82rem;'>Top {sec['rank']} {sec['badge']}</span>
-                            <span style='color:#FFF; font-weight:800; font-size:1.05rem;'>{sec['heat_score']}分</span>
+                            <span style='color:#FFF; font-weight:800; font-size:1.1rem;'>{sec['heat_score']}分</span>
                         </div>
-                        <div style='font-size:1.02rem; font-weight:700; color:#F8FAFC; margin:4px 0;'>{sec['sector']}</div>
-                        <div style='font-size:0.8rem; color:#94A3B8; line-height:1.5;'>
-                            資金佔比: <b style='color:#F1F5F9;'>{sec['turnover_share']}%</b> ({sec['turnover_e']}億)<br>
-                            板塊均漲: <b style='color:{chg_c};'>{chg_sign}{sec['avg_chg']}%</b><br>
-                            站穩5MA: <b style='color:#F1F5F9;'>{sec['bull_ratio']}%</b>
+                        <div style='font-size:1.08rem; font-weight:700; color:#F8FAFC; margin:6px 0 4px 0;'>{sec['sector']}</div>
+                        <div style='font-size:0.82rem; color:#94A3B8; line-height:1.6;'>
+                            💰 資金佔比: <b style='color:#F1F5F9;'>{sec['turnover_share']}%</b> ({sec['turnover_e']}億)<br>
+                            📈 板塊均漲: <b style='color:{chg_c};'>{chg_sign}{sec['avg_chg']}%</b><br>
+                            ⚔️ 站穩5MA: <b style='color:#F1F5F9;'>{sec['bull_ratio']}%</b>
                         </div>
-                        <div style='font-size:0.75rem; color:#64748B; margin-top:5px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;' title='{", ".join(sec["leader_names"])}'>
-                            領頭羊: {", ".join(sec['leader_names'][:3])}
+                        <div style='font-size:0.75rem; color:#64748B; margin-top:6px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;' title='{leaders_str}'>
+                            👑 領頭羊: <span style='color:#CBD5E1;'>{leaders_str}</span>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-    except Exception:
-        pass
+
+        with st.expander("📊 查看全市場 79 個族群板塊完整熱度排行表 (Top-Down 全市場資金地圖)", expanded=False):
+            sec_table_data = []
+            for s_item in hot_sectors:
+                sec_table_data.append({
+                    "排名": f"Top {s_item['rank']}",
+                    "族群板塊": s_item['sector'],
+                    "熱度評分": f"{s_item['heat_score']} 分",
+                    "熱度等級": s_item['badge'],
+                    "資金佔比": f"{s_item['turnover_share']}%",
+                    "成交金額(億)": f"{s_item['turnover_e']} 億",
+                    "板塊均漲": f"{'+' if s_item['avg_chg']>=0 else ''}{s_item['avg_chg']}%",
+                    "站穩5MA比例": f"{s_item['bull_ratio']}%",
+                    "代表個股": "、".join(s_item.get('leader_names', [])[:4])
+                })
+            df_sec = pd.DataFrame(sec_table_data)
+            st.dataframe(df_sec, use_container_width=True, hide_index=True)
 
     # 頂部控制列
     col_t1, col_t2 = st.columns([1.2, 3])
@@ -1671,7 +1711,14 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         if dir_val == "多":
             main_mode = st.radio(
                 "選股大類",
-                ["📈 波段策略 (起漲關鍵)", "🔥 量排行 (位置決定命運)", "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)", "⚡ 盤中強勢 (量價齊揚)", "💎 長抱標的 (長期多排)"],
+                [
+                    "📈 波段策略 (起漲關鍵)",
+                    "🌊 主流族群飆股 (資金風口龍頭)",
+                    "🔥 量排行 (位置決定命運)",
+                    "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)",
+                    "⚡ 盤中強勢 (量價齊揚)",
+                    "💎 長抱標的 (長期多排)"
+                ],
                 horizontal=True,
                 key="scr_main_mode"
             )
@@ -1754,6 +1801,9 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 target_strategy = "低檔起跌"
             elif "雙線死亡交叉" in sub_strat:
                 target_strategy = "雙線死亡交叉"
+    elif "主流族群" in main_mode:
+        target_strategy = "主流族群"
+        st.caption("💡 **【全市場主流族群飆股】**：鎖定全市場資金佔比最高、板塊集體大漲的 **Top 5 主流族群**（如半導體/IC、航運業、AI硬體等），並優先精選其中具有**轉折起漲紅K、操盤線走升且站穩 5MA** 之領頭龍頭股！")
     elif "長抱" in main_mode:
         target_strategy = "長抱"
     elif "強勢" in main_mode:
