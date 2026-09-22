@@ -708,6 +708,18 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             score += 20
         elif rr >= 1.5:
             score += 10
+
+        # 7. 主流族群熱度加權 (Top-Down 資金流向與族群動能)
+        is_mainstream = s.get('is_top_mainstream', False)
+        is_cold = s.get('is_cold_marginal', False)
+        sec_name = s.get('sector_name', s.get('industry', ''))
+        sec_rank = s.get('sector_rank', 99)
+        sec_heat = s.get('sector_heat_score', 0.0)
+
+        if is_mainstream:
+            score += 35.0  # 🔥 站在主流風口重大加分
+        elif is_cold:
+            score -= 40.0  # ❄️ 冷門邊緣懲罰扣分
             
         qualified.append({
             "stock": s,
@@ -717,7 +729,11 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             "is_pullback": is_pullback,
             "is_squeeze": is_squeeze,
             "is_bottom": is_bottom,
-            "rr": rr
+            "rr": rr,
+            "is_mainstream": is_mainstream,
+            "sec_name": sec_name,
+            "sec_rank": sec_rank,
+            "sec_heat": sec_heat
         })
         
     if not qualified:
@@ -810,6 +826,16 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         if stk.get('major_cost', 0) > 0:
             reasons.append(f"💼 <b>大戶成本優勢</b>：主力5日建倉均價 {stk.get('major_cost')} 元，現價評定【{stk.get('cost_badge')}】。")
             
+        # 主流族群熱度雷達理由標籤
+        sec_name = stk.get('sector_name', stk.get('industry', ''))
+        sec_badge = stk.get('sector_badge', '')
+        sec_rank = stk.get('sector_rank', 99)
+        sec_heat = stk.get('sector_heat_score', 0.0)
+        if stk.get('is_top_mainstream', False):
+            reasons.append(f"🌊 <b>站在資金主流風口</b>：所屬【{sec_name}】位居市場熱度榜 Top {sec_rank} ({sec_badge}，熱度 {sec_heat} 分)，熱錢群聚推升動能強勁！")
+        elif sec_badge:
+            reasons.append(f"📊 <b>產業板塊評級</b>：所屬【{sec_name}】目前處於【{sec_badge}】(熱度 {sec_heat} 分)。")
+            
         action_plan = (
             f"⏰ <b>實戰操作指引</b>：今日 <b>12:40 - 13:30 尾盤</b>，若股價維持在 <b>{close_p} 元附近（收盤站穩 5MA）</b>，"
             f"即可於尾盤現價進場；進場後嚴格遵守紀律，以 <b>{stop_p} 元</b> 為短線停損防守點（跌破無條件離場），"
@@ -823,6 +849,10 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             "name": stk['name'],
             "market": stk.get('market', 'TW'),
             "industry": stk.get('industry', ''),
+            "sector_name": sec_name,
+            "sector_rank": sec_rank,
+            "sector_heat_score": sec_heat,
+            "sector_badge": sec_badge,
             "close": close_p,
             "change_pct": stk['change_pct'],
             "strategy": strat_name,

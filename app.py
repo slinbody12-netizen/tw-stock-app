@@ -361,6 +361,14 @@ def render_stock_card(item, key_prefix="sc"):
         badge_html += "<span style='background:linear-gradient(90deg, #FA541C, #F5222D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🔥 換手成功</span>"
     if item.get('is_false_breakout_dump') or sig.get('is_false_breakout_dump', False):
         badge_html += "<span style='background:#A8071A; color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚨 假突破出貨</span>"
+
+    # 主流族群熱度雷達標籤
+    sec_name = item.get('sector_name')
+    sec_badge = item.get('sector_badge')
+    sec_color = item.get('sector_badge_color', '#1890FF')
+    sec_heat = item.get('sector_heat_score', 0.0)
+    if sec_badge:
+        badge_html += f"<span style='background:#1F2438; border:1px solid {sec_color}; color:{sec_color}; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='所屬主流板塊：{sec_name} (熱度 {sec_heat}分)'>{sec_badge} · {sec_name}</span>"
     
     elim = item.get('elimination_info') or sig.get('elimination_info') or {}
     if elim.get('is_eliminated', False):
@@ -1611,6 +1619,48 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 elif menu == "🎯 全攻略選股池 (多/空策略)":
     st.header("🎯 全攻略條件選股雷達 · 旗艦專業版")
     st.caption("完整收錄 8 大波段子策略、長抱存股、盤中強勢、一點鐘尾盤進場與助教實戰安全評級")
+
+    # ----------------------------------------------------
+    # 🔥 全市場主流族群即時熱度雷達 (Top-Down 資金流向與熱門板塊)
+    # ----------------------------------------------------
+    try:
+        from core.sector_radar import calculate_sector_heat_rankings
+        cached_stocks = get_all_analyzed_stocks(enable_realtime=False)
+        hot_sectors = calculate_sector_heat_rankings(cached_stocks)
+        
+        with st.expander("🔥 【全市場主流族群即時熱度雷達】點擊查看資金流向 Top 5 主流板塊與熱度排行", expanded=True):
+            st.markdown(
+                "<div style='color:#94A3B8; font-size:0.86rem; margin-bottom:10px;'>"
+                "🌊 <b>Top-Down 宏觀選股雷達</b>：即時運算全市場<b>成交金額佔比 (45%)</b>、<b>板塊均漲強度 (35%)</b> 與<b>多頭齊漲廣度 (20%)</b>，"
+                "優先鎖定市場熱錢瘋狂狂炒的風口族群！"
+                "</div>",
+                unsafe_allow_html=True
+            )
+            top5_secs = hot_sectors[:5]
+            cols = st.columns(len(top5_secs))
+            for i, sec in enumerate(top5_secs):
+                with cols[i]:
+                    chg_c = "#EF4444" if sec['avg_chg'] >= 0 else "#22C55E"
+                    chg_sign = "+" if sec['avg_chg'] >= 0 else ""
+                    st.markdown(f"""
+                    <div style='background:#1E2235; border:1px solid {sec['badge_color']}; border-radius:8px; padding:10px 12px; margin-bottom:8px; box-shadow: 0 4px 10px rgba(0,0,0,0.25);'>
+                        <div style='display:flex; justify-content:space-between; align-items:center;'>
+                            <span style='color:{sec['badge_color']}; font-weight:700; font-size:0.82rem;'>Top {sec['rank']} {sec['badge']}</span>
+                            <span style='color:#FFF; font-weight:800; font-size:1.05rem;'>{sec['heat_score']}分</span>
+                        </div>
+                        <div style='font-size:1.02rem; font-weight:700; color:#F8FAFC; margin:4px 0;'>{sec['sector']}</div>
+                        <div style='font-size:0.8rem; color:#94A3B8; line-height:1.5;'>
+                            資金佔比: <b style='color:#F1F5F9;'>{sec['turnover_share']}%</b> ({sec['turnover_e']}億)<br>
+                            板塊均漲: <b style='color:{chg_c};'>{chg_sign}{sec['avg_chg']}%</b><br>
+                            站穩5MA: <b style='color:#F1F5F9;'>{sec['bull_ratio']}%</b>
+                        </div>
+                        <div style='font-size:0.75rem; color:#64748B; margin-top:5px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;' title='{", ".join(sec["leader_names"])}'>
+                            領頭羊: {", ".join(sec['leader_names'][:3])}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+    except Exception:
+        pass
 
     # 頂部控制列
     col_t1, col_t2 = st.columns([1.2, 3])

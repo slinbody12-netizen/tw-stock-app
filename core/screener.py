@@ -413,6 +413,22 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
         except Exception:
             continue
 
+    # 注入全市場主流族群熱度雷達數據 (Top-Down 資金流向與熱度)
+    try:
+        from core.sector_radar import calculate_sector_heat_rankings, get_stock_sector_info
+        sec_ranks = calculate_sector_heat_rankings(analyzed, force_refresh=force_refresh)
+        for s in analyzed:
+            sec_inf = get_stock_sector_info(s, sec_ranks)
+            s['sector_name'] = sec_inf['sector']
+            s['sector_rank'] = sec_inf['rank']
+            s['sector_heat_score'] = sec_inf['heat_score']
+            s['sector_badge'] = sec_inf['badge']
+            s['sector_badge_color'] = sec_inf['badge_color']
+            s['is_top_mainstream'] = sec_inf['is_top_mainstream']
+            s['is_cold_marginal'] = sec_inf['is_cold_marginal']
+    except Exception:
+        pass
+
     # 依品質評分嚴格降序排列 (最佳者排在最上方)
     analyzed.sort(key=lambda x: x['quality_score'], reverse=True)
 
