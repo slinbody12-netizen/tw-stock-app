@@ -180,9 +180,25 @@ def calculate_sector_heat_rankings(stocks_data: list = None, force_refresh=False
     # 按熱度分數嚴格降序排列
     ranked_sectors.sort(key=lambda x: x['heat_score'], reverse=True)
 
-    # 標註排名
+    # 依客觀綜合排名重新標註等級與勳章
     for rank, sec in enumerate(ranked_sectors, 1):
         sec['rank'] = rank
+        if rank <= 5 or sec['turnover_share'] >= 10.0:
+            sec['badge'] = "🔥 超熱門主流"
+            sec['badge_color'] = "#FF4D4F"
+            sec['level'] = "SUPER_HOT"
+        elif rank <= 12 or sec['turnover_share'] >= 3.0:
+            sec['badge'] = "⚡ 資金聚焦"
+            sec['badge_color'] = "#FA8C16"
+            sec['level'] = "HOT"
+        elif rank <= 25 or sec['turnover_share'] >= 0.8:
+            sec['badge'] = "⚪ 常態輪動"
+            sec['badge_color'] = "#1890FF"
+            sec['level'] = "NORMAL"
+        else:
+            sec['badge'] = "❄️ 冷門邊緣"
+            sec['badge_color'] = "#8C8C8C"
+            sec['level'] = "COLD"
 
     _SECTOR_HEAT_CACHE = ranked_sectors
     _SECTOR_HEAT_TIME = now
@@ -214,8 +230,8 @@ def get_stock_sector_info(stock_record: dict, sector_rankings: list = None) -> d
                 "badge": sec['badge'],
                 "badge_color": sec['badge_color'],
                 "level": sec['level'],
-                "is_top_mainstream": sec['rank'] <= 5 or sec['level'] in ["SUPER_HOT", "HOT"],
-                "is_cold_marginal": sec['level'] == "COLD" and sec['turnover_share'] < 0.8
+                "is_top_mainstream": sec['rank'] <= 5 or sec['turnover_share'] >= 8.0,
+                "is_cold_marginal": sec['rank'] > 20 and sec['turnover_share'] < 1.0
             }
 
     # 預設一般

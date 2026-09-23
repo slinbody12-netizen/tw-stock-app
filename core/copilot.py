@@ -678,7 +678,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             continue
         # 尾盤風控鐵律：尾盤切忌追漲幅 > 6.5% 的標的 (避免次日當沖/隔日沖客倒貨洗盤)
         chg_pct = float(s.get('change_pct', 0))
-        if chg_pct > 6.5:
+        if chg_pct > 6.5 or chg_pct < -1.0:
             continue
             
         # 6. 風報比檢驗 (至少 1.1 以上)
@@ -756,22 +756,34 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             "action_plan": "無推薦個股。嚴守量化操盤心法：寧可錯過，絕不做錯！"
         }
         
-    # 依分數排序，並實施【產業分散濾網】：
-    # 避免單一產業過度集中 (例如同一產業最多 1~2 檔)，建立攻守兼備的多樣化投資組合
-    qualified.sort(key=lambda x: x['score'], reverse=True)
+    # 依分數排序，並實施【主流族群優先 + 適度產業分散濾網】：
+    # 確保優先挑選市場熱門板塊，主流產業允許最多 2 檔龍頭，徹底杜絕冷門邊緣股
+    qualified.sort(key=lambda x: (1 if x.get('is_mainstream') else 0, x['score']), reverse=True)
     
     industry_count = {}
     top_items = []
+    # 第 1 輪：優先從 Top 主流族群中挑選（主流產業允許最多 2 檔）
     for item in qualified:
+        if item.get('stock', {}).get('is_cold_marginal', False):
+            continue
         ind = item['stock'].get('industry', '其他')
-        if industry_count.get(ind, 0) >= 1:
-            continue  # 該產業已有名額，保留給其他潛力產業
+        max_allowed = 2 if item.get('is_mainstream') else 1
+        if industry_count.get(ind, 0) >= max_allowed:
+            continue
         top_items.append(item)
         industry_count[ind] = industry_count.get(ind, 0) + 1
         if len(top_items) >= 5:
             break
             
-    # 若分散後不足 5 檔，放寬產業限制補足
+    # 第 2 輪：若不足 5 檔，放寬產業限制補足非冷門標的
+    if len(top_items) < 5:
+        for item in qualified:
+            if item not in top_items and not item.get('stock', {}).get('is_cold_marginal', False):
+                top_items.append(item)
+                if len(top_items) >= 5:
+                    break
+
+    # 第 3 輪：極端情況下補足剩餘合格標的
     if len(top_items) < 5:
         for item in qualified:
             if item not in top_items:
