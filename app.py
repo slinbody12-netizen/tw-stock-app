@@ -76,6 +76,23 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    /* 徹底隱藏 Streamlit 頂部工具列 (Share, GitHub 貓咪, 編輯鉛筆, 三點選單, 部署狀態, 頁腳) */
+    header [data-testid="stToolbar"],
+    [data-testid="stToolbar"],
+    #MainMenu,
+    .stDeployButton,
+    footer,
+    [data-testid="stDecoration"],
+    header div[class*="toolbar"],
+    header div[class*="actionElements"],
+    header div[class*="viewerBadge"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    header {
+        background: transparent !important;
+    }
+
     .main-header {
         background: linear-gradient(90deg, #1A1C29 0%, #25283B 100%);
         padding: 16px 22px;
