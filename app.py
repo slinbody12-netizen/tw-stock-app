@@ -180,6 +180,7 @@ def check_password():
         clean_url_pin = str(url_pin).strip()
         if clean_url_pin == SYSTEM_PIN:
             st.session_state["authenticated"] = True
+            st.session_state["is_guest_8888"] = True
             st.session_state["copilot_authenticated"] = False
             st.session_state.pop("copilot_user", None)
             if "copilot_pin" in st.query_params:
@@ -189,6 +190,7 @@ def check_password():
             vip_info = verify_copilot_pin(clean_url_pin)
             if vip_info:
                 st.session_state["authenticated"] = True
+                st.session_state["is_guest_8888"] = False
                 st.session_state["copilot_authenticated"] = True
                 st.session_state["copilot_user"] = vip_info
                 st.session_state["target_nav_menu"] = "🤖 實戰秘密特務 (操盤副駕駛)"
@@ -217,7 +219,8 @@ def check_password():
                 clean_input = str(pin_input).strip()
                 if clean_input == SYSTEM_PIN:
                     st.session_state["authenticated"] = True
-                    # 關鍵資安隔離：以 8888 登入者強制剝離並鎖定特務身分！
+                    # 關鍵資安隔離：以 8888 登入者設為訪客模式，鎖定僅可查看主圖！
+                    st.session_state["is_guest_8888"] = True
                     st.session_state["copilot_authenticated"] = False
                     st.session_state.pop("copilot_user", None)
                     if "copilot_pin" in st.query_params:
@@ -227,6 +230,7 @@ def check_password():
                     vip_info = verify_copilot_pin(clean_input)
                     if vip_info:
                         st.session_state["authenticated"] = True
+                        st.session_state["is_guest_8888"] = False
                         st.session_state["copilot_authenticated"] = True
                         st.session_state["copilot_user"] = vip_info
                         st.session_state["target_nav_menu"] = "🤖 實戰秘密特務 (操盤副駕駛)"
@@ -613,14 +617,21 @@ def get_market_condition():
         "date": "最新交易日"
     }
 
-MENU_OPTIONS = [
-    "📊 個股技術分析 (轉折波主圖)",
-    "🎯 全攻略選股池 (多/空策略)",
-    "👁️ 晚間盤後功課 (鎖股名冊監控)",
-    "📅 每日推薦實戰日誌 (👑 指揮官專屬)",
-    "🤖 實戰秘密特務 (操盤副駕駛)",
-    "🧑‍🏫 AI 實戰操盤助教"
-]
+is_guest = st.session_state.get("is_guest_8888", False)
+
+if is_guest:
+    MENU_OPTIONS = [
+        "📊 個股技術分析 (轉折波主圖)"
+    ]
+else:
+    MENU_OPTIONS = [
+        "📊 個股技術分析 (轉折波主圖)",
+        "🎯 全攻略選股池 (多/空策略)",
+        "👁️ 晚間盤後功課 (鎖股名冊監控)",
+        "📅 每日推薦實戰日誌 (👑 指揮官專屬)",
+        "🤖 實戰秘密特務 (操盤副駕駛)",
+        "🧑‍🏫 AI 實戰操盤助教"
+    ]
 
 if 'selected_stock' not in st.session_state:
     st.session_state.selected_stock = "2330"
@@ -630,49 +641,85 @@ if st.session_state.get('goto_chart', False):
     st.session_state.nav_menu_radio = MENU_OPTIONS[0]
     st.session_state.goto_chart = False
 elif st.session_state.get('target_nav_menu', None):
-    st.session_state.nav_menu_radio = st.session_state.target_nav_menu
+    if not is_guest and st.session_state.target_nav_menu in MENU_OPTIONS:
+        st.session_state.nav_menu_radio = st.session_state.target_nav_menu
+    else:
+        st.session_state.nav_menu_radio = MENU_OPTIONS[0]
     st.session_state.target_nav_menu = None
 
 st.sidebar.title("📈 技術分析全攻略")
 st.sidebar.caption("專業轉折波與波段趨勢操盤系統")
 
-menu = st.sidebar.radio(
-    "功能導航",
-    MENU_OPTIONS,
-    key="nav_menu_radio"
-)
-
-if st.session_state.get("copilot_authenticated", False):
-    c_u = st.session_state.get("copilot_user", {})
-    if c_u.get("role") == "ADMIN" or c_u.get("user_id") == "master":
-        st.sidebar.markdown(
-            "<div style='background:#2B2312; padding:6px 10px; border-radius:6px; border:1px solid #FAAD14; color:#FFE58F; font-size:0.8rem; margin-top:4px; margin-bottom:6px; text-align:center;'>👑 最高指揮官：已解鎖專屬日誌與全特權</div>",
-            unsafe_allow_html=True
-        )
-    else:
-        st.sidebar.markdown(
-            f"<div style='background:#2A1B2D; padding:6px 10px; border-radius:6px; border:1px solid #722ED1; color:#D3ADF7; font-size:0.8rem; margin-top:4px; margin-bottom:6px; text-align:center;'>🎖️ VIP 學員：{c_u.get('name', '已授權')}</div>",
-            unsafe_allow_html=True
-        )
-    c_btn1, c_btn2 = st.sidebar.columns(2)
-    with c_btn1:
-        if st.button("🔒 鎖定特務", key="sidebar_lock_copilot", use_container_width=True):
-            st.session_state["copilot_authenticated"] = False
-            if "copilot_user" in st.session_state:
-                del st.session_state["copilot_user"]
-            if "copilot_pin" in st.query_params:
-                del st.query_params["copilot_pin"]
-            st.rerun()
-    with c_btn2:
-        if st.button("🚪 登出系統", key="sidebar_full_logout", use_container_width=True):
-            st.session_state.clear()
-            st.query_params.clear()
-            st.rerun()
-else:
-    if st.sidebar.button("🚪 登出系統 (重新輸入密碼)", key="sidebar_full_logout_gen", use_container_width=True):
+if is_guest:
+    menu = "📊 個股技術分析 (轉折波主圖)"
+    st.sidebar.markdown(
+        "<div style='background:#1C1F2E; padding:8px 12px; border-radius:6px; border:1px solid #3B82F6; color:#93C5FD; font-size:0.82rem; margin-top:6px; margin-bottom:10px;'>"
+        "👤 <b>訪客模式 (8888)</b><br>"
+        "<span style='font-size:0.75rem; color:#94A3B8;'>僅開放「個股技術分析 (轉折波主圖)」功能，其餘高階選股、做功課與特務副駕駛功能均受權限保護。</span>"
+        "</div>",
+        unsafe_allow_html=True
+    )
+    with st.sidebar.popover("🔓 特務金鑰解鎖全功能", use_container_width=True):
+        st.write("#### 🛡️ 解鎖系統全功能")
+        st.caption("請輸入最高指揮官專屬金鑰 (Master PIN) 或 VIP 授權碼：")
+        unlock_pin = st.text_input("金鑰 / PIN", type="password", key="guest_unlock_pin_input")
+        if st.button("🚀 驗證並解鎖", type="primary", use_container_width=True, key="guest_unlock_btn"):
+            u_info = verify_copilot_pin(unlock_pin.strip())
+            if u_info:
+                st.session_state["is_guest_8888"] = False
+                st.session_state["copilot_authenticated"] = True
+                st.session_state["copilot_user"] = u_info
+                st.session_state["nav_menu_radio"] = "📊 個股技術分析 (轉折波主圖)"
+                st.success(f"🎉 驗證成功！歡迎 {u_info.get('name')}，已解鎖全功能！")
+                st.rerun()
+            else:
+                st.error("❌ 金鑰錯誤，請重新確認！")
+    if st.sidebar.button("🚪 登出系統", key="sidebar_guest_logout", use_container_width=True):
         st.session_state.clear()
         st.query_params.clear()
         st.rerun()
+else:
+    menu = st.sidebar.radio(
+        "功能導航",
+        MENU_OPTIONS,
+        key="nav_menu_radio"
+    )
+
+    if st.session_state.get("copilot_authenticated", False):
+        c_u = st.session_state.get("copilot_user", {})
+        if c_u.get("role") == "ADMIN" or c_u.get("user_id") == "master":
+            st.sidebar.markdown(
+                "<div style='background:#2B2312; padding:6px 10px; border-radius:6px; border:1px solid #FAAD14; color:#FFE58F; font-size:0.8rem; margin-top:4px; margin-bottom:6px; text-align:center;'>👑 最高指揮官：已解鎖專屬日誌與全特權</div>",
+                unsafe_allow_html=True
+            )
+        else:
+            st.sidebar.markdown(
+                f"<div style='background:#2A1B2D; padding:6px 10px; border-radius:6px; border:1px solid #722ED1; color:#D3ADF7; font-size:0.8rem; margin-top:4px; margin-bottom:6px; text-align:center;'>🎖️ VIP 學員：{c_u.get('name', '已授權')}</div>",
+                unsafe_allow_html=True
+            )
+        c_btn1, c_btn2 = st.sidebar.columns(2)
+        with c_btn1:
+            if st.button("🔒 鎖定特務", key="sidebar_lock_copilot", use_container_width=True):
+                st.session_state["copilot_authenticated"] = False
+                if "copilot_user" in st.session_state:
+                    del st.session_state["copilot_user"]
+                if "copilot_pin" in st.query_params:
+                    del st.query_params["copilot_pin"]
+                st.rerun()
+        with c_btn2:
+            if st.button("🚪 登出系統", key="sidebar_full_logout", use_container_width=True):
+                st.session_state.clear()
+                st.query_params.clear()
+                st.rerun()
+    else:
+        if st.sidebar.button("🚪 登出系統 (重新輸入密碼)", key="sidebar_full_logout_gen", use_container_width=True):
+            st.session_state.clear()
+            st.query_params.clear()
+            st.rerun()
+
+# 資安硬核阻斷：若為訪客模式，無論如何強制鎖定在個股分析，徹底防範非法跳轉
+if is_guest and menu != "📊 個股技術分析 (轉折波主圖)":
+    menu = "📊 個股技術分析 (轉折波主圖)"
 
 st.sidebar.subheader("🔍 股票搜尋")
 search_query = st.sidebar.text_input("輸入股票代碼或名稱 (例如 2330 或 台積電)", value=st.session_state.selected_stock)
@@ -721,9 +768,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
     nav_col1, nav_col2, nav_col3 = st.columns([3, 3.5, 2.5])
     with nav_col1:
-        if st.button(f"🔙 返回【{ret_label}】繼續選股", type="primary", use_container_width=True, key="top_btn_back"):
-            st.session_state.target_nav_menu = target_menu
-            st.rerun()
+        if not is_guest:
+            if st.button(f"🔙 返回【{ret_label}】繼續選股", type="primary", use_container_width=True, key="top_btn_back"):
+                st.session_state.target_nav_menu = target_menu
+                st.rerun()
+        else:
+            st.markdown("<div style='padding-top:8px; color:#888; font-size:0.85rem;'>🔒 訪客模式 (僅限個股分析)</div>", unsafe_allow_html=True)
 
     with nav_col2:
         if stock_queue and query in stock_queue:
@@ -750,18 +800,21 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 else:
                     st.button("末檔 ➡️", disabled=True, use_container_width=True, key="nav_next_disabled")
         else:
-            st.caption("💡 提示：從選股池載入股票後，可在此直接按「上一檔/下一檔」連續看盤！")
+            st.caption("💡 提示：輸入代碼或在左側點選熱門標的快速看盤！" if is_guest else "💡 提示：從選股池載入股票後，可在此直接按「上一檔/下一檔」連續看盤！")
 
     with nav_col3:
-        c_quick_pool, c_quick_watch = st.columns(2)
-        with c_quick_pool:
-            if st.button("🎯 選股雷達", use_container_width=True, key="top_quick_pool"):
-                st.session_state.target_nav_menu = "🎯 全攻略選股池 (多/空策略)"
-                st.rerun()
-        with c_quick_watch:
-            if st.button("👁️ 鎖股名冊", use_container_width=True, key="top_quick_watch"):
-                st.session_state.target_nav_menu = "👁️ 鎖股池分階段管理"
-                st.rerun()
+        if not is_guest:
+            c_quick_pool, c_quick_watch = st.columns(2)
+            with c_quick_pool:
+                if st.button("🎯 選股雷達", use_container_width=True, key="top_quick_pool"):
+                    st.session_state.target_nav_menu = "🎯 全攻略選股池 (多/空策略)"
+                    st.rerun()
+            with c_quick_watch:
+                if st.button("👁️ 鎖股名冊", use_container_width=True, key="top_quick_watch"):
+                    st.session_state.target_nav_menu = "👁️ 鎖股池分階段管理"
+                    st.rerun()
+        else:
+            st.caption("🔒 策略選股與功課名冊已鎖定")
 
     st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
@@ -847,64 +900,65 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
         )
         st.markdown(header_html, unsafe_allow_html=True)
 
-        # 快捷操作列：一鍵加入每日日誌追蹤 / 一鍵加入副駕駛持股守護
-        c_quick_t1, c_quick_t2, c_quick_t3 = st.columns([1.5, 1.5, 3])
-        with c_quick_t1:
-            with st.popover("📌 加入【每日日誌追蹤】", use_container_width=True):
-                st.write(f"#### 📌 將【{info['name']}】加入每日日誌追蹤")
-                st.caption("加入後，系統每日自動更新此股收盤價、T+1~T+N 發酵天數，並比對主力成本！")
-                q_p = st.number_input("基準/進場價格 (元)", value=float(info['close']), step=0.1, key=f"q_trk_p_{query}")
-                q_cat = st.selectbox("追蹤分類", ["👑 指揮官自選精選", "波段自選", "轉折突破觀察", "長抱價值精選"], key=f"q_trk_cat_{query}")
-                q_r_default = " + ".join(signals_list[:2]) if signals_list else f"{trend['trend_status']} + 站穩5MA"
-                q_reason = st.text_input("選股理由/條件", value=q_r_default, key=f"q_trk_r_{query}")
-                st.caption(f"💼 主力成本比對：主力均價 {float(info.get('major_cost', 0)):.2f} 元 | 外資均價 {float(info.get('foreign_cost', 0)):.2f} 元")
-                if st.button("🚀 確認加入每日追蹤日誌", type="primary", use_container_width=True, key=f"btn_q_add_trk_{query}"):
-                    record_recommendation(
-                        rec_date=datetime.datetime.now().strftime("%Y-%m-%d"),
-                        category=q_cat,
-                        code=info['code'],
-                        name=info['name'],
-                        entry_price=q_p,
-                        strategy_reason=q_reason,
-                        major_broker=info.get("broker_info", "大戶主力"),
-                        major_cost=float(info.get("major_cost", 0.0)),
-                        foreign_cost=float(info.get("foreign_cost", 0.0)),
-                        industry=info.get("industry", "")
-                    )
-                    update_all_tracking_performance(force_refresh=False)
-                    st.success(f"🎉 已將【{info['name']}】加入【📅 每日推薦實戰日誌】！")
-                    st.rerun()
+        # 快捷操作列：一鍵加入每日日誌追蹤 / 一鍵加入副駕駛持股守護 (限指揮官/特務權限)
+        if not is_guest:
+            c_quick_t1, c_quick_t2, c_quick_t3 = st.columns([1.5, 1.5, 3])
+            with c_quick_t1:
+                with st.popover("📌 加入【每日日誌追蹤】", use_container_width=True):
+                    st.write(f"#### 📌 將【{info['name']}】加入每日日誌追蹤")
+                    st.caption("加入後，系統每日自動更新此股收盤價、T+1~T+N 發酵天數，並比對主力成本！")
+                    q_p = st.number_input("基準/進場價格 (元)", value=float(info['close']), step=0.1, key=f"q_trk_p_{query}")
+                    q_cat = st.selectbox("追蹤分類", ["👑 指揮官自選精選", "波段自選", "轉折突破觀察", "長抱價值精選"], key=f"q_trk_cat_{query}")
+                    q_r_default = " + ".join(signals_list[:2]) if signals_list else f"{trend['trend_status']} + 站穩5MA"
+                    q_reason = st.text_input("選股理由/條件", value=q_r_default, key=f"q_trk_r_{query}")
+                    st.caption(f"💼 主力成本比對：主力均價 {float(info.get('major_cost', 0)):.2f} 元 | 外資均價 {float(info.get('foreign_cost', 0)):.2f} 元")
+                    if st.button("🚀 確認加入每日追蹤日誌", type="primary", use_container_width=True, key=f"btn_q_add_trk_{query}"):
+                        record_recommendation(
+                            rec_date=datetime.datetime.now().strftime("%Y-%m-%d"),
+                            category=q_cat,
+                            code=info['code'],
+                            name=info['name'],
+                            entry_price=q_p,
+                            strategy_reason=q_reason,
+                            major_broker=info.get("broker_info", "大戶主力"),
+                            major_cost=float(info.get("major_cost", 0.0)),
+                            foreign_cost=float(info.get("foreign_cost", 0.0)),
+                            industry=info.get("industry", "")
+                        )
+                        update_all_tracking_performance(force_refresh=False)
+                        st.success(f"🎉 已將【{info['name']}】加入【📅 每日推薦實戰日誌】！")
+                        st.rerun()
 
-        with c_quick_t2:
-            with st.popover("🛡️ 加入【副駕駛持股守護】", use_container_width=True):
-                st.write(f"#### 🛡️ 將【{info['name']}】加入副駕駛持股守護")
-                st.caption("登錄買進價格與持股張數，副駕駛將每日即時盯盤、計算停損與反彈目標，並於破線時主動提醒！")
-                q_hold_p = st.number_input("買進成交價 (元)", value=float(info['close']), step=0.1, key=f"q_hold_p_{query}")
-                q_hold_zh = st.number_input("持有張數", value=1.0, min_value=0.01, step=0.5, key=f"q_hold_zh_{query}")
-                q_hold_type = st.radio("交易方式", ["現股", "融資"], horizontal=True, key=f"q_hold_type_{query}")
-                q_hold_stop = st.number_input("停損防守價 (預設-5%)", value=round(float(info['close']) * 0.95, 2), step=0.1, key=f"q_hold_stop_{query}")
-                q_hold_tgt = st.number_input("波段目標價 (預設+10%)", value=round(float(info['close']) * 1.10, 2), step=0.1, key=f"q_hold_tgt_{query}")
-                if st.button("🚀 確認加入持股守護庫存", type="primary", use_container_width=True, key=f"btn_q_add_hold_{query}"):
-                    curr_u = st.session_state.get("copilot_user", {"user_id": "master"})
-                    add_holding(
-                        code=info['code'],
-                        name=info['name'],
-                        buy_price=q_hold_p,
-                        stop_loss=q_hold_stop,
-                        target_price=q_hold_tgt,
-                        strategy="主圖自選建倉",
-                        buy_reason=f"{trend['trend_status']} 自選加入守護",
-                        shares=int(round(q_hold_zh * 1000)),
-                        trade_type=q_hold_type,
-                        user_id=curr_u.get("user_id", "master")
-                    )
-                    if "copilot_inspected_cache" in st.session_state:
-                        del st.session_state["copilot_inspected_cache"]
-                    st.success(f"🎉 已將【{info['name']}】加入操盤副駕駛持股庫存！")
-                    st.rerun()
+            with c_quick_t2:
+                with st.popover("🛡️ 加入【副駕駛持股守護】", use_container_width=True):
+                    st.write(f"#### 🛡️ 將【{info['name']}】加入副駕駛持股守護")
+                    st.caption("登錄買進價格與持股張數，副駕駛將每日即時盯盤、計算停損與反彈目標，並於破線時主動提醒！")
+                    q_hold_p = st.number_input("買進成交價 (元)", value=float(info['close']), step=0.1, key=f"q_hold_p_{query}")
+                    q_hold_zh = st.number_input("持有張數", value=1.0, min_value=0.01, step=0.5, key=f"q_hold_zh_{query}")
+                    q_hold_type = st.radio("交易方式", ["現股", "融資"], horizontal=True, key=f"q_hold_type_{query}")
+                    q_hold_stop = st.number_input("停損防守價 (預設-5%)", value=round(float(info['close']) * 0.95, 2), step=0.1, key=f"q_hold_stop_{query}")
+                    q_hold_tgt = st.number_input("波段目標價 (預設+10%)", value=round(float(info['close']) * 1.10, 2), step=0.1, key=f"q_hold_tgt_{query}")
+                    if st.button("🚀 確認加入持股守護庫存", type="primary", use_container_width=True, key=f"btn_q_add_hold_{query}"):
+                        curr_u = st.session_state.get("copilot_user", {"user_id": "master"})
+                        add_holding(
+                            code=info['code'],
+                            name=info['name'],
+                            buy_price=q_hold_p,
+                            stop_loss=q_hold_stop,
+                            target_price=q_hold_tgt,
+                            strategy="主圖自選建倉",
+                            buy_reason=f"{trend['trend_status']} 自選加入守護",
+                            shares=int(round(q_hold_zh * 1000)),
+                            trade_type=q_hold_type,
+                            user_id=curr_u.get("user_id", "master")
+                        )
+                        if "copilot_inspected_cache" in st.session_state:
+                            del st.session_state["copilot_inspected_cache"]
+                        st.success(f"🎉 已將【{info['name']}】加入操盤副駕駛持股庫存！")
+                        st.rerun()
 
-        with c_quick_t3:
-            pass
+            with c_quick_t3:
+                pass
 
         # 📱 手機優先：4 大模組化分頁切換 (一頁只專注一件事，告別無限滾動)
         tab_tech, tab_kline, tab_chips, tab_ai = st.tabs([
@@ -1579,49 +1633,50 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 """, unsafe_allow_html=True)
                 st.markdown(q_data['answer'])
 
-        # 底部快捷返回列 (看完圖表後不必滑回最上方)
-        st.markdown("---")
-        c_bot1, c_bot2, c_bot3 = st.columns([3, 3.5, 2.5])
-        with c_bot1:
-            if st.button(f"🔙 返回【{ret_label}】繼續選股", type="primary", use_container_width=True, key="bot_btn_back"):
-                st.session_state.target_nav_menu = target_menu
-                st.rerun()
-        with c_bot2:
-            if stock_queue and query in stock_queue:
-                q_idx = stock_queue.index(query)
-                c_b_prev, c_b_pos, c_b_next = st.columns([1.2, 1.4, 1.2])
-                with c_b_prev:
-                    if q_idx > 0:
-                        prev_c = stock_queue[q_idx - 1]
-                        if st.button("⬅️ 上一檔", key="bot_prev_stock", use_container_width=True):
-                            st.session_state.selected_stock = prev_c
-                            st.rerun()
-                    else:
-                        st.button("⬅️ 首檔", disabled=True, use_container_width=True, key="bot_prev_dis")
-                with c_b_pos:
-                    st.markdown(f"<div style='text-align:center; padding-top:6px; color:#DDD; font-size:0.88rem;'>清單標的 <b>{q_idx+1}</b> / {len(stock_queue)}</div>", unsafe_allow_html=True)
-                with c_b_next:
-                    if q_idx < len(stock_queue) - 1:
-                        next_c = stock_queue[q_idx + 1]
-                        if st.button("下一檔 ➡️", key="bot_next_stock", use_container_width=True):
-                            st.session_state.selected_stock = next_c
-                            st.rerun()
-                    else:
-                        st.button("末檔 ➡️", disabled=True, use_container_width=True, key="bot_next_dis")
-        with c_bot3:
-            c_b_pool, c_b_watch, c_b_log = st.columns(3)
-            with c_b_pool:
-                if st.button("🎯 選股雷達", use_container_width=True, key="bot_quick_pool"):
-                    st.session_state.target_nav_menu = "🎯 全攻略選股池 (多/空策略)"
+        # 底部快捷返回列 (看完圖表後不必滑回最上方，限非訪客)
+        if not is_guest:
+            st.markdown("---")
+            c_bot1, c_bot2, c_bot3 = st.columns([3, 3.5, 2.5])
+            with c_bot1:
+                if st.button(f"🔙 返回【{ret_label}】繼續選股", type="primary", use_container_width=True, key="bot_btn_back"):
+                    st.session_state.target_nav_menu = target_menu
                     st.rerun()
-            with c_b_watch:
-                if st.button("👁️ 鎖股名冊", use_container_width=True, key="bot_quick_watch"):
-                    st.session_state.target_nav_menu = "👁️ 晚間盤後功課 (鎖股名冊監控)"
-                    st.rerun()
-            with c_b_log:
-                if st.button("📅 推薦日誌", use_container_width=True, key="bot_quick_log"):
-                    st.session_state.target_nav_menu = "📅 每日推薦實戰日誌 (戰績復盤)"
-                    st.rerun()
+            with c_bot2:
+                if stock_queue and query in stock_queue:
+                    q_idx = stock_queue.index(query)
+                    c_b_prev, c_b_pos, c_b_next = st.columns([1.2, 1.4, 1.2])
+                    with c_b_prev:
+                        if q_idx > 0:
+                            prev_c = stock_queue[q_idx - 1]
+                            if st.button("⬅️ 上一檔", key="bot_prev_stock", use_container_width=True):
+                                st.session_state.selected_stock = prev_c
+                                st.rerun()
+                        else:
+                            st.button("⬅️ 首檔", disabled=True, use_container_width=True, key="bot_prev_dis")
+                    with c_b_pos:
+                        st.markdown(f"<div style='text-align:center; padding-top:6px; color:#DDD; font-size:0.88rem;'>清單標的 <b>{q_idx+1}</b> / {len(stock_queue)}</div>", unsafe_allow_html=True)
+                    with c_b_next:
+                        if q_idx < len(stock_queue) - 1:
+                            next_c = stock_queue[q_idx + 1]
+                            if st.button("下一檔 ➡️", key="bot_next_stock", use_container_width=True):
+                                st.session_state.selected_stock = next_c
+                                st.rerun()
+                        else:
+                            st.button("末檔 ➡️", disabled=True, use_container_width=True, key="bot_next_dis")
+            with c_bot3:
+                c_b_pool, c_b_watch, c_b_log = st.columns(3)
+                with c_b_pool:
+                    if st.button("🎯 選股雷達", use_container_width=True, key="bot_quick_pool"):
+                        st.session_state.target_nav_menu = "🎯 全攻略選股池 (多/空策略)"
+                        st.rerun()
+                with c_b_watch:
+                    if st.button("👁️ 鎖股名冊", use_container_width=True, key="bot_quick_watch"):
+                        st.session_state.target_nav_menu = "👁️ 晚間盤後功課 (鎖股名冊監控)"
+                        st.rerun()
+                with c_b_log:
+                    if st.button("📅 推薦日誌", use_container_width=True, key="bot_quick_log"):
+                        st.session_state.target_nav_menu = "📅 每日推薦實戰日誌 (戰績復盤)"
+                        st.rerun()
 
 # ----------------------------------------------------
 # 功能分頁 2：全攻略選股池 (Screener)
