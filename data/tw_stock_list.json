@@ -376,6 +376,12 @@
     "has_cb": false
   },
   {
+    "code": "2481",
+    "name": "強茂",
+    "market": "TW",
+    "industry": "半導體業"
+  },
+  {
     "code": "2489",
     "name": "瑞軒",
     "market": "TW",
@@ -858,14 +864,6 @@
     "has_cb": false
   },
   {
-    "code": "6515",
-    "name": "穎崴",
-    "market": "TW",
-    "industry": "IC測試探針",
-    "has_futures": false,
-    "has_cb": false
-  },
-  {
     "code": "3623",
     "name": "富晶通",
     "market": "TWO",
@@ -1028,6 +1026,12 @@
     "industry": "系統整合",
     "has_futures": false,
     "has_cb": true
+  },
+  {
+    "code": "5251",
+    "name": "天鉞電",
+    "market": "TWO",
+    "industry": "光電/安控"
   },
   {
     "code": "5289",
@@ -1246,6 +1250,14 @@
     "has_cb": true
   },
   {
+    "code": "6515",
+    "name": "穎崴",
+    "market": "TW",
+    "industry": "IC測試探針",
+    "has_futures": false,
+    "has_cb": false
+  },
+  {
     "code": "6530",
     "name": "創威",
     "market": "TWO",
@@ -1414,11 +1426,5 @@
     "industry": "建材營造",
     "has_futures": false,
     "has_cb": false
-  },
-  {
-    "code": "5251",
-    "name": "天鉞電",
-    "market": "TWO",
-    "industry": "光電/安控"
   }
 ]
