@@ -76,21 +76,100 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* 徹底隱藏 Streamlit 頂部工具列 (Share, GitHub 貓咪, 編輯鉛筆, 三點選單, 部署狀態, 頁腳) */
-    header [data-testid="stToolbar"],
-    [data-testid="stToolbar"],
+    /* 1. 精準隱藏 GitHub、部署按鈕、三點選單、編輯鉛筆與頁腳 (不影響運行狀態條) */
     #MainMenu,
     .stDeployButton,
     footer,
-    [data-testid="stDecoration"],
-    header div[class*="toolbar"],
-    header div[class*="actionElements"],
+    [data-testid="manage-app-button"],
+    header a[href*="github.com"],
+    header button[title*="GitHub"],
+    header button[title*="View source"],
+    header button[title*="Edit in GitHub"],
     header div[class*="viewerBadge"] {
         display: none !important;
         visibility: hidden !important;
     }
+
     header {
         background: transparent !important;
+    }
+
+    /* 2. 恢復並高科技美化右上角運行狀態 (Status Widget / 進度膠囊) */
+    header div[class*="actionElements"],
+    header [data-testid="stToolbar"] {
+        display: flex !important;
+        visibility: visible !important;
+        background: transparent !important;
+    }
+
+    /* 隱藏工具列中的多餘按鈕，只保留 statusWidget */
+    header [data-testid="stToolbar"] > button {
+        display: none !important;
+    }
+
+    [data-testid="stStatusWidget"] {
+        display: inline-flex !important;
+        visibility: visible !important;
+        position: fixed !important;
+        top: 14px !important;
+        right: 20px !important;
+        z-index: 999999 !important;
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95)) !important;
+        border: 1px solid #3B82F6 !important;
+        border-radius: 20px !important;
+        padding: 4px 14px !important;
+        box-shadow: 0 0 14px rgba(59, 130, 246, 0.45) !important;
+        align-items: center !important;
+    }
+
+    /* 3. 科技風頂部動態光影進度條 (Top Glowing Progress Bar) - 系統在運算時於視窗最頂端自動閃耀流動 */
+    .stApp[data-test-script-state="running"]::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 3.5px;
+        background: linear-gradient(90deg, #3B82F6, #8B5CF6, #EC4899, #3B82F6);
+        background-size: 200% 100%;
+        animation: top-bar-glow 1.5s linear infinite;
+        z-index: 9999999;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.8), 0 0 20px rgba(236, 72, 153, 0.5);
+    }
+
+    @keyframes top-bar-glow {
+        0% { background-position: 0% 50%; }
+        100% { background-position: 200% 50%; }
+    }
+
+    /* 4. 浮動科技進度卡文字提示 */
+    .stApp[data-test-script-state="running"] [data-testid="stStatusWidget"]::after {
+        content: "⚡ 系統運算中...";
+        color: #93C5FD;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-left: 6px;
+        letter-spacing: 0.5px;
+    }
+
+    /* 5. 強化主畫面中的 Spinner 讀取進度卡片 */
+    [data-testid="stSpinner"] {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.9) 100%) !important;
+        border: 1px solid #3B82F6 !important;
+        border-radius: 12px !important;
+        padding: 14px 20px !important;
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.25) !important;
+        margin: 16px 0 !important;
+        animation: pulse-border 1.8s infinite ease-in-out;
+    }
+    [data-testid="stSpinner"] > div {
+        color: #60A5FA !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+    }
+    @keyframes pulse-border {
+        0%, 100% { border-color: #3B82F6; box-shadow: 0 0 12px rgba(59, 130, 246, 0.3); }
+        50% { border-color: #A855F7; box-shadow: 0 0 22px rgba(168, 85, 247, 0.45); }
     }
 
     .main-header {
