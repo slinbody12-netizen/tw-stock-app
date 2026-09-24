@@ -381,6 +381,8 @@ def render_stock_card(item, key_prefix="sc"):
         badge_html += "<span style='background:linear-gradient(90deg, #D97706, #B45309); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(217,119,6,0.5);'>🏆 無敵鐵金剛</span>"
     if item.get('main_wave_2nd') or sig.get('main_wave_2nd', False):
         badge_html += "<span style='background:linear-gradient(90deg, #1890FF, #722ED1); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚀 主升第二波</span>"
+    if item.get('box_range_breakout') or sig.get('box_range_breakout', False):
+        badge_html += "<span style='background:linear-gradient(90deg, #059669, #10B981); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(16,185,129,0.4);'>📦 箱型大突破</span>"
     if item.get('is_turnover_success') or sig.get('is_turnover_success', False):
         badge_html += "<span style='background:linear-gradient(90deg, #FA541C, #F5222D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🔥 換手成功</span>"
     if item.get('is_false_breakout_dump') or sig.get('is_false_breakout_dump', False):
@@ -1810,6 +1812,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 [
                     "🏆 無敵鐵金剛 (三線合一·高勝率旗艦)",
                     "🚀 主升段第二波 (鎖一做二·飆股再發動)",
+                    "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)",
                     "🔥 換手成功強勢股 (高檔爆量再創新高)",
                     "👑 頭高底高 (六字訣多頭確認)",
                     "🎯 回後準進場 (拉回測線有守·短線買點)",
@@ -1827,6 +1830,9 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             elif "主升段第二波" in sub_strat:
                 target_strategy = "主升段第二波"
                 st.caption("💡 **【主升段第二波戰法】鎖第一波，做第二波 (強勢飆股波段)**：鎖定第一波連噴 15%~30% 的市場龍頭，拉回洗盤跌破 5MA 但守穩月線 (20MA)，今日出放量紅K過昨高站回 5MA，為第二波主升段絕佳買點！")
+            elif "箱型整理大突破" in sub_strat or "箱型" in sub_strat:
+                target_strategy = "箱型整理大突破"
+                st.caption("💡 **【箱型整理大突破 (一棒過頂)】**：股價在 12~35 天箱型區間（振幅 12%~25%）反覆洗盤震盪蓄勢後，今日以**實體長紅放量一棒摜破過去一個月的箱頂壓力線**！主力洗盤換手完畢，上方無套牢賣壓，通常為**新一波波段主升段起漲第一根**！")
             elif "換手成功" in sub_strat:
                 target_strategy = "換手成功"
                 st.caption("💡 **【高檔爆量換手成功】**：高檔爆大量黑K或變盤線後 3 天內，強勢收盤突破該爆量K棒最高點！主力洗盤換手完畢，新主力籌碼進駐續噴主升段！")

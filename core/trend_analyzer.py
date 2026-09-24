@@ -64,10 +64,15 @@ def analyze_trend(df: pd.DataFrame, points: list):
     prev_trough = troughs[-2]
 
     # 頭頭高、底底高判斷 (基於已確認之實質頭底)
-    hh = curr_peak['price'] > prev_peak['price']  # 頭頭高
-    hl = curr_trough['price'] > prev_trough['price']  # 底底高
-    lh = curr_peak['price'] < prev_peak['price']  # 頭頭低
-    ll = curr_trough['price'] < prev_trough['price']  # 底底低
+    # 實戰平底/雙底容差：前後兩底若差距在 0.8% 以內，視為「平底/箱底有守」，不誤判為底底低破底
+    trough_diff_pct = (curr_trough['price'] - prev_trough['price']) / (prev_trough['price'] + 1e-9)
+    peak_diff_pct = (curr_peak['price'] - prev_peak['price']) / (prev_peak['price'] + 1e-9)
+
+    hh = peak_diff_pct > 0.003  # 頭頭高 (過前高)
+    lh = peak_diff_pct < -0.005  # 頭頭低
+    is_flat_bottom = abs(trough_diff_pct) <= 0.008  # 平底/箱底支撐 (差 0.8% 以內視為平底有守)
+    hl = (trough_diff_pct > 0.003) or (is_flat_bottom and hh)  # 底底高 (或平底箱底且過前高)
+    ll = (trough_diff_pct < -0.008) and not is_flat_bottom  # 底底低 (實質跌破前低超過 0.8%)
 
     latest_close = float(df['Close'].iloc[-1])
     latest_high = float(df['High'].iloc[-1]) if 'High' in df else latest_close

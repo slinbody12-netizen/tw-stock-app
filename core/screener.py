@@ -141,6 +141,8 @@ def calculate_quality_score(s):
         score += 30.0  # 高檔巨量換手成功強勢過高
     if sig.get('ma_squeeze_breakout', False):
         score += 35.0  # 四線糾結突破 (初升段翻倍黃金起漲點)
+    if sig.get('box_range_breakout', False):
+        score += 35.0  # 箱型整理大突破 (一棒過頂·主升段第一根)
     if sig.get('golden_cross_5_20', False):
         score += 25.0
     if sig.get('pullback_buy', False):
@@ -393,6 +395,7 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "is_bear": trend.get('lower_highs', False) and trend.get('lower_lows', False),
                 "iron_man": signals_dict.get('iron_man', False),
                 "main_wave_2nd": signals_dict.get('main_wave_2nd', False),
+                "box_range_breakout": signals_dict.get('box_range_breakout', False),
                 "is_turnover_success": signals_dict.get('is_turnover_success', False),
                 "is_false_breakout_dump": signals_dict.get('is_false_breakout_dump', False),
                 "is_attack_vol": signals_dict.get('is_attack_vol', False),
@@ -514,6 +517,8 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             elif strategy in ["換手成功", "🔥 換手成功強勢股", "🔥 換手成功強勢股 (高檔爆量再創新高)"] and signals_dict.get('is_turnover_success', False):
                 match = True
             elif strategy in ["均線糾結突破", "四線糾結突破", "均線糾結突破 (四線糾結起漲第一根)"] and (signals_dict.get('ma_squeeze_breakout', False) or signals_dict.get('flat_base_breakout', False)):
+                match = True
+            elif strategy in ["箱型大突破", "箱型整理大突破", "📦 箱型整理大突破", "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)"] and signals_dict.get('box_range_breakout', False):
                 match = True
             elif strategy in ["量排行", "🔥 量排行"]:
                 match = True

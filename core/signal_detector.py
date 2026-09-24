@@ -55,7 +55,7 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
     is_high = signals_dict.get('is_multi_bagger', False) or (c >= sma20 * 1.15)
     
     # 規則 1：未打底 (仍在探底或無底底高)
-    if not trend_info.get('higher_lows', False) and (trend_info.get('lower_lows', False) or (c < sma60 and not signals_dict.get('bottom_breakout', False))):
+    if not trend_info.get('higher_lows', False) and (trend_info.get('lower_lows', False) or (c < sma60 and not (signals_dict.get('bottom_breakout', False) or signals_dict.get('box_range_breakout', False)))):
         reasons.append("【規則1·未打底】尚未走出第二隻腳打底完成訊號，仍在探底或底底低，不可盲目猜底")
         
     # 規則 2：區間整理方向不明
@@ -163,6 +163,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "high_breakout": False,       # 高檔起漲
         "golden_cross_5_20": False,   # 雙線黃金交叉
         "ma_squeeze_breakout": False, # 🌀 均線糾結突破 (四線糾結起漲第一根)
+        "box_range_breakout": False,  # 📦 箱型整理大突破 (一棒過頂·蓄勢噴發起漲第一根)
         "flat_base_breakout": False,  # 一字底
         "n_pattern_bottom": False,    # N字底
         "rounding_bottom": False,     # 圓弧底
@@ -467,6 +468,38 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             signals.append("均線糾結突破 (四線糾結起漲第一根)")
 
     # ----------------------------------------------------
+    # 策略 📦：箱型整理大突破 / 一棒過頂 (經典箱型洗盤蓄勢噴發起漲第一根)
+    # 實戰心法鐵律：
+    # 1. 過去 12~35 天處於橫盤箱型區間整理 (收盤振幅 <= 20% 或高低振幅 <= 30%)
+    # 2. 今日以實體長紅 K 棒 (c >= o 且 c >= sma5) 向上突破過去箱頂最高價 (c >= box_high * 0.995)
+    # 3. 操盤線 5MA 走平或向上翻揚 (is_5ma_rising)
+    # 4. 洗盤結束、籌碼換手完畢，一棒過頂，通常為波段主升段第一根起漲點！
+    # ----------------------------------------------------
+    is_box_breakout = False
+    if len(df) >= 15:
+        for lookback in [12, 16, 20, 25, 30]:
+            if len(df) > lookback:
+                box_slice = df.iloc[-lookback-1:-1]
+                b_max = float(box_slice['High'].max())
+                b_min = float(box_slice['Low'].min())
+                c_max = float(box_slice['Close'].max())
+                c_min = float(box_slice['Close'].min())
+                
+                hl_amp = (b_max - b_min) / (b_min + 1e-9)
+                c_amp = (c_max - c_min) / (c_min + 1e-9)
+                
+                is_valid_box = (c_amp <= 0.20) or (hl_amp <= 0.30)
+                is_breaking = (c >= b_max * 0.995) and is_red and (c >= sma5) and is_5ma_rising and (change_pct >= 1.5 or c > float(prev['High']))
+                
+                if is_valid_box and is_breaking:
+                    is_box_breakout = True
+                    break
+
+    if is_box_breakout:
+        signals_dict['box_range_breakout'] = True
+        signals.append("📦 箱型整理大突破 (一棒過頂·放量衝破箱頂壓力)")
+
+    # ----------------------------------------------------
     # 策略 G：N字底 (第二隻腳不破前低，向上推升)
     # ----------------------------------------------------
     if len(df) >= 20:
@@ -658,8 +691,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # 止跌量 (量縮至 5MA量 55% 以下且不破昨低)
     is_stop_fall_vol = (vol_ratio_5 <= 0.55) and (l >= prev_l * 0.995) and (c >= l + (h - l) * 0.25)
 
-    # 量價背離：價漲量急縮背離 或 高檔滯漲爆量
-    is_vp_div_bull = (change_pct >= 1.2 and vol_ratio_5 <= 0.7)
+    # 量價背離：價漲量急縮背離 (排除大突破、主升第二波與飽滿長紅) 或 高檔滯漲爆量
+    is_vp_div_bull = (change_pct >= 1.2 and vol_ratio_5 <= 0.60 and not is_box_breakout and not is_main_wave_2nd and not is_solid_bull)
     is_vp_div_bear = (abs(change_pct) <= 0.4 and vol_ratio_5 >= 1.8 and is_high_position)
     is_volume_price_divergence = is_vp_div_bull or is_vp_div_bear
 
