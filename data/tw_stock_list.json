@@ -1426,5 +1426,35 @@
     "industry": "建材營造",
     "has_futures": false,
     "has_cb": false
+  },
+  {
+    "code": "3019",
+    "name": "亞光",
+    "market": "TW",
+    "industry": "光學鏡片"
+  },
+  {
+    "code": "6209",
+    "name": "今國光",
+    "market": "TW",
+    "industry": "光學鏡片"
+  },
+  {
+    "code": "3362",
+    "name": "先進光",
+    "market": "TWO",
+    "industry": "光學鏡片"
+  },
+  {
+    "code": "3504",
+    "name": "揚明光",
+    "market": "TW",
+    "industry": "光學鏡片"
+  },
+  {
+    "code": "4976",
+    "name": "佳凌",
+    "market": "TW",
+    "industry": "光學鏡片"
   }
 ]
