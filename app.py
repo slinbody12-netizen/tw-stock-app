@@ -364,6 +364,9 @@ def render_stock_card(item, key_prefix="sc"):
         else:
             badge_html += "<span style='background:#D97706; color:white; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='起漲處置：第1波起漲關處置，出關若放量常為大飆股'>🔒 關 (起漲出關常飆)</span>"
 
+    if item.get('is_hot_stock'):
+        badge_html += "<span style='background:#E11D48; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='全市場熱門焦點：量大/主流族群/主力進駐'>🔥 熱門</span>"
+
     # 操盤線 (5MA) 狀態勳章：走升 / 下彎，站上 / 跌破
     is_5ma_up = item.get('is_5ma_rising', True)
     is_above_5ma = item.get('above_5ma', True)
@@ -1776,8 +1779,16 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             df_sec = pd.DataFrame(sec_table_data)
             st.dataframe(df_sec, use_container_width=True, hide_index=True)
 
-    # 頂部控制列
-    col_t1, col_t2 = st.columns([1.2, 3])
+    # 頂部控制列：母體範圍、操作方向與策略大類
+    col_u0, col_t1, col_t2 = st.columns([1.6, 1.1, 3.3])
+    with col_u0:
+        pool_scope = st.radio(
+            "🎯 篩選母體範圍",
+            ["🌐 全市場股票", "🔥 熱門優先 (量大/主流族群)"],
+            horizontal=True,
+            key="scr_pool_scope"
+        )
+        scope_val = "熱門優先" if "熱門" in pool_scope else "全市場"
     with col_t1:
         direction = st.radio("操作方向", ["🔴 做多 (Long)", "🟢 做空 (Short)"], horizontal=True, key="scr_direction")
         dir_val = "多" if "做多" in direction else "空"
@@ -1803,6 +1814,10 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 horizontal=True,
                 key="scr_main_mode_short"
             )
+
+    if scope_val == "熱門優先":
+        st.caption("🔥 **已啟動【熱門優先 · 兩階段漏斗選股】**：系統優先鎖定全市場成交量前 50 大、主流板塊強勢龍頭、爆量攻擊與主力大單進駐之人氣焦點，再依您所選的技術策略進行精準篩選！")
+
 
     target_strategy = "全部"
     if "波段" in main_mode:
@@ -1907,17 +1922,18 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
     st.caption("🟢 **證交所官方盤中即時模式已啟動**：每日開盤自動串接最新撮合價，所有均線、黃金交叉與一點鐘選股皆以今日最新成交價即時判定！")
 
-    with st.spinner(f"正在全市場 186 檔標的中精確篩選【{target_strategy}】(證交所盤中即時模式)..."):
+    scope_tag = "🔥 熱門優先" if scope_val == "熱門優先" else "🌐 全市場"
+    with st.spinner(f"正在【{scope_tag}】中精確篩選【{target_strategy}】(證交所盤中即時模式)..."):
         try:
-            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=refresh_btn, enable_realtime=True)
+            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=refresh_btn, enable_realtime=True, universe_scope=scope_val)
         except Exception:
-            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=False, enable_realtime=False)
+            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=False, enable_realtime=False, universe_scope=scope_val)
 
     # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
     st.session_state.browsing_stock_list = [item['code'] for item in results]
     st.session_state.browsing_stock_names = {item['code']: item['name'] for item in results}
 
-    st.markdown(f"**掃描結果：符合【{target_strategy}】共 `{len(results)}` 檔標的**")
+    st.markdown(f"**掃描結果（{scope_tag}）：符合【{target_strategy}】共 `{len(results)}` 檔標的**")
 
     # 助教安全統計摘要
     safe_count = sum(1 for s in results if "安全" in s.get('safety_rating', ''))

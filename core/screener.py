@@ -432,6 +432,19 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
     except Exception:
         pass
 
+    # 標記全市場熱門焦點股 (成交量前50、主流族群龍頭、放量攻擊或主力大單)
+    vol_sorted = sorted(analyzed, key=lambda x: float(x.get('volume', 0) or 0), reverse=True)
+    top_vol_codes = set(s['code'] for s in vol_sorted[:50])
+    for s in analyzed:
+        vol = float(s.get('volume', 0) or 0)
+        vol_ratio = float(s.get('vol_ratio', 1.0) or 1.0)
+        is_top_vol = s['code'] in top_vol_codes
+        is_heavy_vol = vol >= 5000000
+        is_mainstream = (s.get('is_top_mainstream', False) or s.get('sector_rank', 99) <= 5) and (vol >= 1000000)
+        is_attack = (s.get('is_attack_vol', False) or vol_ratio >= 1.25) and (vol >= 800000)
+        has_major_chips = float(s.get('speedy_mf', 0) or 0) >= 300
+        s['is_hot_stock'] = bool(is_top_vol or is_heavy_vol or is_mainstream or is_attack or has_major_chips)
+
     # 依品質評分嚴格降序排列 (最佳者排在最上方)
     analyzed.sort(key=lambda x: x['quality_score'], reverse=True)
 
@@ -439,16 +452,26 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
     _LAST_CACHE_TIME = now
     return analyzed
 
-def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True, filter_no_upper_shadow=False, *args, **kwargs):
+def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True, filter_no_upper_shadow=False, universe_scope="全部", *args, **kwargs):
     """
     高效過濾篩選並按「最佳品質強度 (Quality Score)」由上至下排序 (支援盤中即時行情)
+    universe_scope: "全部" (全市場 188 檔) 或 "熱門優先" (量能人氣焦點 / 主流族群領頭 / 主力進駐)
     """
     if 'filter_no_upper_shadow' in kwargs:
         filter_no_upper_shadow = kwargs['filter_no_upper_shadow']
+    if 'universe_scope' in kwargs:
+        universe_scope = kwargs['universe_scope']
     all_stocks = get_all_analyzed_stocks(force_refresh=force_refresh, enable_realtime=enable_realtime)
+
+    # 兩階段漏斗篩選：若指定「熱門優先」，先在母體中過濾出高人氣、高流動性與主流族群名冊
+    if universe_scope in ["熱門優先", "熱門", "hot"]:
+        candidate_stocks = [s for s in all_stocks if s.get('is_hot_stock', False)]
+    else:
+        candidate_stocks = all_stocks
+
     filtered = []
 
-    for s in all_stocks:
+    for s in candidate_stocks:
         try:
             close_price = float(s.get('close', 0) or 0)
         except (ValueError, TypeError):
