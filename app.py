@@ -267,6 +267,54 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+import streamlit.components.v1 as components
+components.html("""
+<script>
+function eradicateManageApp() {
+    try {
+        var targets = [
+            '[data-testid="manage-app-button"]',
+            'button[data-testid="manage-app-button"]',
+            'div[class*="manage-app"]',
+            'div[class*="ManageApp"]',
+            'div[data-testid*="manageApp"]',
+            'div[data-testid*="ManageApp"]',
+            'div[class*="viewerBadge"]',
+            'div[class*="FloatingActionButton"]',
+            'header [data-testid="stToolbar"]',
+            '[data-testid="stToolbarActions"]',
+            '#GithubIcon'
+        ];
+        
+        function purgeFromDoc(doc) {
+            if (!doc) return;
+            targets.forEach(function(sel) {
+                try {
+                    var els = doc.querySelectorAll(sel);
+                    els.forEach(function(el) {
+                        el.style.setProperty('display', 'none', 'important');
+                        el.style.setProperty('visibility', 'hidden', 'important');
+                        el.style.setProperty('opacity', '0', 'important');
+                        el.style.setProperty('pointer-events', 'none', 'important');
+                        try { el.remove(); } catch(e) {}
+                    });
+                } catch(e) {}
+            });
+        }
+
+        // 清理當前頁面
+        purgeFromDoc(document);
+
+        // 穿透父層與頂層框架
+        try { if (window.parent && window.parent.document) purgeFromDoc(window.parent.document); } catch(e) {}
+        try { if (window.top && window.top.document) purgeFromDoc(window.top.document); } catch(e) {}
+    } catch(e) {}
+}
+eradicateManageApp();
+setInterval(eradicateManageApp, 400);
+</script>
+""", height=0, width=0)
+
 # -------------------------------------------------------------
 # 系統安全存取鎖 (保證非公開與私密性，防止未授權訪問)
 # -------------------------------------------------------------
