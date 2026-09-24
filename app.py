@@ -76,64 +76,69 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* 1. 精準隱藏 GitHub、部署按鈕、三點選單、編輯鉛筆與頁腳 (不影響運行狀態條) */
+    /* 1. 徹底摧毀並隱藏所有 GitHub 後門、編輯鉛筆、Manage App、分享、星標、三點選單、工具列與頁腳 */
     #MainMenu,
     .stDeployButton,
     footer,
-    header a[href*="github.com"],
-    header button[title*="GitHub"],
-    header button[title*="View source"],
-    header button[title*="Edit in GitHub"],
-    header div[class*="viewerBadge"] {
+    [data-testid="manage-app-button"],
+    button[data-testid="manage-app-button"],
+    div[class*="manage-app"],
+    div[class*="ManageApp"],
+    div[data-testid*="manageApp"],
+    div[data-testid*="ManageApp"],
+    div[class*="viewerBadge"],
+    div[class*="FloatingActionButton"],
+    iframe[title="streamlit_cloud_badge"],
+    [data-testid="stToolbar"],
+    header [data-testid="stToolbar"],
+    [data-testid="stToolbarActions"],
+    div[data-testid="stToolbarActions"],
+    header div[class*="actionElements"],
+    #GithubIcon,
+    header a,
+    header button:not([data-testid="collapsedControl"] button),
+    header svg {
         display: none !important;
         visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        position: absolute !important;
+        left: -9999px !important;
+        top: -9999px !important;
+        overflow: hidden !important;
+        z-index: -9999 !important;
     }
 
     header {
         background: transparent !important;
     }
 
-    /* 2. 恢復並高科技美化右上角運行狀態 (Status Widget / 進度膠囊) */
-    header div[class*="actionElements"],
-    header [data-testid="stToolbar"] {
+    /* 保障左上角側邊欄收合/展開控制按鈕正常使用 */
+    [data-testid="collapsedControl"] {
         display: flex !important;
         visibility: visible !important;
-        background: transparent !important;
-    }
-
-    /* 隱藏工具列中的多餘按鈕，只保留 statusWidget */
-    header [data-testid="stToolbar"] > button {
-        display: none !important;
-    }
-
-    [data-testid="stStatusWidget"] {
-        display: inline-flex !important;
-        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 99999 !important;
         position: fixed !important;
-        top: 14px !important;
-        right: 20px !important;
-        z-index: 999999 !important;
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95)) !important;
-        border: 1px solid #3B82F6 !important;
-        border-radius: 20px !important;
-        padding: 4px 14px !important;
-        box-shadow: 0 0 14px rgba(59, 130, 246, 0.45) !important;
-        align-items: center !important;
+        top: 10px !important;
+        left: 10px !important;
     }
 
-    /* 3. 科技風頂部動態光影進度條 (Top Glowing Progress Bar) - 系統在運算時於視窗最頂端自動閃耀流動 */
+    /* 2. 科技風頂部動態光影進度條 (Top Glowing Progress Bar) - 系統在運算時於視窗最頂端自動閃耀流動 */
     .stApp[data-test-script-state="running"]::before {
         content: "";
         position: fixed;
         top: 0;
         left: 0;
         width: 100vw;
-        height: 3.5px;
+        height: 4px;
         background: linear-gradient(90deg, #3B82F6, #8B5CF6, #EC4899, #3B82F6);
         background-size: 200% 100%;
-        animation: top-bar-glow 1.5s linear infinite;
-        z-index: 9999999;
-        box-shadow: 0 0 10px rgba(59, 130, 246, 0.8), 0 0 20px rgba(236, 72, 153, 0.5);
+        animation: top-bar-glow 1.2s linear infinite;
+        z-index: 99999999;
+        box-shadow: 0 0 12px rgba(59, 130, 246, 0.9), 0 0 24px rgba(236, 72, 153, 0.6);
     }
 
     @keyframes top-bar-glow {
@@ -141,14 +146,23 @@ st.markdown("""
         100% { background-position: 200% 50%; }
     }
 
-    /* 4. 浮動科技進度卡文字提示 */
-    .stApp[data-test-script-state="running"] [data-testid="stStatusWidget"]::after {
-        content: "⚡ 系統運算中...";
-        color: #93C5FD;
-        font-size: 0.8rem;
-        font-weight: 600;
-        margin-left: 6px;
+    /* 3. 科技風浮動運算狀態膠囊 (Floating Status Pill) - 運算中自動浮現於右上角，結束自動消失 (完全不依賴工具列) */
+    .stApp[data-test-script-state="running"]::after {
+        content: "⚡ 系統即時運算中...";
+        position: fixed;
+        top: 14px;
+        right: 20px;
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.96));
+        color: #60A5FA;
+        border: 1.5px solid #3B82F6;
+        border-radius: 20px;
+        padding: 6px 18px;
+        font-size: 0.85rem;
+        font-weight: 700;
         letter-spacing: 0.5px;
+        z-index: 99999999;
+        box-shadow: 0 0 18px rgba(59, 130, 246, 0.65);
+        pointer-events: none;
     }
 
     /* 5. 強化主畫面中的 Spinner 讀取進度卡片 */
