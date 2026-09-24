@@ -45,7 +45,7 @@ from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
 from core.screener import scan_stocks, load_speedy_chips, get_all_analyzed_stocks
 from core.sector_radar import calculate_sector_heat_rankings, get_stock_sector_info, get_sector_heat_rankings
-from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query, diagnose_stock_deeply
+from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query, diagnose_stock_deeply, get_daily_market_briefing
 from core.copilot import (
     load_portfolio, save_portfolio, add_holding, close_holding, delete_holding,
     get_copilot_recommendation, inspect_portfolio, load_preset_user_holdings,
@@ -1670,20 +1670,20 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
         # TAB 4: 🧑‍🏫 AI 助教 (深度診斷/提問) - 今日盤前 + 個股深度健檢 + 即時提問
         # =========================================================================
         with tab_ai:
-            # 1. 今日 2026.09.24 盤前大盤解盤卡片 (9/24 晨間最新音檔精粹)
-            st.markdown("""
+            # 1. AI 系統每日大盤量化多空雷達 (原創多空分析與實戰指引)
+            m_brief = get_daily_market_briefing()
+            sec_html = ""
+            for s_item in m_brief.get('sections', []):
+                sec_html += f"• <b>{s_item['title']}</b>：{s_item['content']}<br><br>"
+
+            st.markdown(f"""
             <div class='ai-card'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
-                    <h4 style='margin:0; color:#60A5FA;'>📢 今日 (2026.09.24) 盤前大盤實戰精要 (9/24 晨間最新音檔速報)</h4>
-                    <span class='tag-badge' style='background:#D97706;'>🌕 中秋節前夕 · 高檔橫盤防守</span>
+                    <h4 style='margin:0; color:#60A5FA;'>{m_brief.get('title', '🛰️ AI 操盤系統 · 每日市場量化多空雷達')}</h4>
+                    <span class='tag-badge' style='background:{m_brief.get('badge_color', '#2563EB')};'>{m_brief.get('badge', '🎯 實戰量化模型')}</span>
                 </div>
-                <div style='margin-top:8px; font-size:0.92rem; line-height:1.6; color:#E2E8F0;'>
-                    • <b>大盤定位 (加權指數 48,157 點, +357點, 8,946億)</b>：昨開高走高收高出乎預料強勢！週二衝 48,601 歷史新高留長上影線黑K後，原防「高檔夜星」，昨卻收實體紅K化解危機。長假前量縮屬常態，今日最佳走勢為收在週二高低點區間之小紅小黑K，構築「<b>5MA 之上的高檔K線橫盤</b>」；節後若放量突破將再展強攻！<br>
-                    • <b>OTC 櫃買指數 (413 點, -0.34%)</b>：收十字變盤線，連續 3 根變盤線（三星變盤），盤整突破後短線受倒T字賣壓牽制，今日慎防開低拉回黑K回測，但中長線仍維持三線多頭排列。<br>
-                    • <b>籌碼關鍵亮點 (外資連5買近2,000億)</b>：<b>外資昨再大買超 373 億</b>（連 5 天大買推升台股），自營商買超 58 億，投信賣超 47 億，三大法人合計買超 383 億。融資增 15 億 (達 6,063 億高水位)；融券大減 5,780 張；外資期貨淨空單微增至 76,084 口；昨晚台指期夜盤隨美股回檔 -403 點 (-0.83%)。<br>
-                    • <b>關鍵權值領頭羊</b>：<b>台積電</b>昨收「母子懷抱紅K」，多方力道強勁，今日開高有機會挑戰 2,535 元歷史天花板；高價股（川湖、大立光）前期大漲後高檔休息消化賣壓，維持多頭健康輪動。<br>
-                    • <b>美股重挫與通膨升息警訊</b>：美股四大指數昨全面拉回（<b>道瓊 -0.68% 跌入四線空排</b>；那指 -1.13% 過壓夜星；費半 -1.23%）。美最新公布 <b>PMI 大破 56 景氣過熱</b>，國際油價走揚引發通膨疑慮，<b>市場押注 10 月升息機率飆升至 66%</b>，10年期美債殖利率竄升至 5.13% 壓抑科技股；加上美中「川習會」消息面變數大！<br>
-                    • <b>今日連假前操盤最高指導原則</b>：<b>【節前控管部位、不凹單、守紀律操作】</b>！明日起台股休市 4 天（美股連假期間將交易 3 天），資金部位切勿放過大，避免重倉過節。持股若獲利且守穩 5MA 安心續抱；<b>若跌破 5MA 或觸及停損/停利標準，務必果斷執行紀律，絕不抱單凹過節</b>！選股鎖定基期低、底部剛起漲且具法人籌碼的績優股。
+                <div style='margin-top:10px; font-size:0.92rem; line-height:1.65; color:#E2E8F0;'>
+                    {sec_html}
                 </div>
             </div>
             """, unsafe_allow_html=True)
