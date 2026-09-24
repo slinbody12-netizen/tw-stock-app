@@ -80,7 +80,6 @@ st.markdown("""
     #MainMenu,
     .stDeployButton,
     footer,
-    [data-testid="manage-app-button"],
     header a[href*="github.com"],
     header button[title*="GitHub"],
     header button[title*="View source"],
