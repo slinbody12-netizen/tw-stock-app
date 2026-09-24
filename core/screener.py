@@ -452,20 +452,51 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
     _LAST_CACHE_TIME = now
     return analyzed
 
-def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True, filter_no_upper_shadow=False, universe_scope="全部", *args, **kwargs):
+def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True, filter_no_upper_shadow=False, universe_scope="全部", hot_sub_type="綜合熱門", sector_filter="全部", *args, **kwargs):
     """
     高效過濾篩選並按「最佳品質強度 (Quality Score)」由上至下排序 (支援盤中即時行情)
-    universe_scope: "全部" (全市場 188 檔) 或 "熱門優先" (量能人氣焦點 / 主流族群領頭 / 主力進駐)
+    universe_scope: "全部" (全市場股票) 或 "熱門優先" (量大/主流族群)
+    hot_sub_type: "綜合熱門", "TOP5_SECTOR", "TOP_VOLUME", "CHIPS_BUY", "SPECIFIC_SECTOR"
+    sector_filter: 指定 79 個細分產業族群名稱 (如 "光學鏡片", "半導體/IC"...)
     """
     if 'filter_no_upper_shadow' in kwargs:
         filter_no_upper_shadow = kwargs['filter_no_upper_shadow']
     if 'universe_scope' in kwargs:
         universe_scope = kwargs['universe_scope']
+    if 'hot_sub_type' in kwargs:
+        hot_sub_type = kwargs['hot_sub_type']
+    if 'sector_filter' in kwargs:
+        sector_filter = kwargs['sector_filter']
+
     all_stocks = get_all_analyzed_stocks(force_refresh=force_refresh, enable_realtime=enable_realtime)
 
-    # 兩階段漏斗篩選：若指定「熱門優先」，先在母體中過濾出高人氣、高流動性與主流族群名冊
+    # 多階漏斗篩選：母體範圍與族群鎖定
     if universe_scope in ["熱門優先", "熱門", "hot"]:
-        candidate_stocks = [s for s in all_stocks if s.get('is_hot_stock', False)]
+        if sector_filter and sector_filter != "全部":
+            from core.sector_radar import resolve_broad_sector
+            sec_clean = str(sector_filter).strip()
+            candidate_stocks = [
+                s for s in all_stocks
+                if sec_clean == s.get('sector_name')
+                or sec_clean == resolve_broad_sector(s.get('industry', ''))
+                or sec_clean in str(s.get('industry', ''))
+                or sec_clean in str(s.get('sector_name', ''))
+            ]
+        elif hot_sub_type == "TOP5_SECTOR":
+            candidate_stocks = [
+                s for s in all_stocks
+                if s.get('is_top_mainstream', False) or s.get('sector_rank', 99) <= 5
+            ]
+        elif hot_sub_type == "TOP_VOLUME":
+            sorted_by_vol = sorted(all_stocks, key=lambda x: float(x.get('volume', 0) or 0), reverse=True)
+            candidate_stocks = sorted_by_vol[:30]
+        elif hot_sub_type == "CHIPS_BUY":
+            candidate_stocks = [
+                s for s in all_stocks
+                if float(s.get('speedy_mf', 0) or 0) > 0 or float(s.get('speedy_fi', 0) or 0) > 0 or float(s.get('speedy_it', 0) or 0) > 0
+            ]
+        else:
+            candidate_stocks = [s for s in all_stocks if s.get('is_hot_stock', False)]
     else:
         candidate_stocks = all_stocks
 

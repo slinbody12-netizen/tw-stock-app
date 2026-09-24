@@ -1893,8 +1893,53 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 key="scr_main_mode_short"
             )
 
+    selected_sector_filter = "全部"
+    hot_sub_type = "綜合熱門"
+
     if scope_val == "熱門優先":
-        st.caption("🔥 **已啟動【熱門優先 · 兩階段漏斗選股】**：系統優先鎖定全市場成交量前 50 大、主流板塊強勢龍頭、爆量攻擊與主力大單進駐之人氣焦點，再依您所選的技術策略進行精準篩選！")
+        # 建立熱門子維度與 79 個細分產業族群選單
+        sector_options = [
+            "🔥 綜合熱門 (量大前50 + 主流風口 + 主力大買)",
+            "🌊 資金風口 Top 5 主流族群",
+            "🚀 今日成交量暴衝 (前 30 大人氣股)",
+            "💼 主力法人搶進 (外資/投信/大戶建倉)"
+        ]
+        if hot_sectors:
+            sec_items = [f"📊 {s['sector']} (Top {s['rank']} · {s['heat_score']}分)" for s in hot_sectors]
+            sector_options.extend(sec_items)
+
+        col_hot_a, col_hot_b = st.columns([2.5, 3.5])
+        with col_hot_a:
+            chosen_hot = st.selectbox(
+                "🔥 請選擇熱門類型 / 79個細分產業族群：",
+                sector_options,
+                index=0,
+                key="scr_chosen_hot_sector"
+            )
+        with col_hot_b:
+            if "綜合熱門" in chosen_hot:
+                hot_sub_type = "綜合熱門"
+                st.info("💡 **【綜合熱門】**：鎖定全市場成交量前 50 大、主流板塊強勢龍頭、爆量攻擊與主力大單進駐之焦點，再按下方技術策略進行精準篩選！")
+            elif "Top 5" in chosen_hot:
+                hot_sub_type = "TOP5_SECTOR"
+                top5_str = "、".join([s['sector'] for s in hot_sectors[:5]]) if hot_sectors else "計算中"
+                st.info(f"🌊 **【資金風口 Top 5 主流族群】**：鎖定當前資金最集中之 5 大板塊（{top5_str}），再按下方技術策略進行精準篩選！")
+            elif "成交量" in chosen_hot:
+                hot_sub_type = "TOP_VOLUME"
+                st.info("🚀 **【成交量前 30 大】**：鎖定今日市場換手最劇烈、成交量最大的 30 檔人氣焦點，再按下方技術策略進行精準篩選！")
+            elif "主力法人" in chosen_hot:
+                hot_sub_type = "CHIPS_BUY"
+                st.info("💼 **【主力法人大買】**：鎖定獲得外資、投信或主力大單積極買超建倉之個股，再按下方技術策略進行精準篩選！")
+            else:
+                hot_sub_type = "SPECIFIC_SECTOR"
+                clean_sec = chosen_hot.replace("📊", "").split("(")[0].strip()
+                selected_sector_filter = clean_sec
+                sec_match = next((s for s in hot_sectors if s['sector'] == clean_sec), None)
+                if sec_match:
+                    lead_txt = "、".join(sec_match.get('leader_names', [])[:4])
+                    st.success(f"🎯 **已鎖定【{clean_sec}】族群**：熱度 {sec_match['heat_score']}分 ({sec_match['badge']})｜資金佔比 {sec_match['turnover_share']}%｜均漲 {'+' if sec_match['avg_chg']>=0 else ''}{sec_match['avg_chg']}%｜代表股：{lead_txt}。請於下方挑選技術戰法！")
+                else:
+                    st.success(f"🎯 **已鎖定【{clean_sec}】族群**，請於下方挑選技術戰法！")
 
 
     target_strategy = "全部"
@@ -2000,12 +2045,45 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
     st.caption("🟢 **證交所官方盤中即時模式已啟動**：每日開盤自動串接最新撮合價，所有均線、黃金交叉與一點鐘選股皆以今日最新成交價即時判定！")
 
-    scope_tag = "🔥 熱門優先" if scope_val == "熱門優先" else "🌐 全市場"
+    if scope_val == "熱門優先":
+        if selected_sector_filter != "全部":
+            scope_tag = f"🔥 熱門族群 · {selected_sector_filter}"
+        elif hot_sub_type == "TOP5_SECTOR":
+            scope_tag = "🌊 資金風口 Top 5 族群"
+        elif hot_sub_type == "TOP_VOLUME":
+            scope_tag = "🚀 成交量前 30 大"
+        elif hot_sub_type == "CHIPS_BUY":
+            scope_tag = "💼 主力法人搶進"
+        else:
+            scope_tag = "🔥 綜合熱門優先"
+    else:
+        scope_tag = "🌐 全市場"
+
     with st.spinner(f"正在【{scope_tag}】中精確篩選【{target_strategy}】(證交所盤中即時模式)..."):
         try:
-            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=refresh_btn, enable_realtime=True, universe_scope=scope_val)
+            results = scan_stocks(
+                strategy=target_strategy,
+                direction=dir_val,
+                price_filter=price_val,
+                limit=50,
+                force_refresh=refresh_btn,
+                enable_realtime=True,
+                universe_scope=scope_val,
+                hot_sub_type=hot_sub_type,
+                sector_filter=selected_sector_filter
+            )
         except Exception:
-            results = scan_stocks(strategy=target_strategy, direction=dir_val, price_filter=price_val, limit=50, force_refresh=False, enable_realtime=False, universe_scope=scope_val)
+            results = scan_stocks(
+                strategy=target_strategy,
+                direction=dir_val,
+                price_filter=price_val,
+                limit=50,
+                force_refresh=False,
+                enable_realtime=False,
+                universe_scope=scope_val,
+                hot_sub_type=hot_sub_type,
+                sector_filter=selected_sector_filter
+            )
 
     # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
     st.session_state.browsing_stock_list = [item['code'] for item in results]
