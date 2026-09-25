@@ -1223,6 +1223,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             t1_points, t1_lines, t1_hp, t1_lt = calculate_turning_points(df, ma_period=5, filter_mode=t1_filter_mode)
             trend = analyze_trend(df, t1_points)
 
+            # AI 型態幾何作圖 (ABC切線 / 一字底 / 圓弧底 / 軌道線) 計算
+            from core.pattern_geometry import detect_pattern_geometries, apply_pattern_geometry_to_figure
+            pattern_geo = detect_pattern_geometries(df, signals_dict)
+
             st.markdown("<div class='checkbox-panel'>", unsafe_allow_html=True)
             r1_c1, r1_c2, r1_c3, r1_c4, r1_c5, r1_c6, r1_c7 = st.columns(7)
             show_5ma = r1_c1.checkbox("5MA 操盤線", value=True, key=f"t1_5ma_{query}")
@@ -1232,7 +1236,20 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             show_res = r1_c5.checkbox("壓力線 (橘)", value=True, key=f"t1_res_{query}")
             show_sup = r1_c6.checkbox("支撐線 (橘)", value=True, key=f"t1_sup_{query}")
             show_target = r1_c7.checkbox("目標價 (金黃)", value=has_broken_res, key=f"t1_tgt_{query}")
+
+            # 第二行：AI 型態幾何作圖專屬控制列
+            r2_c1, r2_c2 = st.columns([3.2, 3.8])
+            show_geometry = r2_c1.checkbox("📐 顯示 AI 型態幾何線 (ABC切線/一字底/圓弧底/軌道線)", value=True, key=f"t1_geom_{query}")
+            if show_geometry and pattern_geo.get("patterns_found"):
+                p_options = [p["name"] for p in pattern_geo["patterns_found"]]
+                chosen_pname = r2_c2.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
+                p_match = next((p for p in pattern_geo["patterns_found"] if p["name"] == chosen_pname), None)
+                if p_match:
+                    pattern_geo["active_pattern"] = p_match
             st.markdown("</div>", unsafe_allow_html=True)
+
+            if show_geometry and pattern_geo.get("summary_text"):
+                st.info(f"💡 **AI 型態幾何診斷**：{pattern_geo['summary_text']}")
 
             # 繪製 Tab 1 專屬轉折波與支撐壓力圖
             if "45日" in t1_view_bars and len(df) > 45:
@@ -1259,6 +1276,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 y_mins.append(trend['support'])
             if show_target and trend.get('target') and trend['target'] <= max(y_maxs) * 1.35:
                 y_maxs.append(trend['target'])
+            if show_geometry and pattern_geo.get('active_pattern'):
+                act_tgt = pattern_geo['active_pattern'].get('target_d')
+                if act_tgt and act_tgt <= max(y_maxs) * 1.35:
+                    y_maxs.append(act_tgt)
 
             curr_ymin, curr_ymax = min(y_mins), max(y_maxs)
             y_pad = (curr_ymax - curr_ymin) * 0.075
@@ -1366,6 +1387,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             )
             fig1.update_xaxes(rangeslider_visible=False, range=init_x)
             fig1.update_yaxes(range=auto_y, row=1, col=1)
+
+            if show_geometry:
+                fig1 = apply_pattern_geometry_to_figure(fig1, pattern_geo, df)
 
             chart_config = {
                 'scrollZoom': False, 'displayModeBar': True,
