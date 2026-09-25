@@ -2664,11 +2664,11 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
             st.subheader(f"📊 【{curr_item['name']} ({curr_item['code']})】vs 加權指數走勢對照")
             
             with st.spinner(f"正在繪製 {curr_item['name']} 與大盤雙圖對照..."):
-                df_curr = fetch_stock_kline(curr_code, period="6mo")
+                df_curr, _ = fetch_stock_kline(curr_code, period="6mo")
                 if df_curr is not None and not df_curr.empty:
                     fig_sync = create_market_sync_comparison_figure(
                         df_stock=df_curr,
-                        df_market=df_mkt,
+                        df_mkt=df_mkt,
                         stock_code=curr_code,
                         stock_name=curr_item['name'],
                         sync_data=curr_item

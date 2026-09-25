@@ -223,20 +223,35 @@ def scan_market_sync_candidates(
 
 def create_market_sync_comparison_figure(
     df_stock: pd.DataFrame,
-    df_mkt: pd.DataFrame,
-    stock_name: str,
-    stock_code: str
-) -> go.Figure:
+    df_mkt: Optional[pd.DataFrame] = None,
+    stock_name: str = "",
+    stock_code: str = "",
+    sync_data: Optional[Dict[str, Any]] = None,
+    df_market: Optional[pd.DataFrame] = None,
+    **kwargs
+) -> Optional[go.Figure]:
     """
     繪製大盤 vs 個股雙軸與累積報酬率對比圖 (一眼看出領先與滯後補漲空間)
     """
+    if df_mkt is None and df_market is not None:
+        df_mkt = df_market
+
+    if df_stock is None or df_mkt is None or df_stock.empty or df_mkt.empty:
+        return None
+
     # 對齊日期
-    merged = pd.merge(
-        df_stock[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']],
-        df_mkt[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']],
-        on='Date',
-        suffixes=('_stock', '_mkt')
-    ).sort_values('Date').dropna().reset_index(drop=True)
+    try:
+        merged = pd.merge(
+            df_stock[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']],
+            df_mkt[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']],
+            on='Date',
+            suffixes=('_stock', '_mkt')
+        ).sort_values('Date').dropna().reset_index(drop=True)
+    except Exception:
+        return None
+
+    if len(merged) < 5:
+        return None
 
     # 抓取最近 45 個交易日
     sub = merged.tail(45).copy().reset_index(drop=True)
