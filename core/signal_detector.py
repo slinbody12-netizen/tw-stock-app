@@ -326,6 +326,27 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     signals_dict['chili_count'] = chili
 
     # ----------------------------------------------------
+    # 提前計算高低位階與暴漲倍數 (確保各策略與突破位階均能安全引用)
+    # ----------------------------------------------------
+    is_multi_bagger = False
+    bagger_multiple = 1.0
+    if len(df) >= 40:
+        check_period = df.iloc[-120:] if len(df) >= 120 else df
+        lowest_price = float(check_period['Low'].min())
+        if lowest_price > 0:
+            bagger_multiple = round(c / lowest_price, 2)
+            if bagger_multiple >= 1.95:
+                is_multi_bagger = True
+    signals_dict['is_multi_bagger'] = is_multi_bagger
+    signals_dict['bagger_multiple'] = bagger_multiple
+
+    past20_low = df.iloc[-25:-5]['Low'].min() if len(df) >= 25 else l
+    is_near_bottom = (c <= past20_low * 1.15) or (sma20 <= sma60 * 1.02)
+    is_high_position = is_multi_bagger or (c >= sma20 * 1.15) or (len(df) >= 40 and c >= df.iloc[-40:]['Low'].min() * 1.35)
+    is_low_position = is_near_bottom or (sma5 <= sma60 * 1.08) or (c <= sma20 * 1.06)
+    signals_dict['is_high_position'] = is_high_position
+
+    # ----------------------------------------------------
     # 策略 A：頭高底高 (六字訣多頭確認)
     # 實戰心法：必須同時滿足「波段頭頭高」且「波段底底高」，方為多頭架構！
     # ----------------------------------------------------
@@ -549,14 +570,48 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
                         signals.append("N字底 (第二隻腳打樁有守突破)")
 
     # ----------------------------------------------------
-    # 策略 H：圓弧底 (U型底部走平翻揚)
+    # 策略 H：圓弧底 (U型慢火打底·過頸線或底部翻揚·CH6-4)
+    # 實戰心法：
+    # 1. 股價經過 25~60 天慢火打底洗淨浮額，凹槽最低點在中間，弧度開口向上。
+    # 2. 突破頸線：帶量大紅K衝過左右水平頸線 (等距波段目標價 D' = 頸線 + 深度)
+    # 3. 打底翻揚：右側回升脫離底部 >= 3%，站上 5MA 翻揚，雙線走平轉強。
     # ----------------------------------------------------
     if len(df) >= 25:
-        ma20_diff_recent = sma20 - prev_sma20
-        ma20_diff_old = float(df.iloc[-10]['SMA_20']) - float(df.iloc[-15]['SMA_20'])
-        if ma20_diff_old <= 0 and ma20_diff_recent >= -0.05 and c >= sma5 and is_red:
-            signals_dict['rounding_bottom'] = True
-            signals.append("圓弧底 (U型圓弧打底完成翻揚)")
+        round_w = min(60, len(df) - 1)
+        r_slice = df.iloc[-round_w:]
+        y_lows = r_slice['Low'].values
+        low_idx_rel = int(np.argmin(y_lows))
+
+        # 凹槽在中間非最近2天
+        if 2 <= low_idx_rel <= round_w - 3:
+            trough_low = float(y_lows[low_idx_rel])
+            left_high = float(r_slice['High'].iloc[:low_idx_rel].max())
+            right_high = float(r_slice['High'].iloc[low_idx_rel:].max())
+            neckline = max(left_high, right_high)
+
+            depth = (left_high - trough_low) / (trough_low + 1e-9)
+            rebound = (c - trough_low) / (trough_low + 1e-9)
+
+            poly = np.polyfit([0, low_idx_rel, round_w - 1], [left_high, trough_low, right_high], 2)
+            if poly[0] > 0 and depth >= 0.05:
+                # 型態一：放量過頸線起漲
+                if c >= neckline * 0.99 and c >= sma5 and (is_red or change_pct >= 0.5):
+                    signals_dict['rounding_bottom'] = True
+                    signals_dict['rounding_bottom_breakout'] = True
+                    signals.append("🥣 圓弧底放量突破 (突破水平頸線·等距對稱波·CH6)")
+                # 型態二：慢火打底右側翻揚成形
+                elif rebound >= 0.03 and c >= sma5 and sma5 >= prev_sma5 * 0.998 and sma20 >= prev_sma20 - 0.20:
+                    signals_dict['rounding_bottom'] = True
+                    signals_dict['rounding_bottom_breakout'] = False
+                    signals.append("🥣 圓弧底慢火打底 (U型慢火打底右側翻揚·CH6)")
+
+        # 備用均線平滑兼容
+        if not signals_dict.get('rounding_bottom', False):
+            ma20_diff_recent = sma20 - prev_sma20
+            ma20_diff_old = float(df.iloc[-10]['SMA_20']) - float(df.iloc[-15]['SMA_20'])
+            if ma20_diff_old <= 0 and ma20_diff_recent >= -0.05 and c >= sma5 and is_red:
+                signals_dict['rounding_bottom'] = True
+                signals.append("🥣 圓弧底慢火打底 (20MA平緩翻揚·CH6)")
 
     # ----------------------------------------------------
     # 策略 I：長抱 (均線長期多排穩健上揚)

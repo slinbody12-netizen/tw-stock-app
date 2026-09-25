@@ -533,7 +533,7 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         # 3. 多空方向篩選
         is_bear = bool(s.get('is_bear', False))
         is_bull = bool(s.get('is_bull', False))
-        if direction == "多" and is_bear and not signals_dict.get('bottom_breakout', False):
+        if direction == "多" and is_bear and not (signals_dict.get('bottom_breakout', False) or signals_dict.get('rounding_bottom', False) or signals_dict.get('flat_base_breakout', False) or signals_dict.get('box_range_breakout', False)):
             continue
         elif direction == "空" and is_bull and not (signals_dict.get('top_breakdown', False) or signals_dict.get('intraday_weak', False)):
             continue
