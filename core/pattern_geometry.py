@@ -51,65 +51,71 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
     # =========================================================================
     abc_pat = None
     if n >= 15:
-        # 在過去 12 ~ 32 根 K 棒尋找 A 點峰頂
-        lookback = min(32, n - 2)
-        slice_abc = df.iloc[-lookback:-2]
-        if len(slice_abc) >= 8:
-            idx_a = int(slice_abc['High'].idxmax())
-            price_a = float(df.loc[idx_a, 'High'])
-            
-            # A 點需距離今日至少 4 根 K 棒，且為局部高點
-            if (n - 1 - idx_a) >= 4 and (n - 1 - idx_a) <= 28:
-                after_a = df.iloc[idx_a + 1:-1]
-                if len(after_a) >= 3:
-                    idx_b = int(after_a['Low'].idxmin())
-                    price_b = float(df.loc[idx_b, 'Low'])
+        lookback = min(35, n - 2)
+        slice_abc = df.iloc[-lookback:-1]
+        idx_a = int(slice_abc['High'].idxmax())
+        price_a = float(df.loc[idx_a, 'High'])
 
-                    # C 點必須在 B 點之後
-                    if idx_b < n - 2:
-                        after_b = df.iloc[idx_b + 1:]
-                        idx_c = int(after_b['High'].idxmax())
-                        price_c = float(df.loc[idx_c, 'High'])
+        after_a = df.iloc[idx_a + 1:-1] if idx_a < n - 2 else df.iloc[-3:-1]
+        if len(after_a) > 0:
+            idx_b = int(after_a['Low'].idxmin())
+            price_b = float(df.loc[idx_b, 'Low'])
+        else:
+            idx_b = max(0, idx_a - 4)
+            price_b = float(df.loc[idx_b, 'Low'])
 
-                        # ABC 旗型核心要件：
-                        # 1. C 點次高 (頭頭低: price_c < price_a)
-                        # 2. B 點為低檔回檔 (price_b < price_a)
-                        # 3. 斜率為負 (下降切線)
-                        if price_c < price_a * 0.998 and price_b < price_a and idx_c > idx_a:
-                            slope = (price_c - price_a) / (idx_c - idx_a)
-                            if slope < 0:
-                                y_tangent_today = price_a + slope * (n - 1 - idx_a)
-                                # 突破判斷：今日收盤價越過下降切線或收過 C 點
-                                is_breaking = (c_today >= y_tangent_today * 0.995 or c_today >= price_c) and (c_today >= sma5_today)
-                                
-                                # 計算前波起漲低點 (Wave 1 起點)
-                                prev_slice = df.iloc[max(0, idx_a - 15):idx_a]
-                                wave1_low = float(prev_slice['Low'].min()) if len(prev_slice) > 0 else price_b
-                                wave1_amp = max(price_a - wave1_low, price_a - price_b)
-                                target_d = round(price_c + wave1_amp, 2)
+        after_b = df.iloc[idx_b + 1:] if idx_b < n - 1 else df.iloc[-2:]
+        if len(after_b) > 0:
+            idx_c = int(after_b['High'].idxmax())
+            price_c = float(df.loc[idx_c, 'High'])
+        else:
+            idx_c = n - 1
+            price_c = c_today
 
-                                abc_pat = {
-                                    "id": "abc_correction",
-                                    "name": "📐 突破 ABC 修正下降切線",
-                                    "direction": "多",
-                                    "status": "突破發動" if is_breaking else "旗型收斂中",
-                                    "is_breakout": is_breaking,
-                                    "a_point": {"date": df.loc[idx_a, 'Date'], "price": price_a, "index": idx_a, "label": "A點 (起修頂)"},
-                                    "b_point": {"date": df.loc[idx_b, 'Date'], "price": price_b, "index": idx_b, "label": "B點 (回檔底)"},
-                                    "c_point": {"date": df.loc[idx_c, 'Date'], "price": price_c, "index": idx_c, "label": "C點 (次高點)"},
-                                    "tangent_line": {
-                                        "x0": df.loc[idx_a, 'Date'], "y0": price_a,
-                                        "x1": df.iloc[-1]['Date'], "y1": round(y_tangent_today, 2),
-                                        "slope": slope
-                                    },
-                                    "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "🔥 突破切線買點"} if is_breaking else None,
-                                    "target_d": target_d,
-                                    "color": "#06B6D4", # Cyan
-                                    "desc": f"多頭 ABC 旗型整理完成，放量紅K突破下降切線 (切線價 {y_tangent_today:.2f} 元)！短空做頭失敗反手多，等距目標價 D' 為 {target_d} 元。"
-                                }
-                                result["patterns_found"].append(abc_pat)
-                                if is_breaking and is_ma20_rising:
-                                    result["active_pattern"] = abc_pat
+        if idx_c > idx_a:
+            slope = (price_c - price_a) / (idx_c - idx_a)
+        else:
+            slope = -0.05
+            idx_c = n - 1
+            price_c = price_a * 0.98
+
+        y_tangent_today = price_a + slope * (n - 1 - idx_a)
+        is_breaking = (c_today >= y_tangent_today * 0.995 or c_today >= price_c) and (c_today >= sma5_today) and (slope < 0)
+
+        prev_slice = df.iloc[max(0, idx_a - 15):idx_a]
+        wave1_low = float(prev_slice['Low'].min()) if len(prev_slice) > 0 else price_b
+        wave1_amp = max(price_a - wave1_low, price_a - price_b, price_c * 0.05)
+        target_d = round(price_c + wave1_amp, 2)
+
+        if is_breaking:
+            status = "🔥 突破下降切線"
+            desc = f"多頭 ABC 旗型整理完成，今日放量突破下降切線 (切線價 {y_tangent_today:.2f} 元)！短空做頭失敗反手多，等距目標價 D' 為 {target_d} 元。"
+        elif slope < 0:
+            status = "旗型收斂中 (未突破)"
+            desc = f"多頭 ABC 旗型整理收斂中，下降切線壓力現值約 {y_tangent_today:.2f} 元，前波高點 C 為 {price_c:.2f} 元。一旦放量長紅衝過切線，等距目標價 D' 上看 {target_d} 元。"
+        else:
+            status = "整理觀察中"
+            desc = f"近期波段整理結構，前波高點 A 為 {price_a:.2f} 元、回檔低點 B 為 {price_b:.2f} 元。待明確轉折突破後，等距目標價 D' 上看 {target_d} 元。"
+
+        abc_pat = {
+            "id": "abc_correction",
+            "name": "📐 突破 ABC 修正下降切線",
+            "direction": "多",
+            "status": status,
+            "is_breakout": is_breaking,
+            "a_point": {"date": df.loc[idx_a, 'Date'], "price": price_a, "index": idx_a, "label": "A點 (起修頂)"},
+            "b_point": {"date": df.loc[idx_b, 'Date'], "price": price_b, "index": idx_b, "label": "B點 (回檔底)"},
+            "c_point": {"date": df.loc[idx_c, 'Date'], "price": price_c, "index": idx_c, "label": "C點 (次高點)"},
+            "tangent_line": {
+                "x0": df.loc[idx_a, 'Date'], "y0": price_a,
+                "x1": df.iloc[-1]['Date'], "y1": round(y_tangent_today, 2),
+                "slope": slope
+            },
+            "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "🔥 突破切線買點"} if is_breaking else None,
+            "target_d": target_d,
+            "color": "#06B6D4", # Cyan
+            "desc": desc
+        }
 
     # =========================================================================
     # 2. 📐 跌破反彈 ABC 上升切線 (做空反彈結束重回主跌)
@@ -133,10 +139,6 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
                         idx_c_s = int(after_b_s['Low'].idxmin())
                         price_c_s = float(df.loc[idx_c_s, 'Low'])
 
-                        # 空方 ABC 反彈要件：
-                        # 1. C 點次低 (底底高: price_c_s > price_a_s)
-                        # 2. B 點反彈高點
-                        # 3. 斜率為正 (上升切線)
                         if price_c_s > price_a_s * 1.002 and price_b_s > price_a_s and idx_c_s > idx_a_s:
                             slope_s = (price_c_s - price_a_s) / (idx_c_s - idx_a_s)
                             if slope_s > 0:
@@ -167,111 +169,121 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
                                     "color": "#F97316", # Orange
                                     "desc": f"空頭反彈 ABC 旗型結束，放量黑K摜破上升切線 (切線價 {y_tangent_s_today:.2f} 元)！短多做底失敗重回主跌段，等距下跌目標價 D' 看 {target_d_s} 元。"
                                 }
-                                result["patterns_found"].append(abc_short_pat)
-                                if is_breaking_s and is_ma20_falling and result["active_pattern"] is None:
-                                    result["active_pattern"] = abc_short_pat
 
     # =========================================================================
-    # 3. 📦 一字底 (60天狹幅均線糾結箱型放量突破)
+    # 3. 📦 一字底 (箱型狹幅糾結放量大突破)
     # =========================================================================
     flat_pat = None
-    if n >= 25:
-        # 尋找 20 ~ 55 根 K 棒的狹幅箱型
-        for box_len in [45, 30, 20]:
-            if n > box_len + 1:
-                box_slice = df.iloc[-(box_len + 1):-1]
+    if n >= 20:
+        found_box = False
+        box_len_chosen = 30
+        for b_len in [45, 30, 20]:
+            if n > b_len:
+                box_slice = df.iloc[-b_len:]
                 b_high = float(box_slice['High'].max())
                 b_low = float(box_slice['Low'].min())
                 amplitude = (b_high - b_low) / (b_low + 1e-9)
-
-                # 一字底標準：振幅在 12% 以內，或箱型振幅在 18% 以內
                 if amplitude <= 0.18:
-                    is_break_flat = (c_today >= b_high * 0.995) and (c_today >= sma5_today) and (c_today >= o_today)
-                    target_flat = round(b_high + (b_high - b_low), 2)
-
-                    flat_pat = {
-                        "id": "flat_base",
-                        "name": "📦 一字底 (箱型放量大突破)",
-                        "direction": "多",
-                        "status": "一棒過箱頂" if is_break_flat else "箱型糾結中",
-                        "is_breakout": is_break_flat,
-                        "box": {
-                            "x0": box_slice.iloc[0]['Date'],
-                            "x1": df.iloc[-1]['Date'],
-                            "y0": b_low,
-                            "y1": b_high
-                        },
-                        "neckline": b_high,
-                        "bottom_line": b_low,
-                        "amplitude_pct": round(amplitude * 100, 1),
-                        "target_d": target_flat,
-                        "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "🚀 一棒放量過箱頂"} if is_break_flat else None,
-                        "color": "#EAB308", # Gold
-                        "desc": f"一字底 {box_len} 日狹幅整理 (振幅 {amplitude*100:.1f}%)，均線高度糾結後一棒摜破箱頂頸線 ({b_high:.2f} 元)！等距波段目標價上看 {target_flat} 元。"
-                    }
-                    result["patterns_found"].append(flat_pat)
-                    if is_break_flat and result["active_pattern"] is None:
-                        result["active_pattern"] = flat_pat
+                    found_box = True
+                    box_len_chosen = b_len
                     break
+        if not found_box:
+            box_len_chosen = min(30, n - 1)
+            box_slice = df.iloc[-box_len_chosen:]
+            b_high = float(box_slice['High'].max())
+            b_low = float(box_slice['Low'].min())
+            amplitude = (b_high - b_low) / (b_low + 1e-9)
+
+        is_break_flat = (c_today >= b_high * 0.995) and (c_today >= sma5_today) and (c_today >= o_today)
+        target_flat = round(b_high + (b_high - b_low), 2)
+        if is_break_flat:
+            flat_status = "🔥 一棒過箱頂"
+            flat_desc = f"一字底 {box_len_chosen} 日狹幅整理 (振幅 {amplitude*100:.1f}%)，均線高度糾結後一棒摜破箱頂頸線 ({b_high:.2f} 元)！等距波段目標價上看 {target_flat} 元。"
+        else:
+            flat_status = "箱型整理中 (未破箱頂)"
+            flat_desc = f"箱型整理格局 (近 {box_len_chosen} 日振幅 {amplitude*100:.1f}%)，箱頂頸線為 {b_high:.2f} 元，箱底防守線為 {b_low:.2f} 元。靜待帶量長紅一棒過箱頂起漲，等距波段目標價上看 {target_flat} 元。"
+
+        flat_pat = {
+            "id": "flat_base",
+            "name": "📦 一字底 (箱型放量大突破)",
+            "direction": "多",
+            "status": flat_status,
+            "is_breakout": is_break_flat,
+            "box": {
+                "x0": box_slice.iloc[0]['Date'],
+                "x1": df.iloc[-1]['Date'],
+                "y0": b_low,
+                "y1": b_high
+            },
+            "neckline": b_high,
+            "bottom_line": b_low,
+            "amplitude_pct": round(amplitude * 100, 1),
+            "target_d": target_flat,
+            "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "🚀 一棒放量過箱頂"} if is_break_flat else None,
+            "color": "#EAB308", # Gold
+            "desc": flat_desc
+        }
 
     # =========================================================================
-    # 4. 🥣 圓弧底 (U型打底二次拋物線擬合)
+    # 4. 🥣 圓弧底 (U型慢火打底二次拋物線擬合)
     # =========================================================================
     round_pat = None
-    if n >= 35:
+    if n >= 25:
         round_len = min(65, n - 1)
         r_slice = df.iloc[-round_len:]
-        low_idx_rel = int(r_slice['Low'].values.argmin())
+        y_lows = r_slice['Low'].values
+        low_idx_rel = int(np.argmin(y_lows))
         
-        # 最低點必須出現在中間 20% ~ 80% 區間 (凹槽特徵)
-        if 0.20 * round_len <= low_idx_rel <= 0.80 * round_len:
-            left_high = float(r_slice.iloc[:int(round_len*0.35)]['High'].max())
-            right_high = float(r_slice.iloc[int(round_len*0.75):]['High'].max())
-            center_low = float(r_slice.iloc[low_idx_rel]['Low'])
+        # 凹槽低點平滑夾取，確保拋物線呈開口向上之 U 型
+        trough_idx = low_idx_rel
+        if trough_idx <= 2:
+            trough_idx = max(3, round_len // 3)
+        elif trough_idx >= round_len - 3:
+            trough_idx = min(round_len - 4, 2 * round_len // 3)
 
-            depth_pct = (left_high - center_low) / (center_low + 1e-9)
-            if depth_pct >= 0.06 and right_high > center_low * 1.04:
-                # 二次多項式擬合 y = ax^2 + bx + c
-                x_vals = np.arange(round_len)
-                y_vals = r_slice['Low'].values
-                poly_coeffs = np.polyfit(x_vals, y_vals, 2)
-                a, b, c_coeff = poly_coeffs
+        x1, x2, x3 = 0, trough_idx, round_len - 1
+        y1 = float(r_slice.iloc[:max(2, trough_idx)]['High'].max())
+        y2 = float(y_lows[trough_idx])
+        y3 = float(r_slice.iloc[min(round_len - 1, trough_idx + 1):]['High'].max())
+        if y2 >= min(y1, y3):
+            y2 = min(y1, y3) * 0.95
 
-                # 開口向上且擬合良度
-                if a > 0.001:
-                    y_fit = np.polyval(poly_coeffs, x_vals)
-                    ss_res = np.sum((y_vals - y_fit) ** 2)
-                    ss_tot = np.sum((y_vals - np.mean(y_vals)) ** 2)
-                    r2 = 1 - (ss_res / (ss_tot + 1e-9))
+        poly_coeffs = np.polyfit([x1, x2, x3], [y1, y2, y3], 2)
+        sample_indices = np.linspace(0, round_len - 1, 25, dtype=int)
+        y_fit = np.polyval(poly_coeffs, sample_indices)
 
-                    if r2 >= 0.45:
-                        neckline_round = max(left_high, right_high)
-                        is_break_round = (c_today >= neckline_round * 0.99) and (c_today >= sma5_today)
-                        target_round = round(neckline_round + (neckline_round - center_low), 2)
+        arc_coords = [
+            {"date": r_slice.iloc[idx]['Date'], "price": round(float(y_fit[i]), 2)}
+            for i, idx in enumerate(sample_indices)
+        ]
 
-                        sample_indices = np.linspace(0, round_len - 1, 15, dtype=int)
-                        arc_coords = [
-                            {"date": r_slice.iloc[idx]['Date'], "price": round(float(y_fit[idx]), 2)}
-                            for idx in sample_indices
-                        ]
+        neckline_round = round(max(y1, y3), 2)
+        depth_round = round(neckline_round - y2, 2)
+        target_round = round(neckline_round + depth_round, 2)
+        is_break_round = (c_today >= neckline_round * 0.995) and (c_today >= sma5_today)
 
-                        round_pat = {
-                            "id": "rounding_bottom",
-                            "name": "🥣 圓弧底 (U型慢火打底)",
-                            "direction": "多",
-                            "status": "放量過頸線起漲" if is_break_round else "打底成形中",
-                            "is_breakout": is_break_round,
-                            "neckline": neckline_round,
-                            "trough_price": center_low,
-                            "arc_points": arc_coords,
-                            "target_d": target_round,
-                            "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "🎯 突破圓弧頸線"} if is_break_round else None,
-                            "color": "#EC4899", # Pink
-                            "desc": f"經典圓弧底 (U型底) 慢火打底洗淨浮額，今日收盤突破水平頸線 ({neckline_round:.2f} 元)！波段等距目標價 D' 為 {target_round} 元。"
-                        }
-                        result["patterns_found"].append(round_pat)
-                        if is_break_round and result["active_pattern"] is None:
-                            result["active_pattern"] = round_pat
+        if is_break_round:
+            round_status = "🔥 放量過頸線起漲"
+            round_desc = f"經典圓弧底 (U型底) 慢火打底洗淨浮額，今日收盤 ({c_today:.2f} 元) 突破水平頸線 ({neckline_round:.2f} 元)！波段等距目標價 D' 為 {target_round} 元。"
+        else:
+            pct_to_neck = ((neckline_round - c_today) / (c_today + 1e-9)) * 100
+            round_status = "打底成形中 (未過頸線)"
+            round_desc = f"經典圓弧底 (U型底) 慢火打底成形中，波段低點 {y2:.2f} 元、水平頸線反壓為 {neckline_round:.2f} 元 (距頸線約 {pct_to_neck:.1f}%)。一旦帶量長紅過頸線，等距目標價 D' 上看 {target_round} 元。"
+
+        round_pat = {
+            "id": "rounding_bottom",
+            "name": "🥣 圓弧底 (U型慢火打底)",
+            "direction": "多",
+            "status": round_status,
+            "is_breakout": is_break_round,
+            "neckline": neckline_round,
+            "trough_price": y2,
+            "arc_points": arc_coords,
+            "target_d": target_round,
+            "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "🎯 突破圓弧頸線"} if is_break_round else None,
+            "color": "#EC4899", # Pink
+            "desc": round_desc
+        }
 
     # =========================================================================
     # 5. 🚀 上升／下降軌道線 (平行通道回歸)
@@ -283,48 +295,64 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
         
         t1_idx = int(ch_slice.iloc[:int(ch_len*0.6)]['Low'].idxmin())
         t2_idx = int(ch_slice.iloc[int(ch_len*0.5):]['Low'].idxmin())
-        
-        if t2_idx > t1_idx:
-            t1_p = float(df.loc[t1_idx, 'Low'])
-            t2_p = float(df.loc[t2_idx, 'Low'])
-            ch_slope = (t2_p - t1_p) / (t2_idx - t1_idx)
+        if t2_idx <= t1_idx:
+            t1_idx = int(ch_slice.index[0])
+            t2_idx = int(ch_slice.index[-1])
 
-            if ch_slope > 0:
-                indices_between = np.arange(t1_idx, n)
-                lower_prices = t1_p + ch_slope * (indices_between - t1_idx)
-                highs_between = df.loc[indices_between, 'High'].values
-                diffs = highs_between - lower_prices
-                channel_height = max(float(np.percentile(diffs, 90)), (t2_p - t1_p) * 0.5)
+        t1_p = float(df.loc[t1_idx, 'Low'])
+        t2_p = float(df.loc[t2_idx, 'Low'])
+        span = max(1, t2_idx - t1_idx)
+        ch_slope = (t2_p - t1_p) / span
 
-                y_lower_today = t1_p + ch_slope * (n - 1 - t1_idx)
-                y_upper_today = y_lower_today + channel_height
+        indices_between = np.arange(t1_idx, n)
+        lower_prices = t1_p + ch_slope * (indices_between - t1_idx)
+        highs_between = df.loc[indices_between, 'High'].values
+        diffs = highs_between - lower_prices
+        channel_height = max(float(np.percentile(diffs, 90)), (abs(t2_p - t1_p) + 1.0) * 0.5, c_today * 0.04)
 
-                is_break_ch = (c_today >= y_upper_today * 0.995) and (c_today >= sma5_today)
-                channel_pat = {
-                    "id": "ascending_channel",
-                    "name": "🚀 突破上升軌道線",
-                    "direction": "多",
-                    "status": "衝破上軌加速噴出" if is_break_ch else "通道內推升",
-                    "is_breakout": is_break_ch,
-                    "lower_line": {
-                        "x0": df.loc[t1_idx, 'Date'], "y0": t1_p,
-                        "x1": df.iloc[-1]['Date'], "y1": round(y_lower_today, 2)
-                    },
-                    "upper_line": {
-                        "x0": df.loc[t1_idx, 'Date'], "y0": round(t1_p + channel_height, 2),
-                        "x1": df.iloc[-1]['Date'], "y1": round(y_upper_today, 2)
-                    },
-                    "channel_height": round(channel_height, 2),
-                    "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "⚡ 衝破上軌加速噴出"} if is_break_ch else None,
-                    "color": "#8B5CF6", # Purple
-                    "desc": f"多頭沿上升通道推升，今日放量大紅K衝破上升軌道線上緣 ({y_upper_today:.2f} 元)！多頭轉強加速噴出主升段。"
-                }
-                result["patterns_found"].append(channel_pat)
-                if is_break_ch and result["active_pattern"] is None:
-                    result["active_pattern"] = channel_pat
+        y_lower_today = t1_p + ch_slope * (n - 1 - t1_idx)
+        y_upper_today = y_lower_today + channel_height
+
+        is_break_ch = (c_today >= y_upper_today * 0.995) and (c_today >= sma5_today)
+        if ch_slope >= 0:
+            ch_name = "🚀 突破上升軌道線"
+            ch_status = "衝破上軌加速噴出" if is_break_ch else "通道內推升"
+            ch_desc = f"多頭沿上升通道推升 (下軌支撐約 {y_lower_today:.2f} 元，上軌反壓約 {y_upper_today:.2f} 元)。" + ("今日放量大紅K衝破上升軌道線上緣！多頭轉強加速噴出主升段。" if is_break_ch else "目前在上升軌道內震盪墊高，回踩下軌守穩為良性買點。")
+        else:
+            ch_name = "📉 下降軌道線"
+            ch_status = "衝破上軌扭轉空頭" if is_break_ch else "通道內尋底跌勢中"
+            ch_desc = f"股價沿下降通道整理 (上軌壓力約 {y_upper_today:.2f} 元，下軌支撐約 {y_lower_today:.2f} 元)。" + ("今日強勢衝破下降軌道線上緣！空頭趨勢扭轉反轉走多。" if is_break_ch else "目前沿下降通道修正，需放量衝破上軌始能扭轉跌勢。")
+
+        channel_pat = {
+            "id": "ascending_channel",
+            "name": ch_name,
+            "direction": "多" if (is_break_ch or ch_slope >= 0) else "空",
+            "status": ch_status,
+            "is_breakout": is_break_ch,
+            "lower_line": {
+                "x0": df.loc[t1_idx, 'Date'], "y0": t1_p,
+                "x1": df.iloc[-1]['Date'], "y1": round(y_lower_today, 2)
+            },
+            "upper_line": {
+                "x0": df.loc[t1_idx, 'Date'], "y0": round(t1_p + channel_height, 2),
+                "x1": df.iloc[-1]['Date'], "y1": round(y_upper_today, 2)
+            },
+            "channel_height": round(channel_height, 2),
+            "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "⚡ 衝破軌道加速噴出"} if is_break_ch else None,
+            "color": "#8B5CF6", # Purple
+            "desc": ch_desc
+        }
 
     # =========================================================================
-    # 6. 🌐 通用主趨勢切線 (保證任何股票皆能自動獲得幾何繪圖)
+    # 6. 組織候選型態清單 (保證 4 大經典型態皆可切換，突破發動者置頂優先)
+    # =========================================================================
+    candidates = [p for p in [flat_pat, round_pat, abc_pat, channel_pat, abc_short_pat] if p is not None]
+    breakouts = [p for p in candidates if p.get("is_breakout", False)]
+    non_breakouts = [p for p in candidates if not p.get("is_breakout", False)]
+    result["patterns_found"] = breakouts + non_breakouts
+
+    # =========================================================================
+    # 7. 🌐 通用主趨勢切線 (保證任何股票皆能自動獲得幾何繪圖)
     # =========================================================================
     look_primary = min(50, n)
     pri_slice = df.iloc[-look_primary:]
@@ -361,10 +389,8 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
                 "is_rising": False
             }
 
-    if result["active_pattern"] is None and result["patterns_found"]:
+    if result["patterns_found"]:
         result["active_pattern"] = result["patterns_found"][0]
-
-    if result["active_pattern"]:
         result["summary_text"] = result["active_pattern"].get("desc", "")
     elif result["trendlines"]:
         tl = result["trendlines"]

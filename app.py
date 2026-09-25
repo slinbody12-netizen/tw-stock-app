@@ -1246,6 +1246,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 p_match = next((p for p in pattern_geo["patterns_found"] if p["name"] == chosen_pname), None)
                 if p_match:
                     pattern_geo["active_pattern"] = p_match
+                    if p_match.get("desc"):
+                        pattern_geo["summary_text"] = p_match["desc"]
             st.markdown("</div>", unsafe_allow_html=True)
 
             if show_geometry and pattern_geo.get("summary_text"):
