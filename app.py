@@ -28,6 +28,7 @@ import core.sector_radar
 import core.ai_assistant
 import core.copilot
 import core.tracker
+import core.market_sync
 
 # 強制重載 core 模組，確保 Streamlit Cloud 部署即時同步最新簽名與函式
 importlib.reload(core.wave_engine)
@@ -38,8 +39,15 @@ importlib.reload(core.sector_radar)
 importlib.reload(core.ai_assistant)
 importlib.reload(core.copilot)
 importlib.reload(core.tracker)
+importlib.reload(core.market_sync)
 
 from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, load_stock_list
+from core.market_sync import (
+    get_market_benchmark,
+    analyze_market_sync_single,
+    scan_market_sync_candidates,
+    create_market_sync_comparison_figure
+)
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
@@ -926,6 +934,7 @@ else:
     MENU_OPTIONS = [
         "📊 個股技術分析 (轉折波主圖)",
         "🎯 全攻略選股池 (多/空策略)",
+        "🛰️ 大盤同步·滯後補漲雷達",
         "👁️ 晚間盤後功課 (鎖股名冊監控)",
         "📅 每日推薦實戰日誌 (👑 指揮官專屬)",
         "🤖 實戰秘密特務 (操盤副駕駛)",
@@ -2495,6 +2504,196 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 render_stock_card(item, key_prefix=f"scr_{target_strategy}_{idx}", current_strategy=target_strategy)
     else:
         st.info(f"目前在【{target_strategy}】條件下暫無符合標的，您可以切換其他子策略或放寬價格位階重新掃描。")
+
+# ----------------------------------------------------
+# 功能分頁：大盤同步 · 滯後補漲雷達 (Market Sync & Catch-Up Radar)
+# ----------------------------------------------------
+elif "大盤同步" in menu or "滯後補漲" in menu:
+    st.header("🛰️ 大盤同步 · 滯後補漲雷達")
+    st.caption("🎯 **量化策略核心**：在大盤處於多頭或波段反彈浪潮時，追蹤走勢波形與大盤高度同步（相似度 > 70%），但漲勢節奏落後大盤、尚未全面發作的主流熱門股。藉由資金板塊輪動外溢效益，精準掌握低風險、高風報比的『**滯後補漲發動波**』！")
+
+    # 大盤即時環境健檢
+    df_mkt, info_mkt = get_market_benchmark(period="6mo")
+    if df_mkt is not None and not df_mkt.empty:
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        m_close = info_mkt.get("close", 0.0)
+        m_chg = info_mkt.get("change_pct", 0.0)
+        m_r5 = info_mkt.get("return_5d", 0.0)
+        m_r20 = info_mkt.get("return_20d", 0.0)
+        
+        m_color = "#FF4D4F" if m_chg >= 0 else "#52C41A"
+        col_m1.metric("加權指數 (^TWII)", f"{m_close:,.2f}", f"{m_chg:+.2f}%", delta_color="inverse" if m_chg < 0 else "normal")
+        col_m2.metric("大盤 5 日累積動能", f"{m_r5:+.2f}%", help="大盤近 5 個交易日之累積漲跌幅")
+        col_m3.metric("大盤 20 日波段動能", f"{m_r20:+.2f}%", help="大盤近 20 個交易日月線級別波段漲跌幅")
+        
+        # 大盤技術格局判斷
+        m_sma5 = info_mkt.get("sma5", 0.0)
+        m_sma20 = info_mkt.get("sma20", 0.0)
+        if m_close >= m_sma5 and m_sma5 >= m_sma20:
+            m_status = "🔥 多頭強勢發動 (站穩5MA/20MA)"
+            m_s_color = "#FF4D4F"
+        elif m_close >= m_sma20:
+            m_status = "🟢 守穩月線整理 (伺機攻堅)"
+            m_s_color = "#52C41A"
+        else:
+            m_status = "⚠️ 跌破月線震盪 (需嚴控持股水位)"
+            m_s_color = "#FAAD14"
+        col_m4.markdown(f"<div style='font-size:0.85rem; color:#888; margin-top:4px;'>大盤技術位階</div><div style='font-size:1.05rem; font-weight:bold; color:{m_s_color}; margin-top:2px;'>{m_status}</div>", unsafe_allow_html=True)
+
+    # 策略教學說明與三道濾網提示
+    with st.expander("💡 助教操盤手札：滯後補漲戰法的勝率關鍵與三道防禦濾網", expanded=False):
+        st.markdown(
+            """
+            ### 📌 什麼是「大盤同步·滯後補漲」戰法？
+            - **同向同構**：個股的走勢、高低轉折波與大盤加權指數高度重疊（形狀相似度 >= 70%），代表該標的受全市場總體資金與多頭氛圍強烈共振。
+            - **時鐘慢半拍**：大盤已經領先向上攻堅或創波段高，而此類個股仍在底部或頸線附近蓄勢（近 5 日累積漲幅落後大盤 1% ~ 8%）。
+            - **補漲啟動**：在多頭趨勢確立後，資金會由最先發動的第一梯隊權值股外溢至同型態二線主流股，形成「落後補漲」的主升推升段！
+
+            ### 🛡️ 官方助教「三道安全濾網」（防範破底假補漲）：
+            1. **嚴禁空排破線**：若個股遠低於月線（20MA）或破底創新低，屬於「弱者恆弱、主力棄守」，絕非健康補漲，系統已強制自動剔除。
+            2. **避開大盤噴出末端**：若大盤已急漲 5~7 天處於過熱高檔，此時進場滯後股易遭遇大盤回檔而「補跌不補漲」。最佳進場契機為**大盤轉折起漲第 1~3 天**。
+            3. **大盤破線即防守**：以大盤跌破 5MA 或個股自身跌破打底低點/20MA 為最高出場紀律，守住獲利絕不凹單。
+            """
+        )
+
+    # 控制項設定
+    st.markdown("---")
+    ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.2, 1, 1, 0.8])
+    with ctrl_c1:
+        scan_mode = st.selectbox(
+            "篩選目標策略",
+            ["🔥 強烈滯後補漲 (相似度>70% 且 漲幅落後大盤)", "⚡ 大盤高度同步 (相似度>75% 同步推升)", "🌐 全部同步候選名單"],
+            index=0
+        )
+    with ctrl_c2:
+        min_shape_sim = st.slider("最低波形相似度 (%)", min_value=60, max_value=90, value=70, step=5)
+    with ctrl_c3:
+        pool_choice = st.selectbox("監控股池", ["🔥 主流熱門與活躍股", "💎 精選波段觀察股", "📋 全部自選名冊"], index=0)
+    with ctrl_c4:
+        st.write("")
+        st.write("")
+        do_rescan = st.button("🔄 重新掃描雷達", use_container_width=True)
+
+    filter_mode_val = "lagging_only" if "強烈滯後" in scan_mode else ("all_sync" if "大盤高度同步" in scan_mode else "all")
+
+    # 執行掃描 (使用 session state 快取，避免切換個股或按鈕時重複大量連線抓取)
+    cache_key = f"market_sync_results_{filter_mode_val}_{min_shape_sim}_{pool_choice}"
+    if do_rescan or cache_key not in st.session_state:
+        with st.spinner("🛰️ 正在比對主流股與大盤加權指數之波形相似度與滯後缺口..."):
+            all_stk = load_stock_list()
+            if "主流熱門" in pool_choice:
+                scan_universe = all_stk[:65]
+            elif "精選" in pool_choice:
+                scan_universe = all_stk[:40]
+            else:
+                scan_universe = all_stk[:100]
+
+            sync_candidates = scan_market_sync_candidates(
+                stock_list=scan_universe,
+                filter_mode=filter_mode_val,
+                min_shape_corr=float(min_shape_sim),
+                top_n=25
+            )
+            st.session_state[cache_key] = sync_candidates
+    else:
+        sync_candidates = st.session_state[cache_key]
+
+    st.markdown(f"**掃描結果：共發現 `{len(sync_candidates)}` 檔符合波形同步與滯後補漲條件之標的**")
+
+    if not sync_candidates:
+        st.info("目前條件下暫無符合標的，您可以稍微調降「最低波形相似度」或切換為「全部同步候選名單」重新掃描。")
+    else:
+        # 分欄排版：左欄候選股列表與卡片 / 右欄大盤 vs 個股雙走勢及 K 線對照圖
+        left_col, right_col = st.columns([1.1, 1.4])
+        
+        # 預設選中第一檔
+        if "selected_sync_stock" not in st.session_state or not any(s['code'] == st.session_state.selected_sync_stock for s in sync_candidates):
+            st.session_state.selected_sync_stock = sync_candidates[0]['code']
+
+        with left_col:
+            st.subheader("📋 滯後補漲熱門候選清單")
+            for idx, c_item in enumerate(sync_candidates):
+                code = c_item['code']
+                name = c_item['name']
+                is_selected = (code == st.session_state.selected_sync_stock)
+                
+                # 醒目標示外框
+                border_style = "2px solid #13C2C2; background: #16202C;" if is_selected else "1px solid #2B3145; background: #181C28;"
+                
+                card_html = f"""
+                <div style='{border_style} border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;'>
+                    <div style='display: flex; justify-content: space-between; align-items: center;'>
+                        <div>
+                            <span style='font-size: 1.1rem; font-weight: bold; color: white;'>{name}</span>
+                            <span style='color: #8892B0; font-size: 0.88rem; margin-left: 5px;'>({code})</span>
+                            <span style='background: #1F2438; border: 1px solid {c_item['status_color']}; color: {c_item['status_color']}; font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; margin-left: 6px;'>{c_item['status_badge']}</span>
+                        </div>
+                        <div style='text-align: right;'>
+                            <span style='font-size: 1.15rem; font-weight: bold; color: #FFF;'>{c_item['close']}</span> 元
+                        </div>
+                    </div>
+                    <div style='display: flex; justify-content: space-between; font-size: 0.82rem; color: #CBD5E1; margin-top: 6px;'>
+                        <div>🌊 幾何相似度：<b style='color: #13C2C2;'>{c_item['shape_corr']}%</b> | 相關係數：<b>{c_item['corr_return']}%</b></div>
+                        <div>⏳ 5日落後差距：<b style='color: #FF4D4F;'>+{c_item['lag_gap_5d']}%</b></div>
+                    </div>
+                    <div style='display: flex; justify-content: space-between; font-size: 0.8rem; color: #94A3B8; margin-top: 4px; border-top: 1px dashed #2B3145; padding-top: 4px;'>
+                        <div>🎯 補漲目標：<b style='color: #52C41A;'>{c_item['catchup_target']} 元</b> (依大盤等比)</div>
+                        <div>🛑 建議防守：<b style='color: #FF7875;'>{c_item['stop_loss']} 元</b> (風控 -{c_item['risk_pct']}%)</div>
+                    </div>
+                </div>
+                """
+                st.markdown(card_html, unsafe_allow_html=True)
+                
+                b_c1, b_c2 = st.columns([1, 1])
+                with b_c1:
+                    if st.button(f"📈 檢視雙走勢對照", key=f"btn_sync_view_{code}_{idx}", use_container_width=True):
+                        st.session_state.selected_sync_stock = code
+                        st.rerun()
+                with b_c2:
+                    if st.button(f"📊 載入主圖分頁", key=f"btn_sync_chart_{code}_{idx}", use_container_width=True):
+                        st.session_state.selected_stock = code
+                        st.session_state.return_to_menu = "🛰️ 大盤同步·滯後補漲雷達"
+                        st.session_state.goto_chart = True
+                        st.rerun()
+
+        with right_col:
+            # 取得當前選定個股資料
+            curr_code = st.session_state.selected_sync_stock
+            curr_item = next((s for s in sync_candidates if s['code'] == curr_code), sync_candidates[0])
+            
+            st.subheader(f"📊 【{curr_item['name']} ({curr_item['code']})】vs 加權指數走勢對照")
+            
+            with st.spinner(f"正在繪製 {curr_item['name']} 與大盤雙圖對照..."):
+                df_curr = fetch_stock_kline(curr_code, period="6mo")
+                if df_curr is not None and not df_curr.empty:
+                    fig_sync = create_market_sync_comparison_figure(
+                        df_stock=df_curr,
+                        df_market=df_mkt,
+                        stock_code=curr_code,
+                        stock_name=curr_item['name'],
+                        sync_data=curr_item
+                    )
+                    if fig_sync:
+                        st.plotly_chart(fig_sync, use_container_width=True, key=f"plotly_sync_{curr_code}")
+                    else:
+                        st.warning("無法產生存量對照圖表，數據長度不足。")
+                else:
+                    st.warning("無法取得個股歷史 K 線數據。")
+
+            # 實戰操作建議便條
+            st.markdown(
+                f"""
+                <div style='background: #141724; border-left: 4px solid #13C2C2; border-radius: 6px; padding: 12px 16px; margin-top: 10px; font-size: 0.88rem; line-height: 1.6; color: #E0E6ED;'>
+                    <div style='font-size: 0.95rem; font-weight: bold; color: #13C2C2; margin-bottom: 4px;'>🎯 助教實戰操盤指引【{curr_item['name']} ({curr_item['code']})】：</div>
+                    • <b>走勢同構度</b>：幾何波形相似度達 <b>{curr_item['shape_corr']}%</b>，高低轉折波與大盤同頻共振。<br>
+                    • <b>落後大盤差距</b>：近 5 個交易日大盤累計走勢比該股超前 <b>+{curr_item['lag_gap_5d']}%</b>，圖中金色上方與青色之間的陰影即為「<b>補漲缺口 (Lag Spread)</b>」！<br>
+                    • <b>補漲預期目標</b>：<b>{curr_item['catchup_target']} 元</b> (若追平大盤漲幅)。<br>
+                    • <b>風控防守價位</b>：<b>{curr_item['stop_loss']} 元</b> (守月線或前低，預估下檔最大風險僅 <b>-{curr_item['risk_pct']}%</b>)。<br>
+                    • <b>進場策略</b>：若大盤持續維持在 5MA 之上，當個股盤中帶量站上 5MA ({curr_item['sma5']} 元) 即可逢低佈局，等待補漲噴出！
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 # ----------------------------------------------------
 # 功能分頁 3：晚間盤後功課 · 鎖股名冊監控 (Watchlist Stages)
