@@ -1018,6 +1018,12 @@ def inspect_portfolio(portfolio: list) -> list:
             if custom_target <= 0:
                 custom_target = target_rebound_1
 
+            # CH7 實戰停損與移動停利風控
+            trailing_stop = round(max(buy_p, sma5), 2)
+            is_trailing_stop = (pnl_pct >= 7.0)
+            is_drop_5pct_warning = (curr_chg <= -5.0)
+            ch7_warning = f"⚠️ 今日重挫 {curr_chg}% (逾 5% 警示股·準備賣出)" if is_drop_5pct_warning else ""
+
             # --- 智能狀態裁決 ---
             if is_trapped:
                 # 【套牢持股救援與高點賣點雷達】
@@ -1026,6 +1032,11 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_badge = "⚠️ 融資破底·嚴防斷頭！"
                     status_color = "#FF4D4F"
                     status_desc = f"⚠️ <b>融資緊急離場警報</b>：當前股價 ({curr_p}元) 已摜破波段保命前底 ({floor_stop}元)，估算融資維持率約 <b>{margin_ratio}%</b> (逼近 130% 斷頭追繳線)！融資具利息負擔與強制平倉風險，請立即執行平倉停損，嚴防損失無限擴大！"
+                elif pnl_pct <= -10.0:
+                    status_type = "ABSOLUTE_STOP_LOSS_10PCT"
+                    status_badge = "🛑 絕對停損！虧損逾10%立刻砍單"
+                    status_color = "#FF4D4F"
+                    status_desc = f"🛑 <b>【CH7 絕對停損·終極鐵律】</b>：持股累計虧損已達 <b>{pnl_pct}%</b> (超過 10% 絕對極限)！華爾街與官方實戰鐵律：『絕不容許損失超過 10%，不可再凹單』！請於今日尾盤 13:20~13:30 果斷執行壯士斷腕全數停損，退出市場保留剩餘資金，等待下次翻盤機會！"
                 elif curr_p <= floor_stop:
                     status_type = "STOP_LOSS_FLOOR"
                     status_badge = "🔴 破保命底線！逃命離場"
@@ -1059,7 +1070,12 @@ def inspect_portfolio(portfolio: list) -> list:
                 prev_sma20 = float(df.iloc[-2].get('SMA_20', sma20)) if len(df) >= 2 else sma20
                 is_ma20_down = (sma20 < prev_sma20 * 0.999)
 
-                if sig_dict.get('is_false_breakout_dump', False):
+                if pnl_pct <= -10.0:
+                    status_type = "ABSOLUTE_STOP_LOSS_10PCT"
+                    status_badge = "🛑 絕對停損！虧損逾10%立刻砍單"
+                    status_color = "#FF4D4F"
+                    status_desc = f"🛑 <b>【CH7 絕對停損·終極鐵律】</b>：持股累計虧損已達 <b>{pnl_pct}%</b> (超過 10% 絕對極限)！華爾街與官方實戰鐵律：『絕不容許損失超過 10%，不可再凹單』！請於今日尾盤 13:20~13:30 果斷執行壯士斷腕全數停損，退出市場保留剩餘資金，等待下次翻盤機會！"
+                elif sig_dict.get('is_false_breakout_dump', False):
                     status_type = "FALSE_BREAKOUT_DUMP"
                     status_badge = "🚨 假突破誘多·全數逃命！"
                     status_color = "#FF4D4F"
@@ -1068,17 +1084,34 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_type = "STOP_LOSS"
                     status_badge = "🚨 跌破停損點！"
                     status_color = "#FF4D4F"
-                    status_desc = f"⚠️ <b>緊急警報</b>：當前股價 ({curr_p}元) 已摜破設定之防守價 ({custom_stop}元)！請於今日尾盤 13:00~13:30 嚴格執行紀律停損，杜絕損失擴大！"
+                    status_desc = f"⚠️ <b>緊急警報</b>：當前股價 ({curr_p}元) 已摜破設定之防守價 ({custom_stop}元)！請於今日尾盤 13:20~13:30 嚴格執行紀律停損，杜絕損失擴大！"
                 elif days_below_ma20 >= 3 and is_ma20_down:
                     status_type = "BREAK_MA20_DEATH"
                     status_badge = "🔴 破月線3天未回·多頭終結！"
                     status_color = "#FF4D4F"
                     status_desc = f"🚨 <b>【趨勢線鐵律·多頭終結清倉】</b>：當前股價已連續 3 天跌在月線 (20MA, {sma20:.2f}元) 之下，且月線已向下彎助跌！核心鐵律：『做多要在月線上，跌破月線3天助漲不上來且月線下彎，多頭徹底終結變空頭！』絕不可再心存僥倖，請於今日尾盤全數獲利結算或清倉離場！"
+                elif is_trailing_stop:
+                    # CH7-3 停損的改變：獲利達 7% 以上，放棄原停損，改為設定移動停利 (Trailing Stop)
+                    if curr_p < sma5:
+                        status_type = "TRAILING_STOP_EXIT"
+                        status_badge = "🛑 跌破5MA·移動停利入袋！"
+                        status_color = "#FAAD14"
+                        status_desc = f"💰 <b>【CH7 移動停利出場點】</b>：持股獲利 <b>+{pnl_pct}%</b>，今日收盤跌破 5MA ({sma5:.2f}元)！觸發 CH7 移動停利紀律，建議今日尾盤 13:20~13:30 果斷獲利了結全數賣出，將大波段利潤落袋為安！"
+                    else:
+                        status_type = "TRAILING_STOP_RIDING"
+                        status_badge = "🏆 獲利>7%·移動停利守護中"
+                        status_color = "#13C2C2"
+                        status_desc = f"🎉 <b>【CH7 移動停利守護中】</b>：持股獲利已達 <b>+{pnl_pct}% (>7%)</b>！依據 CH7 停損改變原則：已遠離原停損點，原停損自動升級為【移動停利】模式！防守點拉高至買進成本保本線 (<b>{buy_p:.2f}元</b>) 與 5MA 操盤線 (<b>{sma5:.2f}元</b>)，絕不讓獲利單轉為虧損！只要收盤守穩 5MA，就安心續抱讓獲利持續奔馳！"
                 elif high_p >= custom_target or curr_p >= custom_target:
                     status_type = "TARGET_HIT"
                     status_badge = "🏁 達標停利！"
                     status_color = "#FAAD14"
                     status_desc = f"🎉 <b>恭喜達標</b>：股價已達前波壓力目標價 ({custom_target}元)！建議先獲利了結 1/2 入袋為安，剩餘張數守 5MA 讓獲利奔馳！"
+                elif is_drop_5pct_warning:
+                    status_type = "DROP_5PCT_WARNING"
+                    status_badge = "⚠️ 跌逾5%·列警示股防守"
+                    status_color = "#FA8C16"
+                    status_desc = f"⚠️ <b>【CH7 每日警示股】</b>：今日重挫 <b>{curr_chg}%</b> (跌幅超過 5%)！符合 CH7 積極避套作法：每日檢視跌幅逾 5% 列為警示股準備賣出，請密切注意尾盤是否止跌，防範主力連續下殺擴大虧損！"
                 elif sig_dict.get('is_turnover_success', False):
                     status_type = "TURNOVER_SUCCESS"
                     status_badge = "🔥 換手量成功·續抱噴出！"
@@ -1110,6 +1143,9 @@ def inspect_portfolio(portfolio: list) -> list:
                 "stop_loss": custom_stop,
                 "target_price": custom_target,
                 "floor_stop": floor_stop,
+                "trailing_stop": trailing_stop,
+                "is_trailing_stop": is_trailing_stop,
+                "ch7_warning": ch7_warning,
                 "target_rebound_1": target_rebound_1,
                 "target_rebound_extreme": target_rebound_extreme,
                 "is_trapped": is_trapped,

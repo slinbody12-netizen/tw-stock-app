@@ -222,7 +222,25 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "safety_rating": "🟢 安全首選",# 實戰安全評級
         "safety_reasons": [],         # 評級原因說明
         "chili_count": 1,             # 動能辣椒數 (1~3)
-        "deduction": {}               # 均線扣抵
+        "deduction": {},              # 均線扣抵
+
+        # CH7 實戰停損與風控全攻略
+        "ch7_stop_loss": {
+            "kline_stop": 0.0,
+            "ma5_stop": 0.0,
+            "pattern_stop": 0.0,
+            "fixed_5pct_stop": 0.0,
+            "absolute_10pct_stop": 0.0,
+            "recommended_stop": 0.0,
+            "stop_type": "K線紅K低點",
+            "stop_desc": "",
+            "risk_pct": 0.0,
+            "is_trailing_stop_active": False,
+            "trailing_stop_price": 0.0,
+            "swing_gain": 0.0,
+            "is_drop_5pct_warning": False,
+            "absolute_warnings": []
+        }
     }
 
     if len(df) < 15:
@@ -1027,7 +1045,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     signals_dict['resistance_detail'] = {"price": res_price, "type": res_type}
 
     # ----------------------------------------------------
-    # 短線 3~5 天波段價差專屬操盤卡 (量身打造風報比與停損停利)
+    # CH7 實戰停損與風控全攻略 & 短線 3~5 天波段價差專屬操盤卡
     # ----------------------------------------------------
     # 若前高壓力小於或等於現價（代表已突破或在歷史高點），目標價依「等幅對稱波」或 +10% 測距滿足點
     if res_price <= c * 1.02:
@@ -1035,24 +1053,113 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     else:
         calc_target = res_price
 
-    stop_loss = round(min(l, sup_price), 2)
-    if stop_loss >= c:
-        stop_loss = round(c * 0.95, 2)
+    # 1. 四大策略停損點位 (7-2 策略停損法)
+    # (A) K 線戰法停損：做多以進場當天(或最新突破/轉折紅K)最低點為停損點
+    recent_red_low = l if is_red else None
+    if recent_red_low is None:
+        for idx in range(len(df) - 2, max(-1, len(df) - 6), -1):
+            row_k = df.iloc[idx]
+            if float(row_k['Close']) >= float(row_k['Open']):
+                recent_red_low = float(row_k['Low'])
+                break
+    if recent_red_low is None:
+        recent_red_low = l
+    kline_stop = round(float(recent_red_low), 2)
 
-    risk = max(0.01, c - stop_loss)
-    reward = max(0.01, calc_target - c)
-    rr_ratio = round(reward / risk, 1)
-    risk_pct = round((risk / c) * 100, 1)
-    reward_pct = round((reward / c) * 100, 1)
+    # (B) 均線操作法停損：以 5MA 操盤生命線為停損點
+    ma5_stop = round(float(sma5), 2)
+
+    # (C) 形態/趨勢停損法：守轉折前底 (支撐) 或型態頸線 (Neckline)
+    pattern_stop = round(float(sup_price), 2)
+
+    # (D) 固定比例法停損：以進價 5% 為標準，10% 為絕對極限
+    fixed_5pct_stop = round(float(c * 0.95), 2)
+    absolute_10pct_stop = round(float(c * 0.90), 2)
+
+    # 助教推薦最適停損點 (Primary Recommended Stop Loss)
+    # 官方原則：停損幅度最好在 5%~10% 之間，最好不要超過 10%
+    candidate_stops = []
+    if pattern_stop < c and ((c - pattern_stop) / c) <= 0.095:
+        candidate_stops.append((pattern_stop, "形態/頸線停損", f"守波段前底/頸線 {pattern_stop} 元"))
+    if kline_stop < c and ((c - kline_stop) / c) <= 0.095:
+        candidate_stops.append((kline_stop, "K線低點停損", f"守關鍵紅K最低點 {kline_stop} 元"))
+    if ma5_stop < c and ((c - ma5_stop) / c) <= 0.07:
+        candidate_stops.append((ma5_stop, "5MA均線停損", f"守 5MA 操盤線 {ma5_stop} 元"))
+
+    if candidate_stops:
+        rec_stop_val, rec_stop_type, rec_stop_desc = max(candidate_stops, key=lambda x: x[0])
+    else:
+        rec_stop_val = fixed_5pct_stop
+        rec_stop_type = "固定 5% 停損"
+        rec_stop_desc = f"守固定 5% 風控保命線 {fixed_5pct_stop} 元"
+
+    if (c - rec_stop_val) / c > 0.10:
+        rec_stop_val = fixed_5pct_stop
+        rec_stop_type = "固定 5% 停損"
+        rec_stop_desc = f"停損防守超過10%極限，嚴格以固定5%保命線 {fixed_5pct_stop} 元為限"
+
+    rec_risk = max(0.01, c - rec_stop_val)
+    rec_reward = max(0.01, calc_target - c)
+    rr_ratio = round(rec_reward / rec_risk, 1)
+    risk_pct = round((rec_risk / c) * 100, 1)
+    reward_pct = round((rec_reward / c) * 100, 1)
+
+    # 2. CH7-3 停損的改變：獲利達 7% 以上轉為移動停利 (Trailing Stop)
+    swing_gain = round(((c - sup_price) / (sup_price + 1e-9)) * 100, 1) if sup_price > 0 else 0.0
+    is_trailing_stop_active = (swing_gain >= 7.0 or ((c - kline_stop) / (kline_stop + 1e-9)) * 100 >= 7.0)
+    trailing_stop_price = round(max(sup_price, sma5), 2) if is_trailing_stop_active else rec_stop_val
+
+    # 3. 每日檢視警示機制 (CH7-3 不套牢準則：跌幅超過 5% 列為警示股)
+    is_drop_5pct_warning = (change_pct <= -5.0)
+
+    # 4. CH7-2 絕對停損危險警訊檢核 (明顯錯誤不可凹單)
+    absolute_warnings = []
+    if sup_price > 0 and c < sup_price:
+        absolute_warnings.append("⚠️ 摜破盤整箱底/前波支撐 (CH7 絕對停損·禁止凹單)")
+    if is_drop_5pct_warning:
+        absolute_warnings.append("⚠️ 今日重挫逾 5% (CH7 警示股·準備賣出)")
+    if is_high_position and is_black and vol_ratio_5 >= 1.5 and c < sma5:
+        absolute_warnings.append("⚠️ 高檔爆量長黑反轉 (CH7 絕對停損·空頭確認)")
+    if change_pct <= -9.5 or (sup_price > 0 and (sup_price - c) / sup_price >= 0.10):
+        absolute_warnings.append("🛑 跌幅逾 10% 終極鐵律 (CH7 絕對停損·壯士斷腕)")
+
+    signals_dict['ch7_stop_loss'] = {
+        "kline_stop": kline_stop,
+        "ma5_stop": ma5_stop,
+        "pattern_stop": pattern_stop,
+        "fixed_5pct_stop": fixed_5pct_stop,
+        "absolute_10pct_stop": absolute_10pct_stop,
+        "recommended_stop": rec_stop_val,
+        "stop_type": rec_stop_type,
+        "stop_desc": rec_stop_desc,
+        "risk_pct": risk_pct,
+        "is_trailing_stop_active": is_trailing_stop_active,
+        "trailing_stop_price": trailing_stop_price,
+        "swing_gain": swing_gain,
+        "is_drop_5pct_warning": is_drop_5pct_warning,
+        "absolute_warnings": absolute_warnings
+    }
 
     signals_dict['swing_3_5d'] = {
-        "stop_loss": stop_loss,
+        "stop_loss": rec_stop_val,
         "ma5_defend": sma5,
         "target_res": calc_target,
         "rr_ratio": rr_ratio,
         "risk_pct": risk_pct,
-        "reward_pct": reward_pct
+        "reward_pct": reward_pct,
+        "stop_type": rec_stop_type,
+        "kline_stop": kline_stop,
+        "pattern_stop": pattern_stop,
+        "fixed_5pct_stop": fixed_5pct_stop,
+        "trailing_stop_price": trailing_stop_price,
+        "is_trailing_stop_active": is_trailing_stop_active,
+        "is_drop_5pct_warning": is_drop_5pct_warning
     }
+
+    if is_drop_5pct_warning:
+        signals.append("🚨 單日重挫逾 5% (CH7 不套牢警示·準備賣出)")
+    if is_trailing_stop_active:
+        signals.append(f"🏆 獲利逾 7% 啟動移動停利 (守 5MA {sma5:.2f}元·CH7)")
 
     # ----------------------------------------------------
     # 鎖股池 3 階段管理 (等突破 / 高檔等回檔 / 回檔等上漲)
