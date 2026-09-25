@@ -528,6 +528,22 @@ def render_stock_card(item, key_prefix="sc"):
         badge_html += "<span style='background:linear-gradient(90deg, #059669, #10B981); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(16,185,129,0.4);'>📦 箱型大突破</span>"
     if item.get('is_turnover_success') or sig.get('is_turnover_success', False):
         badge_html += "<span style='background:linear-gradient(90deg, #FA541C, #F5222D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🔥 換手成功</span>"
+    if sig.get('breakout_heavy_black_high', False):
+        badge_html += "<span style='background:linear-gradient(90deg, #FA8C16, #D4380D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>⚡ 破黑K高</span>"
+    if sig.get('abc_correction_breakout', False):
+        badge_html += "<span style='background:linear-gradient(90deg, #13C2C2, #08979C); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📐 破ABC切線</span>"
+    if sig.get('kline_consolidation_breakout', False):
+        badge_html += "<span style='background:linear-gradient(90deg, #2F54EB, #1D39C4); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📊 橫盤突破</span>"
+    if sig.get('ascending_channel_breakout', False):
+        badge_html += "<span style='background:linear-gradient(90deg, #722ED1, #531DAB); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚀 破軌道線</span>"
+    if sig.get('breakdown_rebound_red_low', False):
+        badge_html += "<span style='background:#820014; color:#FFA39E; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>⚡ 破紅K低</span>"
+    if sig.get('abc_rebound_breakdown', False):
+        badge_html += "<span style='background:#871400; color:#FFBB96; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📐 破ABC切線</span>"
+    if sig.get('kline_consolidation_breakdown', False):
+        badge_html += "<span style='background:#5B1214; color:#FFA39E; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📊 橫盤摜破</span>"
+    if sig.get('descending_channel_breakdown', False):
+        badge_html += "<span style='background:#780614; color:#FF7875; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📉 破軌道線</span>"
     if item.get('is_false_breakout_dump') or sig.get('is_false_breakout_dump', False):
         badge_html += "<span style='background:#A8071A; color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚨 假突破出貨</span>"
 
@@ -607,6 +623,19 @@ def render_stock_card(item, key_prefix="sc"):
     if two_tr.get('advice'):
         two_tr_html = f"<div style='font-size:0.78rem; color:#888; margin-top:4px;'>💡 <b>買兩張配置</b>：{two_tr['advice']}</div>"
 
+    # 飆股五大量價狀態與智慧 K 線防守 (CH6 飆股專屬指引)
+    smart_k_html = ""
+    explosive_status = item.get('explosive_stock_status') or sig.get('explosive_stock_status', '')
+    smart_defend = float(item.get('smart_kline_defend') or sig.get('smart_kline_defend') or 0.0)
+    if explosive_status and explosive_status != "常態波動":
+        stat_color = "#52C41A" if "🟢" in explosive_status else ("#FAAD14" if "🟡" in explosive_status else "#FF4D4F")
+        defend_str = f" | 🛡️ 智慧K線防守價：<b>{smart_defend:.2f}</b> 元 (13:20 破昨低即賣)" if smart_defend > 0 else ""
+        smart_k_html = (
+            f"<div style='background:#181B28; border-left:3px solid {stat_color}; padding:5px 10px; border-radius:5px; font-size:0.8rem; margin:4px 0; color:#E0E6ED;'>"
+            f"<b>飆股狀態</b>：<span style='color:{stat_color}; font-weight:bold;'>{explosive_status}</span>{defend_str}"
+            f"</div>"
+        )
+
     # 大戶主力與外資持股成本線 (買高還買低比對)
     major_cost = item.get('major_cost', 0.0)
     foreign_cost = item.get('foreign_cost', 0.0)
@@ -652,6 +681,7 @@ def render_stock_card(item, key_prefix="sc"):
         f'<div style="color:#99A;">{item.get("broker_info", "")}</div><div style="color:{safety_color}; font-weight:bold;">{safety}</div>'
         f'</div>'
         f'{cost_line_html}'
+        f'{smart_k_html}'
         f'{intraday_html}'
         f'<div style="font-size:0.8rem; color:#FFA94D; margin-bottom:2px;">{sup_text} | {res_text}</div>'
         f'{safety_warn_html}'
@@ -2014,6 +2044,11 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     "🚀 主升段第二波 (鎖一做二·飆股再發動)",
                     "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)",
                     "🔥 換手成功強勢股 (高檔爆量再創新高)",
+                    "⚡ 突破大量黑K高點 (飆股換手·CH6)",
+                    "📐 突破ABC修正切線 (短空做頭失敗·CH6)",
+                    "📊 K線橫盤突破 (3天橫盤放量突破·CH6)",
+                    "🚀 突破上升軌道線 (多頭加速噴出·CH6)",
+                    "🐅 飆股智慧K線 (未破昨低續抱·CH6)",
                     "👑 頭高底高 (六字訣多頭確認)",
                     "🎯 回後準進場 (拉回測線有守·短線買點)",
                     "🌀 均線糾結突破 (四線糾結起漲第一根)",
@@ -2036,6 +2071,21 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             elif "換手成功" in sub_strat:
                 target_strategy = "換手成功"
                 st.caption("💡 **【高檔爆量換手成功】**：高檔爆大量黑K或變盤線後 3 天內，強勢收盤突破該爆量K棒最高點！主力洗盤換手完畢，新主力籌碼進駐續噴主升段！")
+            elif "突破大量黑K高點" in sub_strat:
+                target_strategy = "突破大量黑K高點"
+                st.caption("💡 **【突破大量黑K最高點 (飆股換手·CH6-7)】**：強勢飆股在短線急漲後拉出巨量黑K棒洗盤，但主力籌碼極強，1~3天內立刻拉出大量紅K收盤實質突破該黑K最高點！這代表盤面籌碼被新主力全數接走換手成功，常展開大波段噴出行情！")
+            elif "突破ABC修正切線" in sub_strat:
+                target_strategy = "突破ABC修正切線"
+                st.caption("💡 **【突破 ABC 修正下降切線 (短空做頭失敗續噴·CH6-5)】**：多頭走勢中出現 20 天以內的 A-B-C 旗型向下修正（月線維持翻揚助漲），今日放量紅K收盤實質突破下降切線！短空做頭失敗，多頭趨勢重啟，可依 A-B 振幅計算等距波段目標價 D'！")
+            elif "K線橫盤突破" in sub_strat:
+                target_strategy = "K線橫盤突破"
+                st.caption("💡 **【K線橫盤突破 (3天橫盤放量突破·CH6-3)】**：連續 3 天收盤價皆未跌破第 1 天母K棒低點、亦未突破其高點（極狹幅震盪整理），第 4 天（或今日）放量紅K強勢突破該 3 天最高點並站穩 5MA！微觀結構轉折確立，為短線高勝率發動點！")
+            elif "突破上升軌道線" in sub_strat:
+                target_strategy = "突破上升軌道線"
+                st.caption("💡 **【突破上升軌道線 (多頭加速噴出·CH6-6)】**：股價沿著上升切線與平行軌道線穩健走多，今日帶量大紅K強勢衝破上升軌道線上緣！代表多頭力道暴增，由常態通道轉為主升段加速噴出！")
+            elif "智慧K線" in sub_strat:
+                target_strategy = "智慧K線續抱"
+                st.caption("💡 **【飆股智慧 K 線交易法 (未破昨低續抱·CH6-15)】**：鎖定強勢大漲股，只要每日收盤未跌破前一日最低價即一路抱牢奔跑！每日 13:20 檢視，若確認跌破前一日最低價則果斷賣出，讓利潤最大化同時嚴控回檔風險！")
             elif "頭高底高" in sub_strat:
                 target_strategy = "頭高底高"
                 st.caption("💡 **選股 vs 鎖股分工**：此處【👑 頭高底高】是「**六字訣多頭確立、5MA走升且站穩5MA**」之強勢多頭名單。")
@@ -2057,6 +2107,10 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 [
                     "👑 頭低底低 (六字訣空頭確認)",
                     "🎯 彈後準進場 (反彈測線無力·短線空點)",
+                    "⚡ 跌破大量紅K低點 (弱勢反彈破底·CH6)",
+                    "📐 跌破反彈ABC切線 (短多做底失敗·CH6)",
+                    "📊 K線橫盤跌破 (3天橫盤長黑摜破·CH6)",
+                    "📉 跌破下降軌道線 (空頭加速趕底·CH6)",
                     "🌀 均線糾結跌破 (四線空排初跌)",
                     "🛑 頂部起跌 (高檔頭部成形·首度跌破)",
                     "📉 低檔起跌 (破底續跌·弱勢續殺)",
@@ -2070,6 +2124,18 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 target_strategy = "頭低底低"
             elif "彈後準進場" in sub_strat:
                 target_strategy = "彈後準進場"
+            elif "跌破大量紅K低點" in sub_strat:
+                target_strategy = "跌破大量紅K低點"
+                st.caption("💡 **【跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱·CH6-14)】**：空頭下跌趨勢中出現爆量紅K弱勢反彈，隨後 1~3 天內即被長黑摜破該反彈紅K最低點！代表搶反彈浮額全面套牢，空頭慣性強勢重啟，為黃金空點！")
+            elif "跌破反彈ABC切線" in sub_strat:
+                target_strategy = "跌破反彈ABC切線"
+                st.caption("💡 **【跌破反彈 ABC 上升切線 (短多做底失敗重回主跌·CH6-12)】**：空頭下跌中出現 20 天以內 A-B-C 三波弱勢反彈（受下彎月線壓制），今日放量黑K摜破上升切線與 B 點低點！短多做底失敗重回主跌段，可測等距下跌目標價！")
+            elif "K線橫盤跌破" in sub_strat:
+                target_strategy = "K線橫盤跌破"
+                st.caption("💡 **【K線橫盤跌破 (3天橫盤長黑摜破·CH6-10)】**：下跌行進中連續 3 天狹幅震盪未過高亦未破低，第 4 天長黑跌破橫盤最低點且 5MA 翻黑下彎！弱勢盤整表態，空方續殺發動！")
+            elif "跌破下降軌道線" in sub_strat:
+                target_strategy = "跌破下降軌道線"
+                st.caption("💡 **【跌破下降軌道線 (空頭加速趕底·CH6-13)】**：空頭沿下降軌道線緩步下跌，今日放量中長黑貫穿下軌道線！代表恐慌性拋補湧現，空頭轉強加速趕底！")
             elif "均線糾結跌破" in sub_strat:
                 target_strategy = "均線糾結跌破"
                 st.caption("💡 **【均線糾結跌破 (四線空排)】**：高檔平台四線糾結後長黑摜破，均線全面展開呈現 5MA < 10MA < 20MA < 60MA 全數下彎（如講義波若威 3163 崩跌）！**操盤實戰心法**：波段做空守 20MA (月線) 一路抱到底，做多者必須立即全數清倉！")
