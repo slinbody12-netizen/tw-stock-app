@@ -472,7 +472,7 @@ def render_mini_kline(bars_data):
     )
     return fig
 
-def render_stock_card(item, key_prefix="sc"):
+def render_stock_card(item, key_prefix="sc", current_strategy=None):
     is_up = item['change'] >= 0
     c_color = "#FF4D4F" if is_up else "#52C41A"
     sign = "+" if is_up else ""
@@ -487,6 +487,7 @@ def render_stock_card(item, key_prefix="sc"):
     elif "No." in rank_badge:
         badge_html += f"<span style='background:#2B3045; color:#AAA; padding:1px 5px; border-radius:3px; font-size:0.72rem; margin-right:4px;'>{rank_badge}</span>"
 
+    # 市場與交易特性標記
     if item.get('market') == 'TWO':
         badge_html += "<span style='background:#722ED1; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>櫃</span>"
     if item.get('has_futures'):
@@ -507,68 +508,163 @@ def render_stock_card(item, key_prefix="sc"):
     if item.get('is_hot_stock'):
         badge_html += "<span style='background:#E11D48; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='全市場熱門焦點：量大/主流族群/主力進駐'>🔥 熱門</span>"
 
-    # 操盤線 (5MA) 狀態勳章：走升 / 下彎，站上 / 跌破
-    is_5ma_up = item.get('is_5ma_rising', True)
-    is_above_5ma = item.get('above_5ma', True)
-    if is_5ma_up:
-        badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>📈 5MA走升</span>"
-    else:
-        badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>↘️ 5MA下彎</span>"
-    if is_above_5ma:
-        badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>站上5MA</span>"
-    else:
-        badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>破5MA</span>"
-
+    # 戰法與操盤線智慧去重 (若已有無敵鐵金剛，自動隱藏 5MA走升 與 站上5MA，節省標籤空間)
     sig = item.get('signals_dict', {})
-    if item.get('iron_man') or sig.get('iron_man', False):
+    is_iron_man = bool(item.get('iron_man') or sig.get('iron_man', False))
+    if is_iron_man:
         badge_html += "<span style='background:linear-gradient(90deg, #D97706, #B45309); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(217,119,6,0.5);'>🏆 無敵鐵金剛</span>"
+    else:
+        is_5ma_up = item.get('is_5ma_rising', True)
+        is_above_5ma = item.get('above_5ma', True)
+        if is_5ma_up:
+            badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>📈 5MA走升</span>"
+        else:
+            badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>↘️ 5MA下彎</span>"
+        if is_above_5ma:
+            badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>站上5MA</span>"
+        else:
+            badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>破5MA</span>"
+
     if item.get('main_wave_2nd') or sig.get('main_wave_2nd', False):
         badge_html += "<span style='background:linear-gradient(90deg, #1890FF, #722ED1); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚀 主升第二波</span>"
-    if item.get('box_range_breakout') or sig.get('box_range_breakout', False):
-        badge_html += "<span style='background:linear-gradient(90deg, #059669, #10B981); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(16,185,129,0.4);'>📦 箱型大突破</span>"
-    if item.get('is_turnover_success') or sig.get('is_turnover_success', False):
-        badge_html += "<span style='background:linear-gradient(90deg, #FA541C, #F5222D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🔥 換手成功</span>"
-    if sig.get('breakout_heavy_black_high', False):
-        badge_html += "<span style='background:linear-gradient(90deg, #FA8C16, #D4380D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>⚡ 破黑K高</span>"
-    if sig.get('abc_correction_breakout', False):
-        badge_html += "<span style='background:linear-gradient(90deg, #13C2C2, #08979C); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📐 破ABC切線</span>"
-    if sig.get('kline_consolidation_breakout', False):
-        badge_html += "<span style='background:linear-gradient(90deg, #2F54EB, #1D39C4); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📊 橫盤突破</span>"
-    if sig.get('ascending_channel_breakout', False):
-        badge_html += "<span style='background:linear-gradient(90deg, #722ED1, #531DAB); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚀 破軌道線</span>"
-    if sig.get('breakdown_rebound_red_low', False):
-        badge_html += "<span style='background:#820014; color:#FFA39E; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>⚡ 破紅K低</span>"
-    if sig.get('abc_rebound_breakdown', False):
-        badge_html += "<span style='background:#871400; color:#FFBB96; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📐 破ABC切線</span>"
-    if sig.get('kline_consolidation_breakdown', False):
-        badge_html += "<span style='background:#5B1214; color:#FFA39E; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📊 橫盤摜破</span>"
-    if sig.get('descending_channel_breakdown', False):
-        badge_html += "<span style='background:#780614; color:#FF7875; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📉 破軌道線</span>"
-    if item.get('is_false_breakout_dump') or sig.get('is_false_breakout_dump', False):
-        badge_html += "<span style='background:#A8071A; color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚨 假突破出貨</span>"
 
-    # 主流族群熱度雷達標籤
+    # ----------------------------------------------------
+    # 第六章形態收集與智慧精簡 (A+C 混合收納引擎)
+    # 1. 優先排序：當前所選策略之型態絕對置頂第一位 (C的精神)
+    # 2. 數量收納：最多展示 2 個核心型態，其餘優雅收合為 [+N型態 ▾] (A的精神)
+    # ----------------------------------------------------
+    pattern_badges = []
+
+    # A. 圓弧底
+    if sig.get('rounding_bottom'):
+        if sig.get('rounding_bottom_breakout', False):
+            pattern_badges.append({
+                "key": "rounding_bottom",
+                "name": "圓弧底突破",
+                "html": "<span style='background:linear-gradient(90deg, #DB2777, #EC4899); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(236,72,153,0.4);'>🥣 圓弧底突破</span>"
+            })
+        else:
+            pattern_badges.append({
+                "key": "rounding_bottom",
+                "name": "圓弧底成形",
+                "html": "<span style='background:linear-gradient(90deg, #9333EA, #C084FC); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🥣 圓弧底成形</span>"
+            })
+
+    # B. 箱型大突破 / 一字底
+    if item.get('box_range_breakout') or sig.get('box_range_breakout', False) or sig.get('flat_base_breakout', False):
+        pattern_badges.append({
+            "key": "box_range_breakout",
+            "name": "箱型大突破",
+            "html": "<span style='background:linear-gradient(90deg, #059669, #10B981); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(16,185,129,0.4);'>📦 箱型大突破</span>"
+        })
+
+    # C. 破 ABC 下降切線
+    if sig.get('abc_correction_breakout', False):
+        pattern_badges.append({
+            "key": "abc_correction_breakout",
+            "name": "破ABC切線",
+            "html": "<span style='background:linear-gradient(90deg, #13C2C2, #08979C); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📐 破ABC切線</span>"
+        })
+
+    # D. K線橫盤突破
+    if sig.get('kline_consolidation_breakout', False):
+        pattern_badges.append({
+            "key": "kline_consolidation_breakout",
+            "name": "橫盤突破",
+            "html": "<span style='background:linear-gradient(90deg, #2F54EB, #1D39C4); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📊 橫盤突破</span>"
+        })
+
+    # E. 破上升軌道線
+    if sig.get('ascending_channel_breakout', False):
+        pattern_badges.append({
+            "key": "ascending_channel_breakout",
+            "name": "破軌道線",
+            "html": "<span style='background:linear-gradient(90deg, #722ED1, #531DAB); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚀 破軌道線</span>"
+        })
+
+    # F. 破黑K高
+    if sig.get('breakout_heavy_black_high', False):
+        pattern_badges.append({
+            "key": "breakout_heavy_black_high",
+            "name": "破黑K高",
+            "html": "<span style='background:linear-gradient(90deg, #FA8C16, #D4380D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>⚡ 破黑K高</span>"
+        })
+
+    # G. 換手成功
+    if item.get('is_turnover_success') or sig.get('is_turnover_success', False):
+        pattern_badges.append({
+            "key": "is_turnover_success",
+            "name": "換手成功",
+            "html": "<span style='background:linear-gradient(90deg, #FA541C, #F5222D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🔥 換手成功</span>"
+        })
+
+    # 空方形態
+    if sig.get('breakdown_rebound_red_low', False):
+        pattern_badges.append({"key": "breakdown_rebound_red_low", "name": "破紅K低", "html": "<span style='background:#820014; color:#FFA39E; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>⚡ 破紅K低</span>"})
+    if sig.get('abc_rebound_breakdown', False):
+        pattern_badges.append({"key": "abc_rebound_breakdown", "name": "跌破ABC切線", "html": "<span style='background:#871400; color:#FFBB96; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📐 跌破ABC切線</span>"})
+    if sig.get('kline_consolidation_breakdown', False):
+        pattern_badges.append({"key": "kline_consolidation_breakdown", "name": "橫盤摜破", "html": "<span style='background:#5B1214; color:#FFA39E; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📊 橫盤摜破</span>"})
+    if sig.get('descending_channel_breakdown', False):
+        pattern_badges.append({"key": "descending_channel_breakdown", "name": "跌破軌道線", "html": "<span style='background:#780614; color:#FF7875; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>📉 跌破軌道線</span>"})
+    if item.get('is_false_breakout_dump') or sig.get('is_false_breakout_dump', False):
+        pattern_badges.append({"key": "is_false_breakout_dump", "name": "假突破出貨", "html": "<span style='background:#A8071A; color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚨 假突破出貨</span>"})
+
+    # 依當前篩選策略動態置頂第一優先 (C的精神)
+    if current_strategy and pattern_badges:
+        cs = str(current_strategy)
+        matched_target_key = None
+        if "圓弧底" in cs: matched_target_key = "rounding_bottom"
+        elif "箱型" in cs or "一字底" in cs: matched_target_key = "box_range_breakout"
+        elif "ABC" in cs: matched_target_key = "abc_correction_breakout" if not sig.get('abc_rebound_breakdown') else "abc_rebound_breakdown"
+        elif "橫盤" in cs: matched_target_key = "kline_consolidation_breakout" if not sig.get('kline_consolidation_breakdown') else "kline_consolidation_breakdown"
+        elif "軌道線" in cs: matched_target_key = "ascending_channel_breakout" if not sig.get('descending_channel_breakdown') else "descending_channel_breakdown"
+        elif "換手" in cs: matched_target_key = "is_turnover_success"
+        elif "黑K" in cs: matched_target_key = "breakout_heavy_black_high"
+
+        if matched_target_key:
+            target_idx = next((i for i, p in enumerate(pattern_badges) if p['key'] == matched_target_key), None)
+            if target_idx is not None and target_idx > 0:
+                p_item = pattern_badges.pop(target_idx)
+                pattern_badges.insert(0, p_item)
+
+    # 最多展示 2 個核心型態，其餘收合為膠囊 (A的精神)
+    if len(pattern_badges) <= 2:
+        for p in pattern_badges:
+            badge_html += p['html']
+    else:
+        badge_html += pattern_badges[0]['html']
+        badge_html += pattern_badges[1]['html']
+        rem_badges = pattern_badges[2:]
+        rem_names = [p['name'] for p in rem_badges]
+        badge_html += f"<span style='background:#1E293B; border:1px solid #475569; color:#94A3B8; padding:2px 7px; border-radius:4px; font-size:0.76rem; margin-right:4px; cursor:help;' title='其他符合型態：{', '.join(rem_names)}'>+{len(rem_badges)}型態 ▾</span>"
+
+    # 量能與主流族群合併 (去重整潔)
     sec_name = item.get('sector_name')
     sec_badge = item.get('sector_badge')
     sec_color = item.get('sector_badge_color', '#1890FF')
     sec_heat = item.get('sector_heat_score', 0.0)
-    if sec_badge:
-        badge_html += f"<span style='background:#1F2438; border:1px solid {sec_color}; color:{sec_color}; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='所屬主流板塊：{sec_name} (熱度 {sec_heat}分)'>{sec_badge} · {sec_name}</span>"
-    
+
+    vol_tag = item.get('volume_tag') or sig.get('volume_tag', '常態量')
+    if vol_tag in ["攻擊量", "起漲放量", "爆量起漲"] and sec_name:
+        badge_html += f"<span style='background:#092B00; border:1px solid #237804; color:#52C41A; padding:2px 7px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>⚡ 5MA攻擊量 · {sec_name}</span>"
+    else:
+        if sec_badge:
+            badge_html += f"<span style='background:#1F2438; border:1px solid {sec_color}; color:{sec_color}; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='所屬主流板塊：{sec_name} (熱度 {sec_heat}分)'>{sec_badge} · {sec_name}</span>"
+        if vol_tag == "起漲放量" or vol_tag == "爆量起漲":
+            badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>🚀 起漲放量</span>"
+        elif vol_tag == "攻擊量":
+            badge_html += "<span style='background:#092B00; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>⚡ 5MA攻擊量</span>"
+        elif vol_tag == "止跌量":
+            badge_html += "<span style='background:#111D2C; color:#40A9FF; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>🛡️ 止跌量</span>"
+        elif vol_tag == "高檔爆量":
+            badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>⚠️ 高檔爆量防倒貨</span>"
+
+    # 風險警示標記
     elim = item.get('elimination_info') or sig.get('elimination_info') or {}
     if elim.get('is_eliminated', False):
         badge_html += f"<span style='background:#780614; color:#FFA39E; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='{'; '.join(elim.get('reasons', []))}'>⛔ 淘汰({elim.get('eliminated_count', 1)}項)</span>"
 
-    vol_tag = item.get('volume_tag') or sig.get('volume_tag', '常態量')
-    if vol_tag == "起漲放量" or vol_tag == "爆量起漲":
-        badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>🚀 起漲放量</span>"
-    elif vol_tag == "攻擊量":
-        badge_html += "<span style='background:#092B00; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>⚡ 5MA攻擊量</span>"
-    elif vol_tag == "止跌量":
-        badge_html += "<span style='background:#111D2C; color:#40A9FF; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>🛡️ 止跌量</span>"
-    elif vol_tag == "高檔爆量":
-        badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px; font-weight:bold;'>⚠️ 高檔爆量防倒貨</span>"
-    
     if sig.get('is_volume_price_divergence', False):
         badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>⚠️ 量價背離</span>"
     if sig.get('is_multi_bagger', False):
@@ -2264,7 +2360,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         for idx, item in enumerate(results):
             c = cols[idx % 2]
             with c:
-                render_stock_card(item, key_prefix=f"scr_{target_strategy}_{idx}")
+                render_stock_card(item, key_prefix=f"scr_{target_strategy}_{idx}", current_strategy=target_strategy)
     else:
         st.info(f"目前在【{target_strategy}】條件下暫無符合標的，您可以切換其他子策略或放寬價格位階重新掃描。")
 
@@ -2305,7 +2401,7 @@ elif "鎖股" in menu or "晚間盤後功課" in menu:
         for idx, s in enumerate(stage_stocks):
             c = cols[idx % 2]
             with c:
-                render_stock_card(s, key_prefix=f"stage_{idx}")
+                render_stock_card(s, key_prefix=f"stage_{idx}", current_strategy=current_stage)
     else:
         st.info(f"目前無處於【{current_stage}】的追蹤個股。")
 
