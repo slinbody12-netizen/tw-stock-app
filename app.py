@@ -1484,13 +1484,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             x_min, x_max = df['Date'].iloc[0], df['Date'].iloc[-1]
             if show_res and trend.get('resistance'):
                 shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trend['resistance'], y1=trend['resistance'], line=dict(color="#FF922B", width=1.5, dash="dash"), layer="below"))
-                annos1.append(dict(x=x_max, y=trend['resistance'], xref="x", yref="y", text=f" 壓力 {trend['resistance']} ", showarrow=False, bgcolor="#FF922B", font=dict(color="white", size=10), xanchor="left", xshift=22, cliponaxis=False))
+                annos1.append(dict(x=x_max, y=trend['resistance'], xref="x", yref="y", text=f" 壓力 {trend['resistance']} ", showarrow=False, bgcolor="#FF922B", font=dict(color="white", size=10), xanchor="left", xshift=22))
             if show_sup and trend.get('support'):
                 shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trend['support'], y1=trend['support'], line=dict(color="#FFA94D", width=1.5, dash="dash"), layer="below"))
-                annos1.append(dict(x=x_max, y=trend['support'], xref="x", yref="y", text=f" 支撐 {trend['support']} ", showarrow=False, bgcolor="#FFA94D", font=dict(color="white", size=10), xanchor="left", xshift=22, cliponaxis=False))
+                annos1.append(dict(x=x_max, y=trend['support'], xref="x", yref="y", text=f" 支撐 {trend['support']} ", showarrow=False, bgcolor="#FFA94D", font=dict(color="white", size=10), xanchor="left", xshift=22))
             if show_target and trend.get('target'):
                 shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trend['target'], y1=trend['target'], line=dict(color="#FFD43B", width=1.5, dash="dot"), layer="below"))
-                annos1.append(dict(x=x_max, y=trend['target'], xref="x", yref="y", text=f" 目標 {trend['target']} ", showarrow=False, bgcolor="#D97706", font=dict(color="white", size=10), xanchor="left", xshift=22, cliponaxis=False))
+                annos1.append(dict(x=x_max, y=trend['target'], xref="x", yref="y", text=f" 目標 {trend['target']} ", showarrow=False, bgcolor="#D97706", font=dict(color="white", size=10), xanchor="left", xshift=22))
 
             ch7_sl_plot = signals_dict.get('ch7_stop_loss', {})
             rec_sl_plot = ch7_sl_plot.get('recommended_stop', 0.0)
@@ -1499,10 +1499,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if show_stop:
                 if is_trail_plot and trail_p_plot > 0:
                     shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trail_p_plot, y1=trail_p_plot, line=dict(color="#13C2C2", width=1.8, dash="dashdot"), layer="below"))
-                    annos1.append(dict(x=x_max, y=trail_p_plot, xref="x", yref="y", text=f" 🏆 移動停利 {trail_p_plot:.2f} ", showarrow=False, bgcolor="#13C2C2", font=dict(color="black", size=10, family="Arial Black"), xanchor="left", xshift=22, cliponaxis=False))
+                    annos1.append(dict(x=x_max, y=trail_p_plot, xref="x", yref="y", text=f" 🏆 移動停利 {trail_p_plot:.2f} ", showarrow=False, bgcolor="#13C2C2", font=dict(color="black", size=10, family="Arial Black"), xanchor="left", xshift=22))
                 elif rec_sl_plot > 0:
                     shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=rec_sl_plot, y1=rec_sl_plot, line=dict(color="#FF4D4F", width=1.8, dash="dot"), layer="below"))
-                    annos1.append(dict(x=x_max, y=rec_sl_plot, xref="x", yref="y", text=f" 🛑 停損 {rec_sl_plot:.2f} (-{ch7_sl_plot.get('risk_pct')}%) ", showarrow=False, bgcolor="#FF4D4F", font=dict(color="white", size=10), xanchor="left", xshift=22, cliponaxis=False))
+                    annos1.append(dict(x=x_max, y=rec_sl_plot, xref="x", yref="y", text=f" 🛑 停損 {rec_sl_plot:.2f} (-{ch7_sl_plot.get('risk_pct')}%) ", showarrow=False, bgcolor="#FF4D4F", font=dict(color="white", size=10), xanchor="left", xshift=22))
 
             # 副圖：成交量 + 20MA量線
             vol_colors = ['#FF4D4F' if df.loc[k, 'Close'] >= df.loc[k, 'Open'] else '#2F9E44' for k in range(len(df))]
