@@ -463,7 +463,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                 fig.add_annotation(
                     x=df.iloc[-1]['Date'], y=tgt_d, xref="x", yref="y",
                     text=f" 🏁 等距目標價 D': {tgt_d} 元 ",
-                    showarrow=False, xanchor="left",
+                    showarrow=False, xanchor="left", xshift=22, cliponaxis=False,
                     bgcolor="#7E22CE", bordercolor="#C084FC", borderwidth=1,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
@@ -506,7 +506,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                 fig.add_annotation(
                     x=df.iloc[-1]['Date'], y=tgt_d, xref="x", yref="y",
                     text=f" 🎯 等距下跌目標價 D': {tgt_d} 元 ",
-                    showarrow=False, xanchor="left",
+                    showarrow=False, xanchor="left", xshift=22, cliponaxis=False,
                     bgcolor="#991B1B", bordercolor="#F87171", borderwidth=1,
                     font=dict(color="white", size=10)
                 )
@@ -567,7 +567,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                 fig.add_annotation(
                     x=df.iloc[-1]['Date'], y=tgt_d, xref="x", yref="y",
                     text=f" 🚀 箱型等距目標價 D': {tgt_d} 元 ",
-                    showarrow=False, xanchor="left",
+                    showarrow=False, xanchor="left", xshift=22, cliponaxis=False,
                     bgcolor="#7E22CE", font=dict(color="white", size=10, family="Arial Black")
                 )
 
@@ -597,7 +597,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                 fig.add_annotation(
                     x=df.iloc[-1]['Date'], y=neck, xref="x", yref="y",
                     text=f" 🥣 圓弧底頸線: {neck} 元 ",
-                    showarrow=False, xanchor="left",
+                    showarrow=False, xanchor="left", xshift=22, cliponaxis=False,
                     bgcolor="#BE185D", font=dict(color="white", size=10, family="Arial Black")
                 )
 
@@ -614,7 +614,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                 fig.add_annotation(
                     x=df.iloc[-1]['Date'], y=tgt_d, xref="x", yref="y",
                     text=f" 🏁 圓弧底等距目標價: {tgt_d} 元 ",
-                    showarrow=False, xanchor="left",
+                    showarrow=False, xanchor="left", xshift=22, cliponaxis=False,
                     bgcolor="#7E22CE", font=dict(color="white", size=10)
                 )
 
@@ -668,7 +668,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
         fig.add_annotation(
             x=tl["x1"], y=tl["y1"], xref="x", yref="y",
             text=f" 📐 {tl['label']} ({tl['y1']}) ",
-            showarrow=False, xanchor="left",
+            showarrow=False, xanchor="left", xshift=22, cliponaxis=False,
             bgcolor="#1E293B", bordercolor=tl["color"], borderwidth=1.2,
             font=dict(color=tl["color"], size=10, family="Arial Black")
         )
