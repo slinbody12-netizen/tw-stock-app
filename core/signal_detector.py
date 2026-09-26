@@ -365,6 +365,116 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     signals_dict['is_high_position'] = is_high_position
 
     # ----------------------------------------------------
+    # 56 個常見 K 線型態核心精華 (一根四元素與第五元素 1/2 價 · 變盤線 · 兩根六組對句 · 三根晨夜星)
+    # ----------------------------------------------------
+    half_price = round((h + l) / 2.0, 2)
+    prev_o = round(float(prev['Open']), 2)
+    prev_h = round(float(prev['High']), 2)
+    prev_l = round(float(prev['Low']), 2)
+    prev_half_price = round((prev_h + prev_l) / 2.0, 2)
+    signals_dict['half_price'] = half_price
+    signals_dict['prev_half_price'] = prev_half_price
+
+    # 1. 第五元素 1/2 價突破與跌破判定
+    is_prev_large_red = (prev_c > prev_o) and ((prev_c - prev_o) / (prev_o + 1e-9) >= 0.035)
+    is_prev_large_black = (prev_c < prev_o) and ((prev_o - prev_c) / (prev_o + 1e-9) >= 0.035)
+
+    if is_prev_large_red and c < prev_half_price:
+        signals_dict['half_price_break'] = True
+        signals.append(f"⚠️ 跌破前日長紅 1/2 成本價 ({prev_half_price:.2f}元)：多方氣勢轉弱")
+    elif is_prev_large_black and c > prev_half_price:
+        signals_dict['half_price_rebound'] = True
+        signals.append(f"🟢 突破前日長黑 1/2 成本價 ({prev_half_price:.2f}元)：空方力道轉弱")
+
+    # 2. 變盤線型態研判 (高檔凶多吉少 vs 低檔逢凶化吉)
+    is_doji = (body <= total_range * 0.10)
+    is_tombstone = (upper_shadow >= total_range * 0.65 and (min(o, c) - l) <= total_range * 0.12)
+    is_dragonfly = ((min(o, c) - l) >= total_range * 0.65 and upper_shadow <= total_range * 0.12)
+    is_hammer = ((min(o, c) - l) >= body * 1.8 and upper_shadow <= total_range * 0.18)
+    is_inverted_hammer = (upper_shadow >= body * 1.8 and (min(o, c) - l) <= total_range * 0.18)
+
+    reversal_candle = ""
+    if is_high_position:
+        if is_tombstone:
+            reversal_candle = "高檔墓碑線 (倒T/天劍線，轉折下殺警示)"
+        elif is_dragonfly:
+            reversal_candle = "高檔長T線 (高檔洗盤，轉折向下警示)"
+        elif is_doji:
+            reversal_candle = "高檔十字線 (多空僵持，變盤向下警示)"
+        elif is_hammer:
+            reversal_candle = "高檔吊人線 (下影線誘多，轉折向下警示)"
+        elif is_inverted_hammer:
+            reversal_candle = "高檔反鎚線 (衝高拉回，轉折向下警示)"
+        if reversal_candle:
+            signals_dict['reversal_candle_warning'] = reversal_candle
+            signals.append(f"⚠️ {reversal_candle}")
+    elif is_low_position:
+        if is_hammer:
+            reversal_candle = "低檔鎚子線 (下影強撐，逢凶化吉起漲)"
+        elif is_dragonfly:
+            reversal_candle = "低檔長T線 (下檔買盤強勁，轉折向上)"
+        elif is_tombstone:
+            reversal_candle = "低檔墓碑線 (多方試盤，逢凶化吉轉折)"
+        elif is_doji:
+            reversal_candle = "低檔十字變盤線 (空方竭盡，止跌向上訊號)"
+        elif is_inverted_hammer:
+            reversal_candle = "低檔反鎚線 (主力試盤買盤進駐，轉折向上)"
+        if reversal_candle:
+            signals_dict['bottom_reversal_candle'] = reversal_candle
+            signals.append(f"🔥 {reversal_candle}")
+
+    # 3. 兩根 K 棒對稱組合 (六組對句)
+    # (A) 烏雲罩頂 (長黑覆蓋) vs 旭日東昇 (長紅覆蓋)
+    if is_prev_large_red and c < o and o >= prev_c and c < (prev_o + prev_c) / 2 and c > prev_o and is_high_position:
+        signals_dict['dark_cloud_cover'] = True
+        signals.append("⚠️ 烏雲罩頂 (長黑覆蓋·高檔次日開低確認止漲)")
+    elif is_prev_large_black and c > o and o <= prev_c and c > (prev_o + prev_c) / 2 and c < prev_o and is_low_position:
+        signals_dict['piercing_line'] = True
+        signals.append("🔥 旭日東昇 (長紅覆蓋·低檔次日開高確認止跌)")
+
+    # (B) 長黑吞噬 vs 長紅吞噬
+    if prev_c > prev_o and c < o and o >= prev_c and c <= prev_o and is_high_position:
+        signals_dict['bearish_engulfing'] = True
+        signals.append("⚠️ 長黑吞噬 (主力出貨·次日開低確認止漲)")
+    elif prev_c < prev_o and c > o and o <= prev_c and c >= prev_o and is_low_position:
+        signals_dict['bullish_engulfing'] = True
+        signals.append("🔥 長紅吞噬 (主力進貨·次日開高確認止跌)")
+
+    # (C) 母子懷抱 (孕線)
+    if is_prev_large_red and max(o, c) <= prev_c and min(o, c) >= prev_o and is_high_position:
+        signals_dict['harami_top'] = True
+        signals.append("⚠️ 母子懷抱 不懷好意 (長紅藏小K·變盤警示)")
+    elif is_prev_large_black and max(o, c) <= prev_o and min(o, c) >= prev_c and is_low_position:
+        signals_dict['harami_bottom'] = True
+        signals.append("🔥 母子懷抱 光明在望 (長黑藏小K·止跌轉折)")
+
+    # (D) 破底貫穿 vs 破高貫穿
+    if prev_c > prev_o and c < o and c < prev_l and is_high_position:
+        signals_dict['piercing_breakdown'] = True
+        signals.append("⚠️ 破底貫穿 (黑K摜破前日最低點·一路向下)")
+    elif prev_c < prev_o and c > o and c > prev_h and is_low_position:
+        signals_dict['piercing_breakout'] = True
+        signals.append("🔥 破高貫穿 (紅K穿透前日最高點·一路向上)")
+
+    # 4. 三根 K 棒夜星 vs 晨星變盤組合
+    if len(df) >= 3:
+        prev2_o = round(float(prev2['Open']), 2)
+        prev2_c = round(float(prev2['Close']), 2)
+        prev2_h = round(float(prev2['High']), 2)
+        prev2_l = round(float(prev2['Low']), 2)
+
+        # 孤島夜星 (左右跳空最強轉折向下) vs 孤島晨星 (左右跳空最強轉折向上)
+        is_island_evening = (prev2_c > prev2_o and min(prev_o, prev_c) > prev2_h and max(o, c) < prev_l and c < o and is_high_position)
+        is_island_morning = (prev2_c < prev2_o and max(prev_o, prev_c) < prev2_l and min(o, c) > prev_h and c > o and is_low_position)
+
+        if is_island_evening:
+            signals_dict['island_evening_star'] = True
+            signals.append("🛑 孤島夜星 (左右跳空孤島落單·轉折力道最強下殺)")
+        elif is_island_morning:
+            signals_dict['island_morning_star'] = True
+            signals.append("🚀 孤島晨星 (左右跳空孤島落單·轉折力道最強起漲)")
+
+    # ----------------------------------------------------
     # 策略 A：頭高底高 (六字訣多頭確認)
     # 實戰心法：必須同時滿足「波段頭頭高」且「波段底底高」，方為多頭架構！
     # ----------------------------------------------------
