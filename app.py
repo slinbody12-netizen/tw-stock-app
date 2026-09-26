@@ -732,10 +732,15 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
             f"</div>"
         )
 
-    # 買兩張策略建議
+    # 三均線部位管理 (3張部位) & 買兩張長短配
+    three_ma = sig.get('three_ma_strategy', {})
     two_tr = sig.get('two_tranches', {})
     two_tr_html = ""
-    if two_tr.get('advice'):
+    if three_ma.get('advice'):
+        three_held = three_ma.get('held_shares', 0)
+        badge_color = "#52C41A" if three_held == 3 else ("#FAAD14" if three_held == 2 else ("#FF7A45" if three_held == 1 else "#FF4D4F"))
+        two_tr_html = f"<div style='font-size:0.78rem; color:#E0E6ED; margin-top:4px;'>🧭 <b>三均線部位 ({three_held}/3)</b>：<span style='color:{badge_color}; font-weight:bold;'>{three_ma['advice']}</span></div>"
+    elif two_tr.get('advice'):
         two_tr_html = f"<div style='font-size:0.78rem; color:#888; margin-top:4px;'>💡 <b>買兩張配置</b>：{two_tr['advice']}</div>"
 
     # 飆股五大量價狀態與智慧 K 線防守 (飆股專屬指引)
@@ -1310,9 +1315,15 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 st.warning("⏸️ **【目前進入箱型盤整】**：尚未走出底底高或頭頭高。實戰操盤心法：盤整期不躁進追價，觀望等待放量突破！")
             if signals_dict.get('is_multi_bagger', False):
                 st.error(f"⚠️ **【波段暴漲 {signals_dict['bagger_multiple']:.1f} 倍高檔警示】**：累積漲幅達 {int((signals_dict['bagger_multiple']-1)*100)}%！高檔隨時有獲利賣壓，嚴禁長抱！")
-            two_tr = signals_dict.get('two_tranches', {})
-            if two_tr.get('advice'):
-                st.info(f"💡 **【買兩張（長短配）實戰操盤指引】**：{two_tr['advice']}")
+            three_ma_info = signals_dict.get('three_ma_strategy', {})
+            if three_ma_info.get('advice'):
+                three_held = three_ma_info.get('held_shares', 0)
+                badge = "🟢" if three_held == 3 else ("🟡" if three_held == 2 else ("🟠" if three_held == 1 else "🔴"))
+                st.info(f"🧭 **【三均線短中長綜合部位（3張部位管理）】**：{badge} 持有水位 **{three_held}/3** | {three_ma_info['advice']}")
+            else:
+                two_tr = signals_dict.get('two_tranches', {})
+                if two_tr.get('advice'):
+                    st.info(f"💡 **【買兩張（長短配）實戰操盤指引】**：{two_tr['advice']}")
             if trend['alerts']:
                 for alert in trend['alerts']:
                     st.warning(alert)
@@ -1626,6 +1637,125 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                   1. 嚴格執行停損紀律。
                   2. **每天檢視手上股票，跌幅超過 5% 列為警示股，準備賣出**！
                   3. 無債一身輕，手上都是賺錢股票，留得青山在不怕沒柴燒！
+                """)
+
+            # =========================================================================
+            # 三均線短中長線綜合操盤導航儀 (3張部位管理試算 · 10%獲利門檻 · 翻倍極限)
+            # =========================================================================
+            three_ma_data = signals_dict.get('three_ma_strategy', {})
+            t_held = three_ma_data.get('held_shares', 0)
+            t_sma5 = three_ma_data.get('sma5', float(df.iloc[-1].get('SMA_5', c_curr)))
+            t_sma10 = three_ma_data.get('sma10', float(df.iloc[-1].get('SMA_10', c_curr)))
+            t_sma20 = three_ma_data.get('sma20', float(df.iloc[-1].get('SMA_20', c_curr)))
+            m5_ok = three_ma_data.get('ma5_held', c_curr >= t_sma5)
+            m10_ok = three_ma_data.get('ma10_held', c_curr >= t_sma10)
+            m20_ok = three_ma_data.get('ma20_held', c_curr >= t_sma20)
+            t_advice = three_ma_data.get('advice', '')
+            is_doubled = three_ma_data.get('is_doubled_from_bottom', False)
+            bagger_m = three_ma_data.get('bagger_multiple', 1.0)
+            is_halved = three_ma_data.get('is_halved_from_top', False)
+            drop_top = three_ma_data.get('drop_from_top_pct', 0.0)
+            swing_g = three_ma_data.get('swing_gain', 0.0)
+
+            badge_bg = "#10282E" if t_held == 3 else ("#242115" if t_held == 2 else ("#2B1D1D" if t_held == 1 else "#1F1F1F"))
+            badge_border = "#13C2C2" if t_held == 3 else ("#FAAD14" if t_held == 2 else ("#FF7A45" if t_held == 1 else "#FF4D4F"))
+            badge_text_c = "#52C41A" if t_held == 3 else ("#FAAD14" if t_held == 2 else ("#FF7A45" if t_held == 1 else "#FF4D4F"))
+            level_name = "🟢 滿水位 3/3 (三線全守穩)" if t_held == 3 else ("🟡 調節部位 2/3 (守10MA/20MA)" if t_held == 2 else ("🟠 防守部位 1/3 (僅守月線)" if t_held == 1 else "🔴 空手觀望 0/3 (三線全破清倉)"))
+
+            with st.container(border=True):
+                tma_h1, tma_h2 = st.columns([1.5, 1])
+                with tma_h1:
+                    st.markdown("<div style='font-size:1.05rem; font-weight:bold; color:#13C2C2; margin-bottom:4px;'>🧭 三均線短中長綜合部位導航 (3張部位管理)</div>", unsafe_allow_html=True)
+                with tma_h2:
+                    st.markdown(f"<div style='text-align:right;'><span style='background:{badge_bg}; border:1px solid {badge_border}; color:{badge_text_c}; padding:3px 10px; border-radius:6px; font-size:0.85rem; font-weight:bold;'>{level_name}</span></div>", unsafe_allow_html=True)
+
+                st.markdown(f"<div style='font-size:0.85rem; color:#A0AEC0; margin-bottom:12px; line-height:1.5;'><b>部位行動指引</b>：{t_advice}</div>", unsafe_allow_html=True)
+
+                # 3 均線防守狀態卡 (5MA 短線 1/3, 10MA 中線 1/3, 20MA 長線 1/3)
+                ma_col1, ma_col2, ma_col3 = st.columns(3)
+                with ma_col1:
+                    st5_color = "#52C41A" if m5_ok else "#FF4D4F"
+                    st5_label = "守穩持有 (+1/3)" if m5_ok else "跌破調節 (已出1/3)"
+                    st5_act = "收盤未破一路續抱" if m5_ok else "跌破賣出 1/3 (站回買回)"
+                    st.markdown(f"""
+                    <div class='chip-card' style='border-top:3px solid {st5_color};'>
+                        <div style='color:#AAA; font-size:0.82rem;'>🚀 第 1 張：短線部位 (1/3)</div>
+                        <div style='font-size:1.25rem; font-weight:bold; color:#FFF; margin:3px 0;'>5MA {t_sma5:.2f} 元</div>
+                        <div style='font-size:0.8rem; color:{st5_color}; font-weight:bold;'>{st5_label}</div>
+                        <div style='font-size:0.75rem; color:#888; margin-top:2px;'>{st5_act}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with ma_col2:
+                    st10_color = "#52C41A" if m10_ok else "#FF4D4F"
+                    st10_label = "守穩持有 (+1/3)" if m10_ok else "跌破調節 (已出1/3)"
+                    st10_act = "收盤未破一路續抱" if m10_ok else "跌破賣出 1/3 (站回買回)"
+                    st.markdown(f"""
+                    <div class='chip-card' style='border-top:3px solid {st10_color};'>
+                        <div style='color:#AAA; font-size:0.82rem;'>⚡ 第 2 張：中線部位 (1/3)</div>
+                        <div style='font-size:1.25rem; font-weight:bold; color:#FFF; margin:3px 0;'>10MA {t_sma10:.2f} 元</div>
+                        <div style='font-size:0.8rem; color:{st10_color}; font-weight:bold;'>{st10_label}</div>
+                        <div style='font-size:0.75rem; color:#888; margin-top:2px;'>{st10_act}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with ma_col3:
+                    st20_color = "#52C41A" if m20_ok else "#FF4D4F"
+                    st20_label = "守穩持有 (+1/3)" if m20_ok else "跌破清倉 (已出清)"
+                    st20_act = "收盤未破一路續抱大波段" if m20_ok else "跌破全數清倉 (站回買回)"
+                    st.markdown(f"""
+                    <div class='chip-card' style='border-top:3px solid {st20_color};'>
+                        <div style='color:#AAA; font-size:0.82rem;'>🌊 第 3 張：長線部位 (1/3)</div>
+                        <div style='font-size:1.25rem; font-weight:bold; color:#FFF; margin:3px 0;'>20MA {t_sma20:.2f} 元</div>
+                        <div style='font-size:0.8rem; color:{st20_color}; font-weight:bold;'>{st20_label}</div>
+                        <div style='font-size:0.75rem; color:#888; margin-top:2px;'>{st20_act}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # 互動部位張數換算器
+                st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+                calc_c1, calc_c2, calc_c3 = st.columns([1.5, 1.5, 1.5])
+                with calc_c1:
+                    user_total_shares = st.number_input("預計持股總張數：", min_value=1, max_value=3000, value=3, step=3, key=f"t1_3ma_shares_{query}")
+
+                held_share_count = round((user_total_shares * t_held) / 3.0, 1)
+                sold_share_count = round(user_total_shares - held_share_count, 1)
+                with calc_c2:
+                    st.metric("建議持有張數", f"{held_share_count:g} 張", f"佔總部位 {round(t_held*100/3)}%")
+                with calc_c3:
+                    st.metric("建議調節/已賣出", f"{sold_share_count:g} 張", "已鎖定獲利/避險" if sold_share_count > 0 else "持股滿載")
+
+                # 10% 獲利門檻洗盤保護與極限位階提醒 (CH8 核心精華)
+                if is_doubled:
+                    st.markdown(f"<div style='background:#2B1616; border-left:4px solid #FF4D4F; padding:8px 12px; border-radius:6px; font-size:0.84rem; color:#FFA39E; margin-top:8px;'>⚠️ <b>【翻倍極限鐵律】</b>：本檔自底部已大漲 <b>{bagger_m:.1f} 倍 (+100% 以上)</b>！大波段漲幅已滿，<b>嚴禁做長線！</b> 必須全面切換為短線 5MA 操作法，天天盯 5MA，收盤跌破 5MA 即走，長線部位必須全數結清！</div>", unsafe_allow_html=True)
+                elif is_halved:
+                    st.markdown(f"<div style='background:#2B2116; border-left:4px solid #FAAD14; padding:8px 12px; border-radius:6px; font-size:0.84rem; color:#FFE58F; margin-top:8px;'>⚠️ <b>【腰斬極限鐵律】</b>：本檔自高點已重挫 <b>{drop_top:.1f}% (腰斬)</b>！空頭主跌段已過，不可重押放長空，僅宜短空操作；且須嚴密防範低檔爆大量長紅反轉軋空！</div>", unsafe_allow_html=True)
+
+                if swing_g >= 10.0:
+                    st.markdown(f"<div style='background:#10282E; border-left:4px solid #13C2C2; padding:8px 12px; border-radius:6px; font-size:0.84rem; color:#87E8DE; margin-top:8px;'>🏆 <b>【10% 獲利停利門檻】</b>：波段帳面獲利已達 <b>+{swing_g:.1f}%</b> (超過 10% 門檻)！收盤一旦跌破 5MA ({t_sma5:.2f} 元)，應毫不猶豫停利短線部位，保全豐厚利潤！</div>", unsafe_allow_html=True)
+                elif swing_g > 0:
+                    st.markdown(f"<div style='background:#181B28; border-left:4px solid #1890FF; padding:8px 12px; border-radius:6px; font-size:0.84rem; color:#91D5FF; margin-top:8px;'>🛡️ <b>【10% 門檻洗盤保護】</b>：目前獲利 +{swing_g:.1f}% (未達 10% 門檻)。若盤中跌破 5MA 但守穩進場點/前底，屬波段初升正常洗盤甩轎，不急於盲目殺出防賣飛；若後續反彈無力過前高，則小賺小賠離場。</div>", unsafe_allow_html=True)
+
+            # 三均線實戰寶典展開卡
+            with st.expander("📘 【三均線與長短線實戰操盤寶典】3張部位管理 · 10%獲利門檻 · 翻倍極限鐵律", expanded=False):
+                st.markdown("""
+                - **三條均線短中長線綜合戰法 (3張部位管理)**：
+                  1. **部位三等份**：將持股分為 3 張（或 3 等份，每份 1/3）。
+                  2. **第 1 張 (短線部位 1/3)**：守 5MA。收盤跌破 5MA 賣出 1/3；收盤站回 5MA 買回 1/3。
+                  3. **第 2 張 (中線部位 1/3)**：守 10MA。收盤跌破 10MA 賣出 1/3；收盤站回 10MA 買回 1/3。
+                  4. **第 3 張 (長線部位 1/3)**：守 20MA（月線）。收盤跌破 20MA 賣出最後 1/3（全數出清）；收盤站回 20MA 買回 1/3。
+                  5. **心法優勢**：徹底化解「賣早怕賣飛、抱牢怕抱上一場空」的心理死穴，進可攻退可守！
+                - **短線 5MA 操作之 10% 獲利門檻與洗盤保護**：
+                  1. **獲利未達 10%**：若跌破 5MA 但守穩進場紅K低點或波段前底，屬初升洗盤，給予震盪彈性防被洗出場。
+                  2. **獲利達 10% 以上**：一旦收盤跌破 5MA，立即停利出場，保全 10% 以上戰果！
+                  3. **整理不過前高 (頭頭低)**：小賺小賠皆應果斷退出觀望。
+                - **長短線轉換與翻倍/腰斬極限鐵律**：
+                  1. **由短做長**：絕不可套牢才改做長線（那是凹單）！一定是短線進場先大賺 10% 以上拉開成本，再將防守線放寬至 20MA 月線抱大波段。
+                  2. **翻倍 (+100%) 鐵律**：股票自底部大漲 1 倍後，長線漲幅已滿，**嚴禁做長線！** 全面切換為短線 5MA 操作，破 5MA 即全走！
+                  3. **腰斬 (-50%) 鐵律**：股票崩跌 50% 後，空頭已進入趕底，切忌重押放長空，慎防低檔爆量長紅反轉軋空！
+                - **純 K 線轉折操作法 (不倚賴均線)**：
+                  1. **做多**：突破前一波轉折高點進場；每日收盤不破前一波轉折低點一路抱牢；跌破前低出場。
+                  2. **做空**：跌破前一波轉折低點放空；每日收盤不破前一波轉折高點一路續抱；突破前高回補。
                 """)
 
             # 動態資金配置計算機

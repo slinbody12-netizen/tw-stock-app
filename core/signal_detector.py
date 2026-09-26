@@ -1162,6 +1162,79 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append(f"🏆 獲利逾 7% 啟動移動停利 (守 5MA {sma5:.2f}元)")
 
     # ----------------------------------------------------
+    # 三均線短中長線綜合戰法 (3張部位管理 SOP) & 10%停利門檻 (CH8)
+    # ----------------------------------------------------
+    held_shares = 0
+    ma5_held = (c >= sma5)
+    ma10_held = (c >= sma10)
+    ma20_held = (c >= sma20)
+
+    if ma5_held: held_shares += 1
+    if ma10_held: held_shares += 1
+    if ma20_held: held_shares += 1
+
+    held_pct = round((held_shares / 3.0) * 100)
+
+    # 翻倍極限 (+100%) 與腰斬極限 (-50%) 判定
+    highest_120 = float(df.iloc[-120:]['High'].max()) if len(df) >= 120 else float(df['High'].max())
+    drop_from_top_pct = round(((c - highest_120) / (highest_120 + 1e-9)) * 100, 1) if highest_120 > 0 else 0.0
+    is_halved_from_top = (drop_from_top_pct <= -48.0)
+    is_doubled_from_bottom = is_multi_bagger or (bagger_multiple >= 1.95)
+
+    # 10% 獲利門檻洗盤保護與停利判定
+    is_ten_pct_reached = (swing_gain >= 10.0)
+
+    if held_shares == 3:
+        three_ma_advice = "三線全守穩（滿水位 3/3）：短中長線趨勢完好，持股續抱，讓利潤奔馳！"
+    elif held_shares == 2:
+        if not ma5_held:
+            if is_ten_pct_reached:
+                three_ma_advice = "跌破 5MA（獲利逾10%調節）：短線獲利已豐，5MA 跌破立即停利 1/3，剩餘 2/3 守 10MA/20MA 續抱！"
+            else:
+                three_ma_advice = "跌破 5MA（獲利未達10%洗盤）：屬波段初升正常洗盤，未破前低前給予震盪彈性防賣飛，部位調為 2/3。"
+        elif not ma10_held:
+            three_ma_advice = "跌破 10MA（調節至 2/3）：中線轉弱調節 1/3，守 5MA/20MA 關鍵均線。"
+        else:
+            three_ma_advice = "跌破 20MA（保留短中線 2/3）：月線跌破警訊，留意短線 5MA 能否迅速帶動站回。"
+    elif held_shares == 1:
+        if ma20_held:
+            three_ma_advice = "跌破 5MA與10MA（調節至 1/3）：僅存 20MA 長線 1/3 部位，嚴密戒備月線防守！"
+        elif ma5_held:
+            three_ma_advice = "僅站上 5MA（弱勢反彈 1/3）：中長線均線壓制，僅適合作為短線試單 1/3 部位。"
+        else:
+            three_ma_advice = "僅站上 10MA（偏弱震盪 1/3）：均線分歧，部位嚴格控制在 1/3 以內。"
+    else:
+        three_ma_advice = "跌破 20MA（空手 0/3）：三線全破，波段多頭結束，全數出清離場！"
+
+    if is_doubled_from_bottom:
+        three_ma_advice += " 【高檔翻倍鐵律】波段已大漲 1 倍，嚴禁做長線！全面切換為短線 5MA 操作，破 5MA 即全走！"
+
+    signals_dict['three_ma_strategy'] = {
+        "held_shares": held_shares,
+        "held_pct": held_pct,
+        "ma5_held": ma5_held,
+        "ma10_held": ma10_held,
+        "ma20_held": ma20_held,
+        "sma5": sma5,
+        "sma10": sma10,
+        "sma20": sma20,
+        "is_ten_pct_reached": is_ten_pct_reached,
+        "swing_gain": swing_gain,
+        "is_doubled_from_bottom": is_doubled_from_bottom,
+        "bagger_multiple": bagger_multiple,
+        "is_halved_from_top": is_halved_from_top,
+        "drop_from_top_pct": drop_from_top_pct,
+        "advice": three_ma_advice
+    }
+
+    if held_shares == 3 and is_bull:
+        signals.append(f"🧭 三均線多頭滿載 (3/3 全守穩：5MA {sma5:.2f} / 10MA {sma10:.2f} / 20MA {sma20:.2f})")
+    elif not ma5_held and is_ten_pct_reached:
+        signals.append("🛑 獲利逾 10% 跌破 5MA (短線停利賣出 1/3，保全戰果)")
+    elif is_doubled_from_bottom:
+        signals.append(f"⚠️ 波段已大漲 {bagger_multiple:.1f} 倍 (翻倍極限：嚴禁做長線，僅限短線 5MA 操作)")
+
+    # ----------------------------------------------------
     # 鎖股池 3 階段管理 (等突破 / 高檔等回檔 / 回檔等上漲)
     # ----------------------------------------------------
     bias5 = float(last.get('BIAS_5', 0))

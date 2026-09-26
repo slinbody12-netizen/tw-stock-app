@@ -31,6 +31,7 @@ ENV/
 盤前分析/
 App截圖/
 轉折圖/
+助教對話紀錄/
 *.docx
 scratch/
 scratch_test.py
