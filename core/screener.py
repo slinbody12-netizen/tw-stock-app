@@ -550,13 +550,13 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 match = True
             elif strategy in ["均線糾結跌破", "四線空排", "均線糾結跌破 (四線空排)"] and (signals_dict.get('ma_squeeze_breakdown', False) or signals_dict.get('bearish_alignment_4ma', False)):
                 match = True
-            elif strategy in ["K線橫盤跌破", "📊 K線橫盤跌破", "📊 K線橫盤跌破 (3天橫盤黑K摜破·CH6)"] and signals_dict.get('kline_consolidation_breakdown', False):
+            elif strategy in ["K線橫盤跌破", "📊 K線橫盤跌破", "📊 K線橫盤跌破 (3天橫盤長黑摜破)", "📊 K線橫盤跌破 (3天橫盤黑K摜破·CH6)"] and signals_dict.get('kline_consolidation_breakdown', False):
                 match = True
-            elif strategy in ["跌破反彈ABC切線", "📐 跌破反彈ABC切線", "📐 跌破反彈ABC切線 (短多做底失敗重回主跌·CH6)"] and signals_dict.get('abc_rebound_breakdown', False):
+            elif strategy in ["跌破反彈ABC切線", "📐 跌破反彈ABC切線", "📐 跌破反彈ABC切線 (短多做底失敗反手空)", "📐 跌破反彈ABC切線 (短多做底失敗重回主跌·CH6)"] and signals_dict.get('abc_rebound_breakdown', False):
                 match = True
-            elif strategy in ["跌破下降軌道線", "📉 跌破下降軌道線", "📉 跌破下降軌道線 (空頭加速趕底·CH6)"] and signals_dict.get('descending_channel_breakdown', False):
+            elif strategy in ["跌破下降軌道線", "📉 跌破下降軌道線", "📉 跌破下降軌道線 (空頭加速趕底)", "📉 跌破下降軌道線 (空頭加速趕底·CH6)"] and signals_dict.get('descending_channel_breakdown', False):
                 match = True
-            elif strategy in ["跌破大量紅K低點", "⚡ 跌破大量紅K低點", "⚡ 跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱·CH6)"] and signals_dict.get('breakdown_rebound_red_low', False):
+            elif strategy in ["跌破大量紅K低點", "⚡ 跌破大量紅K低點", "⚡ 跌破大量紅K低點 (弱勢反彈破底)", "⚡ 跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱·CH6)"] and signals_dict.get('breakdown_rebound_red_low', False):
                 match = True
             elif strategy == "頭低底低" and (signals_dict.get('lower_highs_lows', False) or is_bear):
                 if not s.get('is_5ma_rising', False) and not s.get('above_5ma', True):
@@ -579,13 +579,13 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 match = True
             elif strategy in ["無敵鐵金剛", "三線合一"] and (signals_dict.get('iron_man', False) or (is_bull and s.get('is_5ma_rising', True) and s.get('above_5ma', True) and s.get('sma5', 0) >= s.get('sma20', 0))):
                 match = True
-            elif strategy in ["突破大量黑K高點", "⚡ 突破大量黑K高點", "⚡ 突破大量黑K高點 (飆股換手再轉強·CH6)"] and signals_dict.get('breakout_heavy_black_high', False):
+            elif strategy in ["突破大量黑K高點", "⚡ 突破大量黑K高點", "⚡ 突破大量黑K高點 (飆股換手·突破起漲)", "⚡ 突破大量黑K高點 (飆股換手再轉強·CH6)"] and signals_dict.get('breakout_heavy_black_high', False):
                 match = True
-            elif strategy in ["突破ABC修正切線", "📐 突破ABC修正切線", "📐 突破ABC修正切線 (短空做頭失敗續噴·CH6)"] and signals_dict.get('abc_correction_breakout', False):
+            elif strategy in ["突破ABC修正切線", "📐 突破ABC修正切線", "📐 突破ABC修正切線 (短空做頭失敗反手多)", "📐 突破ABC修正切線 (短空做頭失敗續噴·CH6)"] and signals_dict.get('abc_correction_breakout', False):
                 match = True
-            elif strategy in ["K線橫盤突破", "📊 K線橫盤突破", "📊 K線橫盤突破 (3天橫盤放量突破·CH6)"] and signals_dict.get('kline_consolidation_breakout', False):
+            elif strategy in ["K線橫盤突破", "📊 K線橫盤突破", "📊 K線橫盤突破 (3天橫盤放量突破)", "📊 K線橫盤突破 (3天橫盤放量突破·CH6)"] and signals_dict.get('kline_consolidation_breakout', False):
                 match = True
-            elif strategy in ["突破上升軌道線", "🚀 突破上升軌道線", "🚀 突破上升軌道線 (多頭加速噴出·CH6)"] and signals_dict.get('ascending_channel_breakout', False):
+            elif strategy in ["突破上升軌道線", "🚀 突破上升軌道線", "🚀 突破上升軌道線 (多頭加速噴出)", "🚀 突破上升軌道線 (多頭加速噴出·CH6)"] and signals_dict.get('ascending_channel_breakout', False):
                 match = True
             elif strategy in ["主升段第二波", "🚀 主升段第二波", "🚀 主升段第二波 (鎖一做二·飆股再發動)"] and signals_dict.get('main_wave_2nd', False):
                 match = True
@@ -595,7 +595,7 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 match = True
             elif strategy in ["箱型大突破", "箱型整理大突破", "📦 箱型整理大突破", "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)"] and signals_dict.get('box_range_breakout', False):
                 match = True
-            elif strategy in ["智慧K線續抱", "🐅 飆股智慧K線", "🐅 飆股智慧K線 (未破昨低續抱·CH6)"] and signals_dict.get('smart_kline_safe', False) and (signals_dict.get('is_attack_vol', False) or signals_dict.get('box_range_breakout', False) or s.get('change_pct', 0) >= 1.5):
+            elif strategy in ["智慧K線續抱", "🐅 飆股智慧K線", "🐅 飆股智慧K線 (未破昨低續抱)", "🐅 飆股智慧K線 (未破昨低續抱·CH6)"] and signals_dict.get('smart_kline_safe', False) and (signals_dict.get('is_attack_vol', False) or signals_dict.get('box_range_breakout', False) or s.get('change_pct', 0) >= 1.5):
                 match = True
             elif strategy in ["量排行", "🔥 量排行"]:
                 match = True
@@ -615,7 +615,7 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 match = True
             elif strategy == "N字底" and signals_dict.get('n_pattern_bottom', False):
                 match = True
-            elif strategy in ["圓弧底", "🥣 圓弧底放量突破", "🥣 圓弧底放量突破 (U型底慢火打底·CH6)"] and signals_dict.get('rounding_bottom', False):
+            elif strategy in ["圓弧底", "🥣 圓弧底放量突破", "🥣 圓弧底放量突破 (U型底慢火打底)", "🥣 圓弧底放量突破 (U型底慢火打底·CH6)"] and signals_dict.get('rounding_bottom', False):
                 match = True
             elif strategy == "長抱" and signals_dict.get('long_hold', False):
                 match = True

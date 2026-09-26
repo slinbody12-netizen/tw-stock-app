@@ -707,7 +707,7 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         reasons_text = " | ".join(item['safety_reasons'])
         safety_warn_html = f"<div style='font-size:0.78rem; color:#E0A82E; margin-top:4px;'>⚠️ <b>助教把關</b>：{reasons_text}</div>"
 
-    # 短線 3~5 天波段價差專屬戰術區塊 (整合 CH7 實戰停損與移動停利)
+    # 短線 3~5 天波段價差專屬戰術區塊 (整合實戰停損與移動停利風控)
     sig = item.get('signals_dict', {})
     swing = sig.get('swing_3_5d', {})
     swing_html = ""
@@ -716,14 +716,14 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         stop_str = f"🛑 <b>建議停損</b>：守 <b>{swing.get('stop_loss')}</b> 元 ({stop_type_label}，風險 -{swing.get('risk_pct')}%)<br>"
         trail_str = ""
         if swing.get('is_trailing_stop_active'):
-            trail_str = f"<div style='color:#13C2C2; font-weight:bold; margin-bottom:2px;'>🏆 <b>CH7 移動停利守護</b>：波段起漲已逾 7%，防守線拉高至 <b>{swing.get('trailing_stop_price')} 元</b> (守穩5MA讓獲利奔馳)</div>"
+            trail_str = f"<div style='color:#13C2C2; font-weight:bold; margin-bottom:2px;'>🏆 <b>移動停利守護</b>：波段起漲已逾 7%，防守線拉高至 <b>{swing.get('trailing_stop_price')} 元</b> (守穩5MA讓獲利奔馳)</div>"
         drop_warn_str = ""
         if swing.get('is_drop_5pct_warning'):
-            drop_warn_str = f"<div style='color:#FF4D4F; font-size:0.78rem; margin-top:3px;'>⚠️ <b>CH7 警示股</b>：今日重挫逾 5%，依不套牢原則列為警示股準備賣出！</div>"
+            drop_warn_str = f"<div style='color:#FF4D4F; font-size:0.78rem; margin-top:3px;'>⚠️ <b>風控警示股</b>：今日重挫逾 5%，依不套牢原則列為警示股準備賣出！</div>"
 
         swing_html = (
             f"<div style='background:#151824; border-left:3px solid #13C2C2; padding:7px 10px; border-radius:6px; font-size:0.82rem; margin-top:6px; color:#E0E6ED;'>"
-            f"<div style='font-weight:bold; color:#13C2C2; margin-bottom:2px;'>🎯 3-5 天短線波段戰術指引 (CH7 停損風控)：</div>"
+            f"<div style='font-weight:bold; color:#13C2C2; margin-bottom:2px;'>🎯 3-5 天短線波段戰術指引 (停損風控)：</div>"
             f"{trail_str}"
             f"{stop_str}"
             f"🛡️ <b>短線生命線</b>：守 <b>5MA ({swing.get('ma5_defend')} 元)</b> 收盤站穩<br>"
@@ -738,7 +738,7 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     if two_tr.get('advice'):
         two_tr_html = f"<div style='font-size:0.78rem; color:#888; margin-top:4px;'>💡 <b>買兩張配置</b>：{two_tr['advice']}</div>"
 
-    # 飆股五大量價狀態與智慧 K 線防守 (CH6 飆股專屬指引)
+    # 飆股五大量價狀態與智慧 K 線防守 (飆股專屬指引)
     smart_k_html = ""
     explosive_status = item.get('explosive_stock_status') or sig.get('explosive_stock_status', '')
     smart_defend = float(item.get('smart_kline_defend') or sig.get('smart_kline_defend') or 0.0)
@@ -1545,48 +1545,38 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             trail_badge_html = f"<span style='background:#10282E; border:1px solid #13C2C2; color:#13C2C2; padding:3px 9px; border-radius:5px; font-size:0.8rem; font-weight:bold; margin-right:6px;'>🏆 已啟動移動停利：{trail_p:.2f} 元</span>" if is_trail else ""
 
-            st.markdown(f"""
-            <div style='background:#161926; border:1px solid #2B3148; border-radius:10px; padding:14px 18px; margin:14px 0 10px 0;'>
-                <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;'>
-                    <div style='font-size:1.05rem; font-weight:bold; color:#FF7875;'>
-                        🛡️ 實戰停損與風控操盤導航儀 (CH7 官方標準規範)
-                    </div>
-                    <div>
-                        {trail_badge_html}
-                        <span style='background:#2B1D1D; border:1px solid #FF4D4F; color:#FF7875; padding:3px 9px; border-radius:5px; font-size:0.8rem; font-weight:bold;'>
-                            推薦最適停損：{rec_sl:.2f} 元 (-{rec_risk}%)
-                        </span>
-                    </div>
-                </div>
-                <div style='font-size:0.84rem; color:#A0AEC0; margin-bottom:12px;'>
-                    <b>助教策略指引</b>：{rec_desc}。停損在擬定進場策略時就先設好，<b>「設好的停損點絕對不得向下更改」</b>，當日尾盤 (13:20~13:30) 確認跌破立即果斷出場！
-                </div>
-            """, unsafe_allow_html=True)
+            with st.container(border=True):
+                nav_h1, nav_h2 = st.columns([1.5, 1])
+                with nav_h1:
+                    st.markdown("<div style='font-size:1.05rem; font-weight:bold; color:#FF7875; margin-bottom:4px;'>🛡️ 實戰停損與風控操盤導航儀</div>", unsafe_allow_html=True)
+                with nav_h2:
+                    st.markdown(f"<div style='text-align:right;'>{trail_badge_html}<span style='background:#2B1D1D; border:1px solid #FF4D4F; color:#FF7875; padding:3px 9px; border-radius:5px; font-size:0.82rem; font-weight:bold;'>推薦最適停損：{rec_sl:.2f} 元 (-{rec_risk}%)</span></div>", unsafe_allow_html=True)
 
-            # 四大策略停損點位對照盒 (7-2 策略停損法)
-            sl_c1, sl_c2, sl_c3, sl_c4 = st.columns(4)
-            with sl_c1:
-                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>🔴 K線戰法停損</div><div style='font-size:1.25rem; font-weight:bold; color:#FFF; margin:3px 0;'>{ch7_sl.get('kline_stop', 0):.2f} 元</div><div style='font-size:0.78rem; color:#FF7875;'>守進場/突破紅K低點</div></div>", unsafe_allow_html=True)
-            with sl_c2:
-                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>🛡️ 均線操作法停損</div><div style='font-size:1.25rem; font-weight:bold; color:#40A9FF; margin:3px 0;'>{ch7_sl.get('ma5_stop', 0):.2f} 元</div><div style='font-size:0.78rem; color:#60A5FA;'>5MA 操盤生命線</div></div>", unsafe_allow_html=True)
-            with sl_c3:
-                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>📐 形態/頸線停損</div><div style='font-size:1.25rem; font-weight:bold; color:#FFA94D; margin:3px 0;'>{ch7_sl.get('pattern_stop', 0):.2f} 元</div><div style='font-size:0.78rem; color:#E0A82E;'>守轉折前底或突破頸線</div></div>", unsafe_allow_html=True)
-            with sl_c4:
-                st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>⚡ 固定風控比例停損</div><div style='font-size:1.25rem; font-weight:bold; color:#FF4D4F; margin:3px 0;'>{ch7_sl.get('fixed_5pct_stop', 0):.2f} 元</div><div style='font-size:0.78rem; color:#FF4D4F;'>標準-5% (10%極限 {ch7_sl.get('absolute_10pct_stop', 0):.2f})</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:0.85rem; color:#A0AEC0; margin-bottom:12px; line-height:1.5;'><b>助教策略指引</b>：{rec_desc}。停損在擬定進場策略時就先設好，<b>「設好的停損點絕對不得向下更改」</b>，當日尾盤 (13:20~13:30) 確認跌破立即果斷出場！</div>", unsafe_allow_html=True)
 
-            # 絕對停損危險警訊檢核 (CH7-2)
-            if abs_warns:
-                warn_text = " · ".join(abs_warns)
-                st.markdown(f"<div style='background:#2B1616; border-left:4px solid #FF4D4F; padding:8px 12px; border-radius:6px; font-size:0.85rem; color:#FFA39E; margin-top:10px;'><b>🛑 CH7 絕對停損警戒</b>：{warn_text}。依官方操盤鐵律：明顯判斷錯誤，不可再心存僥倖凹單，請立即壯士斷腕！</div>", unsafe_allow_html=True)
-            else:
-                st.markdown("<div style='background:#13261A; border-left:4px solid #52C41A; padding:6px 12px; border-radius:6px; font-size:0.82rem; color:#95DE64; margin-top:10px;'>🟢 <b>絕對停損檢核</b>：未出現跌破箱底、高檔爆量長黑反轉或跌破 10% 等危險訊號，多頭架構安全。</div>", unsafe_allow_html=True)
+                # 四大策略停損點位對照盒 (官方策略停損法)
+                sl_c1, sl_c2, sl_c3, sl_c4 = st.columns(4)
+                with sl_c1:
+                    st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>🔴 K線戰法停損</div><div style='font-size:1.25rem; font-weight:bold; color:#FFF; margin:3px 0;'>{ch7_sl.get('kline_stop', 0):.2f} 元</div><div style='font-size:0.78rem; color:#FF7875;'>守進場/突破紅K低點</div></div>", unsafe_allow_html=True)
+                with sl_c2:
+                    st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>🛡️ 均線操作法停損</div><div style='font-size:1.25rem; font-weight:bold; color:#40A9FF; margin:3px 0;'>{ch7_sl.get('ma5_stop', 0):.2f} 元</div><div style='font-size:0.78rem; color:#60A5FA;'>5MA 操盤生命線</div></div>", unsafe_allow_html=True)
+                with sl_c3:
+                    st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>📐 形態/頸線停損</div><div style='font-size:1.25rem; font-weight:bold; color:#FFA94D; margin:3px 0;'>{ch7_sl.get('pattern_stop', 0):.2f} 元</div><div style='font-size:0.78rem; color:#E0A82E;'>守轉折前底或突破頸線</div></div>", unsafe_allow_html=True)
+                with sl_c4:
+                    st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>⚡ 固定風控比例停損</div><div style='font-size:1.25rem; font-weight:bold; color:#FF4D4F; margin:3px 0;'>{ch7_sl.get('fixed_5pct_stop', 0):.2f} 元</div><div style='font-size:0.78rem; color:#FF4D4F;'>標準-5% (10%極限 {ch7_sl.get('absolute_10pct_stop', 0):.2f})</div></div>", unsafe_allow_html=True)
 
-            st.markdown("</div>", unsafe_allow_html=True)
+                # 絕對停損危險警訊檢核
+                if abs_warns:
+                    clean_warns = [w.replace("(CH7 絕對停損·不心存僥倖)", "").replace("(CH7 警示股·準備賣出)", "").replace("(CH7 絕對停損·趨勢反轉)", "").replace("(CH7 絕對停損·壯士斷腕)", "").replace("(CH7 絕對停損·禁止凹單)", "").replace("(CH7 絕對停損·空頭確認)", "").strip() for w in abs_warns]
+                    warn_text = " · ".join(clean_warns)
+                    st.markdown(f"<div style='background:#2B1616; border-left:4px solid #FF4D4F; padding:8px 12px; border-radius:6px; font-size:0.85rem; color:#FFA39E; margin-top:10px;'><b>🛑 絕對停損警戒</b>：{warn_text}。依官方操盤鐵律：明顯判斷錯誤，不可再心存僥倖凹單，請立即壯士斷腕！</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div style='background:#13261A; border-left:4px solid #52C41A; padding:6px 12px; border-radius:6px; font-size:0.82rem; color:#95DE64; margin-top:10px;'>🟢 <b>絕對停損檢核</b>：未出現跌破箱底、高檔爆量長黑反轉或跌破 10% 等危險訊號，多頭架構安全。</div>", unsafe_allow_html=True)
 
-            # CH7-3 停損改變：獲利 7% 轉移動停利 (Trailing Stop) 互動試算模組
-            with st.expander("🏆 【CH7 停損的改變：獲利 7% 轉移動停利 (Trailing Stop) 試算導航】", expanded=is_trail):
+            # 停損改變：獲利 7% 轉移動停利 (Trailing Stop) 互動試算模組
+            with st.expander("🏆 【停損的改變：獲利 7% 轉移動停利 (Trailing Stop) 試算導航】", expanded=is_trail):
                 st.markdown("""
-                💡 **CH7-3 核心鐵律**：
+                💡 **核心移動停利鐵律**：
                 > **「當進場獲利達 7% 以上，離停損點漸遠，此時應放棄原停損，改為設定停利的位置 (Trailing Stop)！」**
                 > - 第一級防守：拉至買進成本保本線，絕不讓獲利單轉為虧損！
                 > - 第二級防守：以 5MA 操盤線為移動停利線，每天收盤守穩 5MA 一路抱牢賺足大波段，收盤跌破 5MA 才獲利了結入袋！
@@ -1601,7 +1591,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     if sim_gain_pct >= 7.0:
                         st.markdown(f"""
                         <div style='background:#10282E; border:1px solid #13C2C2; border-radius:8px; padding:10px 14px; margin-top:12px;'>
-                            <div style='font-size:0.95rem; font-weight:bold; color:#13C2C2;'>🎉 獲利已達 +{sim_gain_pct}% (超過 7%)！已觸發 CH7 移動停利守護</div>
+                            <div style='font-size:0.95rem; font-weight:bold; color:#13C2C2;'>🎉 獲利已達 +{sim_gain_pct}% (超過 7%)！已觸發移動停利守護</div>
                             <div style='font-size:0.85rem; color:#E0E6ED; margin-top:4px;'>
                                 • <b>第 1 道保本線</b>：<b>{sim_buy_p:.2f} 元</b> (絕不再讓獲利單轉虧損)<br>
                                 • <b>第 2 道移動防守線</b>：<b>5MA 操盤線 ({sim_sma5:.2f} 元)</b>，收盤未跌破一路抱牢讓利潤奔馳，收盤跌破即獲利了結！
@@ -1618,21 +1608,21 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                         </div>
                         """, unsafe_allow_html=True)
 
-            # CH7 實戰停損心法寶典展開卡
-            with st.expander("📘 【CH7 實戰停損心法寶典】六大停損原則與不被套牢積極作法", expanded=False):
+            # 實戰停損心法寶典展開卡
+            with st.expander("📘 【實戰停損心法寶典】六大停損原則與不被套牢積極作法", expanded=False):
                 st.markdown("""
-                - **7-1 停損的意義與重要原則**：
+                - **停損的意義與重要原則**：
                   1. **擬定進場策略時就先設好停損價**：絕不在買進後慌亂不知所措。
                   2. **設好的停損點「絕對不得向下更改」**：往下改等於沒設停損，是凹單的大忌！
                   3. **當天收盤價（13:20~13:30）跌破立即出場**：絕不心存僥倖，要有壯士斷腕的決心。
                   4. **順勢交易為主**：逆勢交易不對立刻出場，不可拘泥在停損價位。
                   5. **停損幅度在 5%~10% 之間**：最好不要超過 10%！
-                - **7-2 絕對停損四大鐵律（明顯錯誤立即斷腕）**：
+                - **絕對停損四大鐵律（明顯錯誤立即斷腕）**：
                   1. 盤整區佈局多單，跌破盤整區箱底。
                   2. 高檔趨勢反轉確認（空頭確認、跌破上升趨勢線與月線）。
                   3. 股價跌幅超過 10%（華爾街絕對底線）。
                   4. 逆勢單翻黑下殺。
-                - **7-3 不被套牢的三大積極作法**：
+                - **不被套牢的三大積極作法**：
                   1. 嚴格執行停損紀律。
                   2. **每天檢視手上股票，跌幅超過 5% 列為警示股，準備賣出**！
                   3. 無債一身輕，手上都是賺錢股票，留得青山在不怕沒柴燒！
@@ -1938,8 +1928,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 """)
 
             st.markdown("---")
-            # 均線扣抵走勢預判 (CH3 均線力量)
-            st.markdown("#### 🔍 均線扣抵與未來走勢預判 (CH3 均線力量)")
+            # 均線扣抵走勢預判
+            st.markdown("#### 🔍 均線扣抵與未來走勢預判")
             deduct = signals_dict.get('deduction', {})
             d_cols = st.columns(3)
             with d_cols[0]:
@@ -2307,16 +2297,16 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     "🚀 主升段第二波 (鎖一做二·飆股再發動)",
                     "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)",
                     "🔥 換手成功強勢股 (高檔爆量再創新高)",
-                    "⚡ 突破大量黑K高點 (飆股換手·CH6)",
-                    "📐 突破ABC修正切線 (短空做頭失敗·CH6)",
-                    "📊 K線橫盤突破 (3天橫盤放量突破·CH6)",
-                    "🚀 突破上升軌道線 (多頭加速噴出·CH6)",
-                    "🐅 飆股智慧K線 (未破昨低續抱·CH6)",
+                    "⚡ 突破大量黑K高點 (飆股換手·突破起漲)",
+                    "📐 突破ABC修正切線 (短空做頭失敗反手多)",
+                    "📊 K線橫盤突破 (3天橫盤放量突破)",
+                    "🚀 突破上升軌道線 (多頭加速噴出)",
+                    "🐅 飆股智慧K線 (未破昨低續抱)",
                     "👑 頭高底高 (六字訣多頭確認)",
                     "🎯 回後準進場 (拉回測線有守·短線買點)",
                     "🌀 均線糾結突破 (四線糾結起漲第一根)",
                     "📦 一字底放量突破 (60天糾結·飆股第一根)",
-                    "🥣 圓弧底放量突破 (U型底慢火打底·CH6)",
+                    "🥣 圓弧底放量突破 (U型底慢火打底)",
                     "🌱 底部起漲 (綜合底型突破)",
                     "🚀 高檔起漲 (多頭突破再創高)",
                     "⚔️ 雙線翻揚 (5MA/20MA 向上翻揚)"
@@ -2338,19 +2328,19 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 st.caption("💡 **【高檔爆量換手成功】**：高檔爆大量黑K或變盤線後 3 天內，強勢收盤突破該爆量K棒最高點！主力洗盤換手完畢，新主力籌碼進駐續噴主升段！")
             elif "突破大量黑K高點" in sub_strat:
                 target_strategy = "突破大量黑K高點"
-                st.caption("💡 **【突破大量黑K最高點 (飆股換手·CH6-7)】**：強勢飆股在短線急漲後拉出巨量黑K棒洗盤，但主力籌碼極強，1~3天內立刻拉出大量紅K收盤實質突破該黑K最高點！這代表盤面籌碼被新主力全數接走換手成功，常展開大波段噴出行情！")
+                st.caption("💡 **【突破大量黑K最高點 (飆股換手突破起漲)】**：強勢飆股在短線急漲後拉出巨量黑K棒洗盤，但主力籌碼極強，1~3天內立刻拉出大量紅K收盤實質突破該黑K最高點！這代表盤面籌碼被新主力全數接走換手成功，常展開大波段噴出行情！")
             elif "突破ABC修正切線" in sub_strat:
                 target_strategy = "突破ABC修正切線"
-                st.caption("💡 **【突破 ABC 修正下降切線 (短空做頭失敗續噴·CH6-5)】**：多頭走勢中出現 20 天以內的 A-B-C 旗型向下修正（月線維持翻揚助漲），今日放量紅K收盤實質突破下降切線！短空做頭失敗，多頭趨勢重啟，可依 A-B 振幅計算等距波段目標價 D'！")
+                st.caption("💡 **【突破 ABC 修正下降切線 (短空做頭失敗反手多)】**：多頭走勢中出現 20 天以內的 A-B-C 旗型向下修正（月線維持翻揚助漲），今日放量紅K收盤實質突破下降切線！短空做頭失敗，多頭趨勢重啟，可依 A-B 振幅計算等距波段目標價 D'！")
             elif "K線橫盤突破" in sub_strat:
                 target_strategy = "K線橫盤突破"
-                st.caption("💡 **【K線橫盤突破 (3天橫盤放量突破·CH6-3)】**：連續 3 天收盤價皆未跌破第 1 天母K棒低點、亦未突破其高點（極狹幅震盪整理），第 4 天（或今日）放量紅K強勢突破該 3 天最高點並站穩 5MA！微觀結構轉折確立，為短線高勝率發動點！")
+                st.caption("💡 **【K線橫盤突破 (3天橫盤放量突破)】**：連續 3 天收盤價皆未跌破第 1 天母K棒低點、亦未突破其高點（極狹幅震盪整理），第 4 天（或今日）放量紅K強勢突破該 3 天最高點並站穩 5MA！微觀結構轉折確立，為短線高勝率發動點！")
             elif "突破上升軌道線" in sub_strat:
                 target_strategy = "突破上升軌道線"
-                st.caption("💡 **【突破上升軌道線 (多頭加速噴出·CH6-6)】**：股價沿著上升切線與平行軌道線穩健走多，今日帶量大紅K強勢衝破上升軌道線上緣！代表多頭力道暴增，由常態通道轉為主升段加速噴出！")
+                st.caption("💡 **【突破上升軌道線 (多頭加速噴出)】**：股價沿著上升切線與平行軌道線穩健走多，今日帶量大紅K強勢衝破上升軌道線上緣！代表多頭力道暴增，由常態通道轉為主升段加速噴出！")
             elif "智慧K線" in sub_strat:
                 target_strategy = "智慧K線續抱"
-                st.caption("💡 **【飆股智慧 K 線交易法 (未破昨低續抱·CH6-15)】**：鎖定強勢大漲股，只要每日收盤未跌破前一日最低價即一路抱牢奔跑！每日 13:20 檢視，若確認跌破前一日最低價則果斷賣出，讓利潤最大化同時嚴控回檔風險！")
+                st.caption("💡 **【飆股智慧 K 線交易法 (未破昨低續抱)】**：鎖定強勢大漲股，只要每日收盤未跌破前一日最低價即一路抱牢奔跑！每日 13:20 檢視，若確認跌破前一日最低價則果斷賣出，讓利潤最大化同時嚴控回檔風險！")
             elif "頭高底高" in sub_strat:
                 target_strategy = "頭高底高"
                 st.caption("💡 **選股 vs 鎖股分工**：此處【👑 頭高底高】是「**六字訣多頭確立、5MA走升且站穩5MA**」之強勢多頭名單。")
@@ -2365,7 +2355,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 st.caption("💡 **【一字底放量突破 (60天糾結·飆股第一根)】**：股價在 30~60 天極狹幅區間（振幅 <= 12%~15%）內反覆洗盤，5/10/20/60MA 四線平躺糾結，今日長紅放量一棒摜破箱頂頸線！上方浮額洗淨、萬里無雲，通常為大波段翻倍飆股的主升第一根！")
             elif "圓弧底" in sub_strat:
                 target_strategy = "圓弧底"
-                st.caption("💡 **【圓弧底慢火打底 (U型底·突破或翻揚·CH6)】**：左側緩跌量縮、中央平坦打底（洗淨浮額）、右側溫和量增推升，形成對稱 U 型弧線。包含兩大實戰買點：(1) **放量過頸線起漲**（帶量突破左右水平頸線，等距對稱波發動）；(2) **慢火打底右側翻揚**（凹槽打底完成，脫離底部 3%~5% 站上 5MA/20MA 走平翻揚起步）！")
+                st.caption("💡 **【圓弧底慢火打底 (U型底·突破或翻揚)】**：左側緩跌量縮、中央平坦打底（洗淨浮額）、右側溫和量增推升，形成對稱 U 型弧線。包含兩大實戰買點：(1) **放量過頸線起漲**（帶量突破左右水平頸線，等距對稱波發動）；(2) **慢火打底右側翻揚**（凹槽打底完成，脫離底部 3%~5% 站上 5MA/20MA 走平翻揚起步）！")
             elif "底部起漲" in sub_strat:
                 target_strategy = "底部起漲"
             elif "高檔起漲" in sub_strat:
@@ -2378,10 +2368,10 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 [
                     "👑 頭低底低 (六字訣空頭確認)",
                     "🎯 彈後準進場 (反彈測線無力·短線空點)",
-                    "⚡ 跌破大量紅K低點 (弱勢反彈破底·CH6)",
-                    "📐 跌破反彈ABC切線 (短多做底失敗·CH6)",
-                    "📊 K線橫盤跌破 (3天橫盤長黑摜破·CH6)",
-                    "📉 跌破下降軌道線 (空頭加速趕底·CH6)",
+                    "⚡ 跌破大量紅K低點 (弱勢反彈破底)",
+                    "📐 跌破反彈ABC切線 (短多做底失敗反手空)",
+                    "📊 K線橫盤跌破 (3天橫盤長黑摜破)",
+                    "📉 跌破下降軌道線 (空頭加速趕底)",
                     "🌀 均線糾結跌破 (四線空排初跌)",
                     "🛑 頂部起跌 (高檔頭部成形·首度跌破)",
                     "📉 低檔起跌 (破底續跌·弱勢續殺)",
@@ -2397,16 +2387,16 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 target_strategy = "彈後準進場"
             elif "跌破大量紅K低點" in sub_strat:
                 target_strategy = "跌破大量紅K低點"
-                st.caption("💡 **【跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱·CH6-14)】**：空頭下跌趨勢中出現爆量紅K弱勢反彈，隨後 1~3 天內即被長黑摜破該反彈紅K最低點！代表搶反彈浮額全面套牢，空頭慣性強勢重啟，為黃金空點！")
+                st.caption("💡 **【跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱)】**：空頭下跌趨勢中出現爆量紅K弱勢反彈，隨後 1~3 天內即被長黑摜破該反彈紅K最低點！代表搶反彈浮額全面套牢，空頭慣性強勢重啟，為黃金空點！")
             elif "跌破反彈ABC切線" in sub_strat:
                 target_strategy = "跌破反彈ABC切線"
-                st.caption("💡 **【跌破反彈 ABC 上升切線 (短多做底失敗重回主跌·CH6-12)】**：空頭下跌中出現 20 天以內 A-B-C 三波弱勢反彈（受下彎月線壓制），今日放量黑K摜破上升切線與 B 點低點！短多做底失敗重回主跌段，可測等距下跌目標價！")
+                st.caption("💡 **【跌破反彈 ABC 上升切線 (短多做底失敗重回主跌)】**：空頭下跌中出現 20 天以內 A-B-C 三波弱勢反彈（受下彎月線壓制），今日放量黑K摜破上升切線與 B 點低點！短多做底失敗重回主跌段，可測等距下跌目標價！")
             elif "K線橫盤跌破" in sub_strat:
                 target_strategy = "K線橫盤跌破"
-                st.caption("💡 **【K線橫盤跌破 (3天橫盤長黑摜破·CH6-10)】**：下跌行進中連續 3 天狹幅震盪未過高亦未破低，第 4 天長黑跌破橫盤最低點且 5MA 翻黑下彎！弱勢盤整表態，空方續殺發動！")
+                st.caption("💡 **【K線橫盤跌破 (3天橫盤長黑摜破)】**：下跌行進中連續 3 天狹幅震盪未過高亦未破低，第 4 天長黑跌破橫盤最低點且 5MA 翻黑下彎！弱勢盤整表態，空方續殺發動！")
             elif "跌破下降軌道線" in sub_strat:
                 target_strategy = "跌破下降軌道線"
-                st.caption("💡 **【跌破下降軌道線 (空頭加速趕底·CH6-13)】**：空頭沿下降軌道線緩步下跌，今日放量中長黑貫穿下軌道線！代表恐慌性拋補湧現，空頭轉強加速趕底！")
+                st.caption("💡 **【跌破下降軌道線 (空頭加速趕底)】**：空頭沿下降軌道線緩步下跌，今日放量中長黑貫穿下軌道線！代表恐慌性拋補湧現，空頭轉強加速趕底！")
             elif "均線糾結跌破" in sub_strat:
                 target_strategy = "均線糾結跌破"
                 st.caption("💡 **【均線糾結跌破 (四線空排)】**：高檔平台四線糾結後長黑摜破，均線全面展開呈現 5MA < 10MA < 20MA < 60MA 全數下彎（如講義波若威 3163 崩跌）！**操盤實戰心法**：波段做空守 20MA (月線) 一路抱到底，做多者必須立即全數清倉！")
@@ -3821,7 +3811,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                     )
                 else:
                     if item.get("is_trailing_stop"):
-                        trail_defend_str = f'<div>🏆 <b>CH7移動停利價</b>：<b style="color:#13C2C2;">{item.get("trailing_stop", 0):.2f} 元</b> <span style="color:#8892B0; font-size:0.78rem;">(保本/守5MA)</span></div>'
+                        trail_defend_str = f'<div>🏆 <b>移動停利價</b>：<b style="color:#13C2C2;">{item.get("trailing_stop", 0):.2f} 元</b> <span style="color:#8892B0; font-size:0.78rem;">(保本/守5MA)</span></div>'
                     else:
                         trail_defend_str = f'<div>停損防守價：<b style="color:#FF7875;">{item["stop_loss"]:.2f} 元</b></div>'
 

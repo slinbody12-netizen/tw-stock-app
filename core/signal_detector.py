@@ -557,16 +557,16 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         # CH6-1: 盤整突破是跳空上漲的缺口，力道最強
         if o > prev_h:
             signals_dict['is_gap_breakout'] = True
-            signals.append("⚡ 跳空缺口突破 (缺口爆量突破力道最強·CH6)")
-        # CH6-1: 突破位階勝率評定
+            signals.append("⚡ 跳空缺口突破 (缺口爆量突破力道最強)")
+        # 突破位階勝率評定
         if is_near_bottom:
-            signals_dict['breakout_stage'] = "初升段盤整突破 (勝率高達8成·4線多排·CH6)"
+            signals_dict['breakout_stage'] = "初升段盤整突破 (勝率高達8成·4線多排)"
         elif is_main_wave_2nd:
-            signals_dict['breakout_stage'] = "第二波盤整突破 (勝率高達7成·CH6)"
+            signals_dict['breakout_stage'] = "第二波盤整突破 (勝率高達7成)"
         elif is_high_position:
-            signals_dict['breakout_stage'] = "高檔盤整突破 (防假突破/長紅騙線，僅限短線·CH6)"
+            signals_dict['breakout_stage'] = "高檔盤整突破 (防假突破/長紅騙線，僅限短線)"
         else:
-            signals_dict['breakout_stage'] = "盤整突破 (價漲量增線實·CH6)"
+            signals_dict['breakout_stage'] = "盤整突破 (價漲量增線實)"
 
     # ----------------------------------------------------
     # 策略 G：N字底 (第二隻腳不破前低，向上推升)
@@ -616,12 +616,12 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
                 if c >= neckline * 0.99 and c >= sma5 and (is_red or change_pct >= 0.5):
                     signals_dict['rounding_bottom'] = True
                     signals_dict['rounding_bottom_breakout'] = True
-                    signals.append("🥣 圓弧底放量突破 (突破水平頸線·等距對稱波·CH6)")
+                    signals.append("🥣 圓弧底放量突破 (突破水平頸線·等距對稱波)")
                 # 型態二：慢火打底右側翻揚成形
                 elif rebound >= 0.03 and c >= sma5 and sma5 >= prev_sma5 * 0.998 and sma20 >= prev_sma20 - 0.20:
                     signals_dict['rounding_bottom'] = True
                     signals_dict['rounding_bottom_breakout'] = False
-                    signals.append("🥣 圓弧底慢火打底 (U型慢火打底右側翻揚·CH6)")
+                    signals.append("🥣 圓弧底慢火打底 (U型慢火打底右側翻揚)")
 
         # 備用均線平滑兼容
         if not signals_dict.get('rounding_bottom', False):
@@ -629,7 +629,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             ma20_diff_old = float(df.iloc[-10]['SMA_20']) - float(df.iloc[-15]['SMA_20'])
             if ma20_diff_old <= 0 and ma20_diff_recent >= -0.05 and c >= sma5 and is_red:
                 signals_dict['rounding_bottom'] = True
-                signals.append("🥣 圓弧底慢火打底 (20MA平緩翻揚·CH6)")
+                signals.append("🥣 圓弧底慢火打底 (20MA平緩翻揚)")
 
     # ----------------------------------------------------
     # 策略 I：長抱 (均線長期多排穩健上揚)
@@ -655,7 +655,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("盤中強勢 (量價齊揚強勁攻擊)")
 
     # ----------------------------------------------------
-    # 策略 CH6-3：K線橫盤的突破 (3天橫盤放量長紅突破)
+    # 策略：K線橫盤的突破 (3天橫盤放量長紅突破)
     # 實戰心法鐵律：
     # 1. 過去 3 天收盤價未破第 1 天低點亦未過第 1 天高點 (K線橫盤整理)
     # 2. 今日放量紅K收盤突破前 3 天最高點 (c > max_h3)
@@ -668,10 +668,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         amp3 = (h3 - l3) / (l3 + 1e-9)
         if amp3 <= 0.065 and c > h3 and (vol_ratio_5 >= 1.05 or change_pct >= 1.0):
             signals_dict['kline_consolidation_breakout'] = True
-            signals.append("📊 K線橫盤突破 (3天橫盤放量突破·CH6)")
+            signals.append("📊 K線橫盤突破 (3天橫盤放量突破)")
 
     # ----------------------------------------------------
-    # 策略 CH6-5：突破 ABC 修正下降切線 (短空做頭失敗續噴)
+    # 策略：突破 ABC 修正下降切線 (短空做頭失敗反手多)
     # 實戰心法鐵律：
     # 1. 前波多頭推升後，出現 ABC 向下三波修正 (飄旗型態，時程在 20 天之內)
     # 2. 20MA 月線維持上揚 (sma20 >= prev_sma20 * 0.998)
@@ -686,10 +686,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
                 b_peak = float(after_h.iloc[1:-1]['High'].max()) if len(after_h) > 2 else float(after_h['High'].mean())
                 if c > b_peak and (vol_ratio_5 >= 1.05 or change_pct >= 1.0):
                     signals_dict['abc_correction_breakout'] = True
-                    signals.append("📐 突破ABC修正切線 (短空做頭失敗續噴·CH6)")
+                    signals.append("📐 突破ABC修正切線 (短空做頭失敗反手多)")
 
     # ----------------------------------------------------
-    # 策略 CH6-6：突破上升軌道線 (多頭加速噴出)
+    # 策略：突破上升軌道線 (多頭加速噴出)
     # 實戰心法鐵律：
     # 1. 多頭沿著上升軌道線緩步推升 (5MA > 20MA > 60MA)
     # 2. 今日大量中長紅 K 收盤突破上升軌道線頂部，多頭轉強加速噴出！
@@ -699,10 +699,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         upper_bound = float(past15['High'].max())
         if c >= upper_bound * 1.005:
             signals_dict['ascending_channel_breakout'] = True
-            signals.append("🚀 突破上升軌道線 (多頭加速噴出·CH6)")
+            signals.append("🚀 突破上升軌道線 (多頭加速噴出)")
 
     # ----------------------------------------------------
-    # 策略 CH6-7：突破飆股大量黑K最高點 (洗盤換手再轉強)
+    # 策略：突破飆股大量黑K最高點 (洗盤換手突破起漲)
     # 實戰心法鐵律：
     # 1. 過去 1~3 天曾出現大量黑 K 或長避雷針回檔洗盤 (Volume >= Vol_MA5 * 1.25)
     # 2. 20MA 月線維持上揚 (sma20 >= prev_sma20 * 0.998)
@@ -717,7 +717,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             if b_vma > 0 and b_v >= b_vma * 1.2 and b_is_black:
                 if c > float(b_row['High']):
                     signals_dict['breakout_heavy_black_high'] = True
-                    signals.append("⚡ 突破大量黑K高點 (飆股換手再轉強·CH6)")
+                    signals.append("⚡ 突破大量黑K高點 (飆股換手突破起漲)")
                     break
 
     # ====================================================
@@ -818,10 +818,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         amp3_s = (h3_s - l3_s) / (l3_s + 1e-9)
         if amp3_s <= 0.065 and c < l3_s and (vol_ratio_5 >= 1.05 or change_pct <= -1.0):
             signals_dict['kline_consolidation_breakdown'] = True
-            signals.append("📊 K線橫盤跌破 (3天橫盤黑K摜破·CH6)")
+            signals.append("📊 K線橫盤跌破 (3天橫盤黑K摜破)")
 
     # ----------------------------------------------------
-    # 策略 CH6-12：跌破反彈 ABC 修正上升切線 (短多做底失敗重回主跌)
+    # 策略：跌破反彈 ABC 修正上升切線 (短多做底失敗重回主跌)
     # 實戰心法鐵律：
     # 1. 下跌波後，出現 A-B-C 三波反彈 (上升旗型，20天內)
     # 2. 20MA 月線下彎壓制 (sma20 <= prev_sma20 * 1.002)
@@ -836,10 +836,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
                 b_trough = float(after_l.iloc[1:-1]['Low'].min()) if len(after_l) > 2 else float(after_l['Low'].mean())
                 if c < b_trough and (vol_ratio_5 >= 1.05 or change_pct <= -1.0):
                     signals_dict['abc_rebound_breakdown'] = True
-                    signals.append("📐 跌破反彈ABC切線 (短多做底失敗重回主跌·CH6)")
+                    signals.append("📐 跌破反彈ABC切線 (短多做底失敗重回主跌)")
 
     # ----------------------------------------------------
-    # 策略 CH6-13：跌破下跌軌道線 (空頭加速趕底轉強)
+    # 策略：跌破下跌軌道線 (空頭加速趕底轉強)
     # 實戰心法鐵律：
     # 1. 空頭沿下降軌道線緩步下跌 (5MA < 20MA)
     # 2. 今日大量中長黑 K 收盤摜破下降軌道線，空頭轉強加速趕底！
@@ -849,10 +849,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         lower_bound = float(past15_s['Low'].min())
         if c <= lower_bound * 0.995:
             signals_dict['descending_channel_breakdown'] = True
-            signals.append("📉 跌破下降軌道線 (空頭加速趕底·CH6)")
+            signals.append("📉 跌破下降軌道線 (空頭加速趕底)")
 
     # ----------------------------------------------------
-    # 策略 CH6-14：跌破反彈紅K低點 (弱勢反彈破底·空頭再轉弱)
+    # 策略：跌破反彈紅K低點 (弱勢反彈破底·空頭再轉弱)
     # 實戰心法鐵律：
     # 1. 弱勢空頭急跌時，過去 1~3 天爆大量收紅 K 反彈
     # 2. 20MA 月線維持下彎 (sma20 <= prev_sma20 * 1.002)
@@ -867,15 +867,15 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             if r_vma > 0 and r_v >= r_vma * 1.2 and r_is_red:
                 if c < float(r_row['Low']):
                     signals_dict['breakdown_rebound_red_low'] = True
-                    signals.append("⚡ 跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱·CH6)")
+                    signals.append("⚡ 跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱)")
                     break
 
     # ----------------------------------------------------
-    # CH6-8 空頭防守注意：次日並排紅K實體棒，易為假下跌
+    # 空頭防守注意：次日並排紅K實體棒，易為假下跌
     # ----------------------------------------------------
     if is_red and not is_bear and float(prev['Close']) < float(prev['Open']) and c >= float(prev['Open']) * 0.99:
         signals_dict['is_parallel_red_warning'] = True
-        signals.append("⚠️ 並列紅K (空方防假下跌·嚴守停損·CH6)")
+        signals.append("⚠️ 並列紅K (空方防假下跌·嚴守停損)")
 
     # ----------------------------------------------------
     # 盤整狀態辨識與盤整末端即將突破預警 (教學手冊重點)
@@ -999,19 +999,19 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     if not smart_kline_safe and is_high_position:
         signals_dict['smart_kline_exit_warning'] = True
-        signals.append("⚠️ 智慧K線退場警戒 (跌破前一日最低點，13:20掛單賣出·CH6)")
+        signals.append("⚠️ 智慧K線退場警戒 (跌破前一日最低點，13:20掛單賣出)")
 
     # 飆股量價五燈號研判
     if change_pct >= 2.5 and vol_ratio_5 <= 0.85 and c >= sma5:
-        signals_dict['explosive_stock_status'] = "🟢 無量飆漲 (主力鎖碼急漲，續抱·CH6)"
+        signals_dict['explosive_stock_status'] = "🟢 無量飆漲 (主力鎖碼急漲，續抱)"
     elif change_pct >= 0.5 and 0.85 < vol_ratio_5 <= 1.45 and c >= sma5:
-        signals_dict['explosive_stock_status'] = "🟢 溫和量價齊揚 (多方穩健推升，續抱·CH6)"
+        signals_dict['explosive_stock_status'] = "🟢 溫和量價齊揚 (多方穩健推升，續抱)"
     elif vol_ratio_5 >= 1.5 and ((h - l) / (l + 1e-9)) >= 0.05:
-        signals_dict['explosive_stock_status'] = "🟡 量大劇烈震盪 (高檔主力洗盤，建議先賣1/2·CH6)"
+        signals_dict['explosive_stock_status'] = "🟡 量大劇烈震盪 (高檔主力洗盤，建議先賣1/2)"
     elif vol_ratio_5 >= 2.0 and change_pct >= 0 and is_high_position:
-        signals_dict['explosive_stock_status'] = "🟡 高檔爆大量 (注意次日走勢，可先賣1/2·CH6)"
+        signals_dict['explosive_stock_status'] = "🟡 高檔爆大量 (注意次日走勢，可先賣1/2)"
     elif vol_ratio_5 >= 1.6 and is_black and ((o - c) / (o + 1e-9)) >= 0.015 and is_high_position:
-        signals_dict['explosive_stock_status'] = "🔴 爆大量開高走低長黑 (賣壓湧現主力倒貨，全數賣出·CH6)"
+        signals_dict['explosive_stock_status'] = "🔴 爆大量開高走低長黑 (賣壓湧現主力倒貨，全數賣出)"
     else:
         signals_dict['explosive_stock_status'] = "常態波動"
 
@@ -1112,16 +1112,16 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # 3. 每日檢視警示機制 (CH7-3 不套牢準則：跌幅超過 5% 列為警示股)
     is_drop_5pct_warning = (change_pct <= -5.0)
 
-    # 4. CH7-2 絕對停損危險警訊檢核 (明顯錯誤不可凹單)
+    # 4. 絕對停損危險警訊檢核 (明顯錯誤不可凹單)
     absolute_warnings = []
     if sup_price > 0 and c < sup_price:
-        absolute_warnings.append("⚠️ 摜破盤整箱底/前波支撐 (CH7 絕對停損·禁止凹單)")
+        absolute_warnings.append("⚠️ 摜破盤整箱底/前波支撐 (絕對停損·禁止凹單)")
     if is_drop_5pct_warning:
-        absolute_warnings.append("⚠️ 今日重挫逾 5% (CH7 警示股·準備賣出)")
+        absolute_warnings.append("⚠️ 今日重挫逾 5% (風控警示股·準備賣出)")
     if is_high_position and is_black and vol_ratio_5 >= 1.5 and c < sma5:
-        absolute_warnings.append("⚠️ 高檔爆量長黑反轉 (CH7 絕對停損·空頭確認)")
+        absolute_warnings.append("⚠️ 高檔爆量長黑反轉 (絕對停損·空頭確認)")
     if change_pct <= -9.5 or (sup_price > 0 and (sup_price - c) / sup_price >= 0.10):
-        absolute_warnings.append("🛑 跌幅逾 10% 終極鐵律 (CH7 絕對停損·壯士斷腕)")
+        absolute_warnings.append("🛑 跌幅逾 10% 終極鐵律 (絕對停損·壯士斷腕)")
 
     signals_dict['ch7_stop_loss'] = {
         "kline_stop": kline_stop,
@@ -1157,9 +1157,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     }
 
     if is_drop_5pct_warning:
-        signals.append("🚨 單日重挫逾 5% (CH7 不套牢警示·準備賣出)")
+        signals.append("🚨 單日重挫逾 5% (風控警示·準備賣出)")
     if is_trailing_stop_active:
-        signals.append(f"🏆 獲利逾 7% 啟動移動停利 (守 5MA {sma5:.2f}元·CH7)")
+        signals.append(f"🏆 獲利逾 7% 啟動移動停利 (守 5MA {sma5:.2f}元)")
 
     # ----------------------------------------------------
     # 鎖股池 3 階段管理 (等突破 / 高檔等回檔 / 回檔等上漲)
