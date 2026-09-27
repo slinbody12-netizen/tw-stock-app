@@ -1941,6 +1941,185 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                      - 長線多單：後續跌破盤整區下緣低點（空頭確認），長線多單全數停利清倉，防禦轉空！
                 """)
 
+            # =========================================================================
+            # 股票套牢診斷與五大實戰解套導航儀 (套牢位階診斷 · 五大解套 SOP · 反手做空賺價差解套)
+            # =========================================================================
+            ch10_data = signals_dict.get('ch10_trap_diagnosis', {})
+            t_peak = ch10_data.get('peak_60d', c_curr)
+            t_dd = ch10_data.get('drawdown_pct', 0.0)
+            t_level = ch10_data.get('trap_level', '輕微回檔 (<10%)')
+            t_sop_name = ch10_data.get('sop_name', '')
+            t_sop_act = ch10_data.get('sop_action', '')
+            t_mindset = ch10_data.get('mindset_advice', '')
+            t_short = ch10_data.get('short_hedge_guide', {})
+            is_caution = ch10_data.get('is_caution_5pct', False)
+            is_stag = ch10_data.get('stagnant_warning', False)
+            avg_warn = ch10_data.get('average_down_warning', '')
+
+            # Badge styling based on trap_level
+            if "強勢創高" in t_level:
+                trap_bg = "#10282E"
+                trap_border = "#13C2C2"
+                trap_text_c = "#52C41A"
+                trap_badge_label = f"🟢 強勢多頭創新高 (距新高 {t_dd:.1f}%)"
+            elif "<10%" in t_level:
+                trap_bg = "#19281E"
+                trap_border = "#52C41A"
+                trap_text_c = "#73D13D"
+                trap_badge_label = f"🟢 輕微回檔 (自高點 -{t_dd:.1f}%)"
+            elif "10%~20%" in t_level:
+                trap_bg = "#2B2116"
+                trap_border = "#FAAD14"
+                trap_text_c = "#FFC53D"
+                trap_badge_label = f"🟡 中度套牢警戒 (自高點 -{t_dd:.1f}%)"
+            elif "打底" in t_level:
+                trap_bg = "#231C2E"
+                trap_border = "#9254DE"
+                trap_text_c = "#D3ADF7"
+                trap_badge_label = f"🟣 重度套牢·打底蓄勢 (自高點 -{t_dd:.1f}%)"
+            else:
+                trap_bg = "#2B1616"
+                trap_border = "#FF4D4F"
+                trap_text_c = "#FF7875"
+                trap_badge_label = f"🔴 重度套牢·走空中 (自高點 -{t_dd:.1f}%)"
+
+            with st.container(border=True):
+                trap_h1, trap_h2 = st.columns([1.5, 1.2])
+                with trap_h1:
+                    st.markdown("<div style='font-size:1.05rem; font-weight:bold; color:#FF7875; margin-bottom:4px;'>🆘 股票套牢診斷與實戰解套導航儀 (五大實戰解套 SOP)</div>", unsafe_allow_html=True)
+                with trap_h2:
+                    st.markdown(f"<div style='text-align:right;'><span style='background:{trap_bg}; border:1px solid {trap_border}; color:{trap_text_c}; padding:3px 10px; border-radius:6px; font-size:0.85rem; font-weight:bold;'>{trap_badge_label}</span></div>", unsafe_allow_html=True)
+
+                st.markdown(f"<div style='font-size:0.85rem; color:#A0AEC0; margin-bottom:12px; line-height:1.5;'><b>解套行動方針</b>：{t_sop_name}</div>", unsafe_allow_html=True)
+
+                # 四大指標卡：60日波段高點、波段自高點回檔、當前套牢位階、解套SOP編號
+                tc1, tc2, tc3, tc4 = st.columns(4)
+                with tc1:
+                    st.markdown(f"""
+                    <div class='chip-card'>
+                        <div style='color:#AAA; font-size:0.82rem;'>🏔️ 60日波段最高點</div>
+                        <div style='font-size:1.25rem; font-weight:bold; color:#FFF; margin:3px 0;'>{t_peak:.2f} 元</div>
+                        <div style='font-size:0.75rem; color:#888;'>近期歷史基準天花板</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with tc2:
+                    dd_c = "#52C41A" if t_dd <= 3.0 else ("#FAAD14" if t_dd < 10.0 else "#FF4D4F")
+                    st.markdown(f"""
+                    <div class='chip-card'>
+                        <div style='color:#AAA; font-size:0.82rem;'>📉 波段自高點回檔</div>
+                        <div style='font-size:1.25rem; font-weight:bold; color:{dd_c}; margin:3px 0;'>-{t_dd:.1f}%</div>
+                        <div style='font-size:0.75rem; color:#888;'>{'回檔在安全範圍' if t_dd < 10 else '已達被套牢標準(>10%)'}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with tc3:
+                    st.markdown(f"""
+                    <div class='chip-card'>
+                        <div style='color:#AAA; font-size:0.82rem;'>🏷️ 當前套牢位階</div>
+                        <div style='font-size:1.05rem; font-weight:bold; color:{trap_text_c}; margin:6px 0;'>{t_level}</div>
+                        <div style='font-size:0.75rem; color:#888;'>官方量化位階評定</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with tc4:
+                    sop_short_label = t_sop_name.split('·')[0] if '·' in t_sop_name else t_sop_name
+                    st.markdown(f"""
+                    <div class='chip-card'>
+                        <div style='color:#AAA; font-size:0.82rem;'>🧭 建議解套步驟</div>
+                        <div style='font-size:1.05rem; font-weight:bold; color:#13C2C2; margin:6px 0;'>{sop_short_label}</div>
+                        <div style='font-size:0.75rem; color:#888;'>五大實戰SOP指南</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # 具體處置行動與心法提醒
+                st.markdown(f"""
+                <div style='background:#181D29; border:1px solid #2B3448; border-left:4px solid {trap_border}; border-radius:6px; padding:10px 14px; font-size:0.85rem; color:#CBD5E1; margin-top:10px; line-height:1.6;'>
+                    🎯 <b>實戰解套處置指引</b>：{t_sop_act}<br>
+                    💡 <b>贏家思維避雷提醒</b>：{t_mindset}
+                </div>
+                """, unsafe_allow_html=True)
+
+                # 警示機制與特殊禁令提醒
+                if is_caution:
+                    st.markdown("<div style='background:#2B2116; border-left:4px solid #FAAD14; padding:8px 12px; border-radius:6px; font-size:0.84rem; color:#FFE58F; margin-top:8px;'>⚠️ <b>【警示股防守機制啟動】</b>：每日檢視手上股票，跌幅超過 5% 即列為警示股！空方賣壓浮現，請密切盯盤準備停損賣出，絕不拖成重度套牢！</div>", unsafe_allow_html=True)
+
+                if is_stag:
+                    st.markdown("<div style='background:#202434; border-left:4px solid #1890FF; padding:8px 12px; border-radius:6px; font-size:0.84rem; color:#91D5FF; margin-top:8px;'>⚠️ <b>【盤整卡資金警訊】</b>：本檔目前處於量縮盤整，短時間缺乏行情；盲信基本面買在盤整區容易卡死寶貴資金甚至向下盤跌重虧，應列入【等突破】鎖股池耐心等待帶量表態！</div>", unsafe_allow_html=True)
+
+                if "重度套牢" in t_level or "中度套牢" in t_level or c_curr < float(df.iloc[-1].get('SMA_20', c_curr)):
+                    st.markdown(f"<div style='background:#2B1616; border-left:4px solid #FF4D4F; padding:8px 12px; border-radius:6px; font-size:0.84rem; color:#FFA39E; margin-top:8px;'>{avg_warn}</div>", unsafe_allow_html=True)
+
+                # 反手做空賺價差解套法專屬指引卡 (當符合空頭走勢或重度套牢時，提供實戰做空解套操作SOP)
+                if t_short.get('is_suitable', False) or t_dd >= 15.0:
+                    with st.expander("⚡ 【反手做空賺價差解套法】實戰操作導航 (SOP 3 專屬攻略)", expanded=False):
+                        st.markdown(f"""
+                        > **「套牢跌幅超過 20% 且空頭趨勢不變的股票：反彈賣出後，反手做空賺價差解套！」**
+                        
+                        - 📉 **反手做空進場點**：{t_short.get('entry_rule', f'反彈至下彎 20MA ({float(df.iloc[-1].get("SMA_20", c_curr)):.2f}元) 遇阻不漲時放空')}。
+                        - 🔄 **做空出場與回補點**：{t_short.get('exit_rule', '一路放空賺取下跌價差，直到走勢出現「底底高」反轉向上時，做空全數回補，停止操作')}。
+                        - 🛑 **放空停損防守點**：{t_short.get('stop_rule', '若長紅強勢突破站穩月線則空單停損')}。
+                        - 💡 **解套原理**：大立光 (3008) 從 6075 元跌到 1525 元套牢 8 年；死抱只會讓資金失去流動性。透過反手放空賺取下跌 30%~50% 價差，直接彌補多單虧損，反敗為勝！
+                        - 🔄 **替代方案 (SOP 4)**：若不想放空，可於反彈賣出後，將資金換股轉進「**均線多排、頭頭高底底高**」的多頭強勢股，藉由主流飆股的主升段大漲利潤獲利解套！
+                        """)
+
+                # 創新高不懼高操作引導 (當為創高股時)
+                if "強勢創高" in t_level or t_dd <= 3.0:
+                    with st.expander("🚀 【多頭創新高不懼高】勤誠/廣達實戰模式：回後買上漲 SOP", expanded=False):
+                        st.markdown(f"""
+                        > **「98% 的散戶認為太高不敢買，因而喪失主升段大飆股；多頭趨勢不變的股票會一直創新高！」**
+                        
+                        - 📈 **強者恆強心法**：講義經典案例勤誠 (8210) 創高後一路飆到 260 元、廣達 (2382) 創高後一路衝到 280 元！
+                        - 🛒 **正確進場 SOP（回後買上漲）**：
+                          1. 創高當天乖離過大不追高。
+                          2. 等量縮回測 5MA ({float(df.iloc[-1].get('SMA_5', c_curr)):.2f}元) 或 20MA ({float(df.iloc[-1].get('SMA_20', c_curr)):.2f}元) 守穩不破前低。
+                          3. 尾盤拉出放量轉折紅 K 站上 5MA 且突破前一日高點時大膽買進！
+                        """)
+
+            # 散戶常見問題解答與贏家思維寶典展開卡
+            with st.expander("📘 【散戶常見問題解答與贏家思維寶典】五大解套SOP · 8大錯誤行為與贏家思維", expanded=False):
+                st.markdown("""
+                ### 🧭 一、散戶常見核心問題解答
+                1. **股市可以當作事業來經營嗎？**
+                   - 股市是一個可以永續經營的賺錢事業！
+                   - **六大優勢**：市場最大（每日數千億成交量）、資本最少（數十萬元可起步）、無需店面設備（一台電腦走天下）、個人經營（自己當老闆、無需員工不對客戶）、放眼世界（機會無限全球可做）、一技在身可永續經營。
+                2. **為什麼總是「買進就跌，賣出就漲」？**
+                   - 因為缺乏一套客觀獲利的操作方法！
+                   - **一買就跌**：看不懂何時是買進時機，隨便聽消息追強勢暴漲股，買在主力出貨最高點。
+                   - **一賣就漲**：看不懂賣出時機，第一時間該停損不砍，連跌兩三天恐慌害怕殺在急跌最低點，剛好碰到主力低接支撐！
+                3. **為什麼總是卡在沒波動的股票？**
+                   - 盲信基本面，缺乏技術面對趨勢的判斷！
+                   - 股票進入盤整時短時間沒有行情，買進後卡住資金，甚至向下盤跌造成重虧。賺差價一定要買當下有題材有趨勢的強勢股！
+                4. **買進不漲甚至下跌怎麼辦？**
+                   - **當機立斷，立刻停損出場**，避開持續大跌的風險！
+
+                ---
+                ### 🆘 二、股票被套牢的本質與五大實戰解套 SOP
+                - **何謂被套牢？**：當股票賠損超過 10% 仍持有時，即稱為被套牢！
+                - **為什麼容易被套牢？**：不願賠小錢、幻想明後天反彈、盲信基本面、不賣就不賠的鴕鳥心態。
+                - **認清被套牢的三大後果**：
+                  1. 短期三五年不一定能解套（如大立光 6075 買在高點套牢 8 年未解套）。
+                  2. 公司若經營不善恐面臨下市而血本無歸。
+                  3. 資金完全失去流動性，無法創造複利利潤。
+                - **五大實戰解套 SOP**：
+                  - **SOP 1（賠損 < 10%）**：以買進 K 線的低點為停損點，收盤跌破立刻執行停損認賠！
+                  - **SOP 2（套牢 10%~20%）**：股票反彈遇均線壓力或前高壓力不漲時，斷然認賠出場！
+                  - **SOP 3（套牢 > 20% 空頭不變）**：反彈賣出後【反手做空賺價差解套】！依 20MA 下彎逢反彈空，直到走勢出現「底底高」才停止放空回補！
+                  - **SOP 4（套牢 > 20% 空頭不變）**：反彈賣出後【換其它多頭強勢股票操作】，利用主升段利潤獲利解套！
+                  - **SOP 5（套牢 > 20% 大量止跌打底）**：嚴禁盲目攤平，耐心等打底完成、多頭趨勢確立（底底高、站上20MA）時再加碼！
+                - **積極作法**：嚴格執行停損紀律；每天檢視手上股票，**跌幅超過 5% 列為警示股準備賣出**！
+
+                ---
+                ### 🏆 三、散戶不可犯的 8 大錯誤行為 vs 贏家思維對照表
+                | 編號 | 散戶常見錯誤行為 | 贏家必備專業思維 |
+                | :---: | :--- | :--- |
+                | **1** | **虧損很小時不願賠錢出場**：失敗進場在第一時間都有小賠機會，卻被情緒左右拖成重虧。 | **迅速停損認賠**：永遠遵守停損原則，絕不心存僥倖，沒有任何例外！ |
+                | **2** | **向下攤平買進降低成本**：加碼正在下跌的弱勢空頭股，求解套反而卡死更多資金。 | **嚴禁向下攤平**：股票往下跌絕非買進標的！除非是歷史大底極長線價值投資，波段操盤絕對禁絕。 |
+                | **3** | **想盡快大撈一筆、一夜致富**：缺乏根本方法與紀律，迫不及待亂買，虧損又不認賠。 | **做足充分準備**：嚴守 SOP 與風報比，循序漸進，靠長期高勝率穩定致富。 |
+                | **4** | **聽消息、謠言、報紙電視買進**：隨意投入辛苦錢，往往成為主力倒貨的第 N 手接刀者。 | **只看客觀走勢圖**：消息大多是有心人放出來的，唯有走勢圖與量價結構不會騙人！ |
+                | **5** | **因高股利、低本益比買牛皮股**：低本益比不代表會漲，盈餘成長性才重要，牛皮股浪費時間。 | **賺價差買強勢股**：鎖定當下有題材、有趨勢（頭頭高底底高）的主流強勢飆股！ |
+                | **6** | **賺一點點就趕快獲利了結**：股票剛起漲就情緒不穩怕跌回，過早賣掉手中的金雞母。 | **依技術訊號賣出**：守穩 5MA 讓利潤奔馳，切勿以個人主觀預設立場過早賣飛！ |
+                | **7** | **不敢買進價格創新高的股票**：98% 散戶認為太高不敢買，因而喪失主升段大飆股。 | **回後買上漲大膽切入**：多頭趨勢不變會一直創新高！掌握拉回量縮守穩均線轉折進場！ |
+                | **8** | **盤前沒策略、盤中不知反應、盤後不知解讀**：東看西看隨便買，何處停損停利毫無依據。 | **盤前定策略、盤中嚴執行、盤後客觀檢討**：進場前先想輸再想贏，嚴格執行交易計畫！ |
+                """)
+
             # 動態資金配置計算機
             with st.expander("💵 【動態資金配置計算機】(依大盤強弱調配持股成數 & 均分 3~5 檔)", expanded=False):
                 mkt = get_market_condition()
@@ -2369,12 +2548,26 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if cq2.button("👉 支撐壓力和停損點在哪？", use_container_width=True, key=f"qp2_{query}"):
                 st.session_state[ai_inp_key] = f"請問 {info['name']} ({info['code']}) 的支撐壓力與停損點應該怎麼設定？"
                 st.session_state[f"ai_trigger_{query}"] = f"請問 {info['name']} ({info['code']}) 的支撐壓力與停損點應該怎麼設定？"
-            if cq3.button("👉 什麼是一字底突破？", use_container_width=True, key=f"qp3_{query}"):
-                st.session_state[ai_inp_key] = "請詳細解說一字底飆股型態的四個標準條件與進場點？"
-                st.session_state[f"ai_trigger_{query}"] = "請詳細解說一字底飆股型態的四個標準條件與進場點？"
-            if cq4.button("👉 回後買上漲四大要件？", use_container_width=True, key=f"qp4_{query}"):
-                st.session_state[ai_inp_key] = "請問回後買上漲的四大必備要件是什麼？"
-                st.session_state[f"ai_trigger_{query}"] = "請問回後買上漲的四大必備要件是什麼？"
+            if cq3.button("👉 股票套牢了該怎麼解套？", use_container_width=True, key=f"qp3_{query}"):
+                st.session_state[ai_inp_key] = "請問股票套牢了該如何運用五大解套 SOP 與反手做空賺價差解套？"
+                st.session_state[f"ai_trigger_{query}"] = "請問股票套牢了該如何運用五大解套 SOP 與反手做空賺價差解套？"
+            if cq4.button("👉 為什麼一買就跌、一賣就漲？", use_container_width=True, key=f"qp4_{query}"):
+                st.session_state[ai_inp_key] = "為什麼散戶總是買進就跌、賣出就漲？有何客觀破解之道？"
+                st.session_state[f"ai_trigger_{query}"] = "為什麼散戶總是買進就跌、賣出就漲？有何客觀破解之道？"
+
+            cq5, cq6, cq7, cq8 = st.columns(4)
+            if cq5.button("👉 股價創新高到底能不能買？", use_container_width=True, key=f"qp5_{query}"):
+                st.session_state[ai_inp_key] = "請問股價創新高到底能不能買？不敢買創高的盲點與回後買上漲 SOP 為何？"
+                st.session_state[f"ai_trigger_{query}"] = "請問股價創新高到底能不能買？不敢買創高的盲點與回後買上漲 SOP 為何？"
+            if cq6.button("👉 為什麼絕對不能向下攤平？", use_container_width=True, key=f"qp6_{query}"):
+                st.session_state[ai_inp_key] = "為什麼向下攤平是致命錯誤？加碼下跌股票有何嚴重後果？"
+                st.session_state[f"ai_trigger_{query}"] = "為什麼向下攤平是致命錯誤？加碼下跌股票有何嚴重後果？"
+            if cq7.button("👉 散戶不可犯的 8 大錯誤？", use_container_width=True, key=f"qp7_{query}"):
+                st.session_state[ai_inp_key] = "請問散戶不可犯的 8 大錯誤行為與贏家思維是什麼？"
+                st.session_state[f"ai_trigger_{query}"] = "請問散戶不可犯的 8 大錯誤行為與贏家思維是什麼？"
+            if cq8.button("👉 股市能當事業永續經營嗎？", use_container_width=True, key=f"qp8_{query}"):
+                st.session_state[ai_inp_key] = "請問股市可以當作事業來經營嗎？有何獨特優勢？"
+                st.session_state[f"ai_trigger_{query}"] = "請問股市可以當作事業來經營嗎？有何獨特優勢？"
 
             c_inp, c_ask_btn = st.columns([5, 1])
             with c_inp:
@@ -4463,6 +4656,13 @@ elif "AI" in menu or "助教" in menu:
             key="qa_ask_mode"
         )
         preset_options = [
+            "股票套牢了該如何運用五大解套 SOP 與反手做空賺價差解套？",
+            "為什麼散戶總是「買進就跌，賣出就漲」？該如何徹底擺脫魔咒？",
+            "股價創新高到底能不能買？不敢買創高的盲點與回後買上漲 SOP 為何？",
+            "買進股票下跌後，為什麼絕對不能「向下攤平」降低成本？",
+            "散戶不可犯的 8 大致命錯誤行為與贏家思維是什麼？",
+            "股市可以當作一輩子的賺錢事業來經營嗎？有何獨特優勢？",
+            "為什麼總是卡在沒波動的股票？買進不漲甚至下跌該怎麼辦？",
             "買進股票前必須過關的「進場六大自我審查 (SOP)」是什麼？",
             "選股如何快狠準？「14大嚴格淘汰負面濾網」有哪些剔除條件？",
             "高檔爆量一定是出貨嗎？如何分辨調節量、換手量與出貨量？",

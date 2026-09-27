@@ -1594,6 +1594,84 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     }
 
     # ----------------------------------------------------
+    # 股票套牢診斷與五大實戰解套導航儀 (CH10 散戶常見問題解答 · 五大解套 SOP)
+    # ----------------------------------------------------
+    peak_60 = float(df.iloc[-60:]['High'].max()) if len(df) >= 60 else float(df['High'].max())
+    drawdown_pct = round(max(0.0, (peak_60 - c) / (peak_60 + 1e-9) * 100), 1)
+
+    # 判定 5% 警示機制 (CH10 積極防範：每日檢視若跌幅超過 5% 列為警示股準備賣出)
+    is_caution_5pct = (drawdown_pct >= 5.0 and drawdown_pct < 10.0)
+
+    # 均線趨勢與空方特徵
+    sma20_down = (sma20 < prev_sma20 * 0.999)
+    is_bear = (trend_info.get('trend_status') == "空頭趨勢") or (c < sma20 and sma20_down)
+    is_bottoming = signals_dict.get('is_stop_fall_vol', False) or signals_dict.get('bottom_breakout', False) or trend_info.get('higher_lows', False)
+
+    # 套牢位階分類與五大實戰解套 SOP
+    if drawdown_pct <= 2.5 or c >= peak_60 * 0.985:
+        trap_level = "強勢創高多頭"
+        sop_step = 0
+        sop_name = "多頭創新高·回後買上漲"
+        sop_action = "多頭趨勢不變股價會一直創新高！切勿預設立場懼高，守穩 5MA/20MA 讓利潤奔馳；若欲進場切忌盲目追高，掌握『回後買上漲』拉回量縮守穩均線轉折再切入！"
+        mindset_advice = "【散戶第 7 大錯誤：不敢買進價格創新高的股票】98% 散戶認為太高不敢買，因而錯失主升段大飆股！只要趨勢多頭不變，每一次拉回有守都是黃金買點。"
+    elif drawdown_pct < 10.0:
+        trap_level = "輕微回檔 (<10%)"
+        sop_step = 1
+        sop_name = "SOP 1: 守進場低點/5MA·果斷停損"
+        sop_action = f"波段回檔尚未超過 10% 警戒線，做多以進場 K 線低點 (或 5MA {sma5:.2f}元) 為停損點，收盤跌破立刻執行停損，絕不可拖成大套牢！"
+        mindset_advice = "【散戶第 1 大錯誤：當虧損很小時不願賠錢出場】失敗的進場在第一時間都有讓你小賠出場的機會；被情緒左右不願認賠，容易拖延成重度套牢！每日跌幅逾 5% 立即列為警示股準備出場。"
+        if is_caution_5pct:
+            signals.append("⚠️ 自高點回檔已達 5% (觸發警示股防守機制·準備賣出停損)")
+    elif 10.0 <= drawdown_pct < 20.0:
+        trap_level = "中度套牢 (10%~20%)"
+        sop_step = 2
+        sop_name = "SOP 2: 反彈遇壓不漲·斷然認賠出場"
+        sop_action = f"波段回檔已達 10%~20% 中度套牢區！股票反彈遇均線壓力 (如 20MA {sma20:.2f}元 / 5MA {sma5:.2f}元) 或前高壓力不漲時，斷然認賠出場！"
+        mindset_advice = "【散戶第 2 大錯誤：嚴禁向下攤平買進降低成本】向下攤平是在加碼正在下跌的股票！求解套反而卡死更多資金在空頭股。必須趁反彈遇阻時果斷減碼認賠，轉移資金。"
+        signals.append(f"🟡 自高點回檔達 {drawdown_pct:.1f}% (進入中度套牢區·反彈遇壓斷然認賠出場)")
+    else:  # drawdown_pct >= 20.0
+        if is_bottoming and not sma20_down:
+            trap_level = "重度套牢 (>20%) 打底蓄勢中"
+            sop_step = 5
+            sop_name = "SOP 5: 大量止跌打底·等反轉多頭再加碼"
+            sop_action = "低檔已出現爆大量止跌或初步打底型態，切勿盲目急躁加碼！必須耐心等待打底完成、多頭趨勢確立（底底高、站上揚升 20MA）時再順勢加碼解套！"
+            mindset_advice = "底部打底需要時間消化籌碼，打底未完成前嚴禁急著向下攤平，等確認走出第二隻腳轉折多頭才能出手。"
+            signals.append(f"🟣 自高點回檔重挫 {drawdown_pct:.1f}% 但低檔爆量打底 (耐心等打底完成·多頭確立再加碼)")
+        else:
+            trap_level = "重度套牢 (>20%) 空頭進行中"
+            sop_step = 3
+            sop_name = "SOP 3 & 4: 反彈賣出反手做空賺價差解套 / 換股操作"
+            sop_action = f"波段重挫已逾 20% 且空頭趨勢進行中！反彈遇下彎 20MA ({sma20:.2f}元) 賣出後【反手做空賺價差解套】（直到出現底底高停止放空回補）；或賣出後【換股操作】其他多頭強勢股獲利解套！"
+            mindset_advice = "【認清被套牢的三大後果】短期 3~5 年不一定能解套 (如大立光 6075 套牢 8 年)、公司經營不善恐下市血本無歸、資金失去流動性。反彈遇下彎月線賣出並反手放空，以空方獲利彌補虧損！"
+            signals.append(f"🚨 自高點回檔重挫 {drawdown_pct:.1f}% (重度套牢空頭進行中·反彈賣出反手做空或換股解套)")
+
+    # 組合反手做空賺價差解套指引
+    short_hedge_guide = {
+        "is_suitable": is_bear and sma20_down,
+        "bounce_resistance": round(sma20, 2),
+        "entry_rule": f"反彈至下彎 20MA ({sma20:.2f} 元) 或 5MA ({sma5:.2f} 元) 遇阻收黑時賣出並反手做空",
+        "exit_rule": "持續放空賺取下跌價差，直到日線出現「底底高」反轉向上時，空單全數回補、停止操作",
+        "stop_rule": f"若強勢長紅突破站穩 20MA ({sma20:.2f} 元) 則空單停損離場"
+    }
+
+    # 資金凍結與向下攤平禁令檢核
+    stagnant_warning = (signals_dict.get('is_consolidation', False) and vol_ratio < 0.85)
+
+    signals_dict['ch10_trap_diagnosis'] = {
+        "peak_60d": round(peak_60, 2),
+        "drawdown_pct": drawdown_pct,
+        "trap_level": trap_level,
+        "is_caution_5pct": is_caution_5pct,
+        "sop_step": sop_step,
+        "sop_name": sop_name,
+        "sop_action": sop_action,
+        "mindset_advice": mindset_advice,
+        "short_hedge_guide": short_hedge_guide,
+        "stagnant_warning": stagnant_warning,
+        "average_down_warning": "❌ 【嚴禁向下攤平】向下攤平是在加碼正在下跌的股票，為散戶最致命錯誤！只會卡死更多資金，越套越深！"
+    }
+
+    # ----------------------------------------------------
     # 鎖股池 3 階段管理 (等突破 / 高檔等回檔 / 回檔等上漲)
     # ----------------------------------------------------
     bias5 = float(last.get('BIAS_5', 0))

@@ -267,13 +267,14 @@ def render_kline_visual_cheat_sheet():
     """, unsafe_allow_html=True)
 
     # 次級分頁直覺切換
-    v_tab1, v_tab2, v_tab3, v_tab4, v_tab5, v_tab6 = st.tabs([
+    v_tab1, v_tab2, v_tab3, v_tab4, v_tab5, v_tab6, v_tab7 = st.tabs([
         "🧭 看K線三件事",
         "🕯️ 第五元素 1/2 價",
         "⚖️ 變盤線高低檔對照",
         "⚔️ 兩根K棒六組對句",
         "🌟 三根晨星與夜星",
-        "🛑 高檔四大反轉停利圖鑑"
+        "🛑 高檔四大反轉停利圖鑑",
+        "🆘 五大實戰解套與贏家思維"
     ])
 
     # -------------------------------------------------------------
@@ -597,6 +598,89 @@ def render_kline_visual_cheat_sheet():
                             • <b>長線停利</b>：後續跌破盤整區下緣低點（空頭確認），<b>長線多單全數停利清倉！</b>
                         </div>
                     </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # -------------------------------------------------------------
+    # TAB 7: 五大實戰解套與散戶贏家思維 (CH10 實戰精華)
+    # -------------------------------------------------------------
+    with v_tab7:
+        st.caption("💡 實戰解套鐵律：賠損超過 10% 仍持有稱為被套牢！絕不能有「不賣就不賠」的鴕鳥心態，依據跌幅位階果斷執行五大解套 SOP！")
+
+        # 5大解套 SOP 卡片
+        st.markdown("""
+        <div style="background:#171C28; border:1px solid #30384F; border-radius:10px; padding:16px; margin-bottom:14px;">
+            <div style="color:#FF7875; font-weight:bold; font-size:1.08rem; margin-bottom:8px;">🆘 股票套牢五大實戰解套 SOP 流程指引</div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
+                <div style="background:#1E2433; border-left:4px solid #52C41A; padding:10px; border-radius:6px;">
+                    <div style="color:#52C41A; font-weight:bold; font-size:0.9rem;">SOP 1 · 虧損 &lt; 10% (進場防守期)</div>
+                    <div style="color:#CBD5E1; font-size:0.82rem; margin-top:4px; line-height:1.5;">
+                        以買進 K 線低點 (或 5MA) 為停損點，收盤跌破立刻執行停損認賠！每日跌逾 5% 列為警示股，絕不拖成大套牢。
+                    </div>
+                </div>
+                <div style="background:#1E2433; border-left:4px solid #F59E0B; padding:10px; border-radius:6px;">
+                    <div style="color:#F59E0B; font-weight:bold; font-size:0.9rem;">SOP 2 · 套牢 10%~20% (反彈逃命期)</div>
+                    <div style="color:#CBD5E1; font-size:0.82rem; margin-top:4px; line-height:1.5;">
+                        股票反彈遇下彎均線 (20MA/5MA) 或前高壓力不漲時，斷然認賠出場！<b>嚴禁向下攤平加碼</b>弱勢空頭股！
+                    </div>
+                </div>
+                <div style="background:#1E2433; border-left:4px solid #EF4444; padding:10px; border-radius:6px;">
+                    <div style="color:#EF4444; font-weight:bold; font-size:0.9rem;">SOP 3 · 套牢 &gt; 20% (反手做空解套)</div>
+                    <div style="color:#CBD5E1; font-size:0.82rem; margin-top:4px; line-height:1.5;">
+                        空頭趨勢不變 (20MA下彎)：反彈賣出後<b>反手放空賺價差解套</b>！直到走勢出現「底底高」才停止放空回補！
+                    </div>
+                </div>
+                <div style="background:#1E2433; border-left:4px solid #13C2C2; padding:10px; border-radius:6px;">
+                    <div style="color:#13C2C2; font-weight:bold; font-size:0.9rem;">SOP 4 · 套牢 &gt; 20% (換股強勢多頭)</div>
+                    <div style="color:#CBD5E1; font-size:0.82rem; margin-top:4px; line-height:1.5;">
+                        反彈賣出後換其它多頭強勢股（頭高底高、站穩月線）操作，利用主流飆股主升段利潤迅速彌補虧損解套！
+                    </div>
+                </div>
+                <div style="background:#1E2433; border-left:4px solid #A855F7; padding:10px; border-radius:6px;">
+                    <div style="color:#C084FC; font-weight:bold; font-size:0.9rem;">SOP 5 · 套牢 &gt; 20% (大量打底完成)</div>
+                    <div style="color:#CBD5E1; font-size:0.82rem; margin-top:4px; line-height:1.5;">
+                        低檔已出現爆大量止跌，切勿急躁盲目攤平！耐心等待打底完成、多頭趨勢確立 (底底高、站上20MA) 再加碼！
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        qa_c1, qa_c2 = st.columns(2)
+        with qa_c1:
+            st.markdown("""
+            <div style="background:#171C28; border:1px solid #3B82F6; border-radius:10px; padding:14px; margin-bottom:12px;">
+                <div style="color:#60A5FA; font-weight:bold; font-size:1.02rem; margin-bottom:6px;">🚀 多頭創新高：為什麼不敢買？（勤誠/廣達實戰）</div>
+                <div style="color:#CBD5E1; font-size:0.83rem; line-height:1.6;">
+                    • <b>散戶心理死穴</b>：98% 的散戶認為太高不敢買，喪失主升段大飆股。<br>
+                    • <b>贏家思維</b>：多頭趨勢不變的股票，股價會一直創新高！<br>
+                    • <b>回後買上漲 SOP</b>：創高當天不追高；等量縮拉回守穩 5MA 或 20MA（月線）出轉折紅 K 站上 5MA 突破昨高時，毫不猶豫大膽買進！
+                </div>
+            </div>
+            <div style="background:#171C28; border:1px solid #EF4444; border-radius:10px; padding:14px;">
+                <div style="color:#FF7875; font-weight:bold; font-size:1.02rem; margin-bottom:6px;">❌ 為什麼嚴禁「向下攤平買進降低成本」？</div>
+                <div style="color:#CBD5E1; font-size:0.83rem; line-height:1.6;">
+                    • <b>散戶迷思</b>：以為成本攤低能提早解套，實質上是在加碼正在下跌的弱勢空頭股。<br>
+                    • <b>卡死資金</b>：攤平往往導致更多資金套死在弱勢股，一旦再跌恐面臨斷頭腰斬。<br>
+                    • <b>官方鐵律</b>：波段賺價差操作絕對嚴禁向下攤平！
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with qa_c2:
+            st.markdown("""
+            <div style="background:#171C28; border:1px solid #F59E0B; border-radius:10px; padding:14px; height:100%;">
+                <div style="color:#FBBF24; font-weight:bold; font-size:1.02rem; margin-bottom:6px;">🏆 散戶 8 大錯誤行為 vs 贏家思維對照</div>
+                <div style="color:#CBD5E1; font-size:0.82rem; line-height:1.6;">
+                    1. <b>不願賠小錢</b> ➔ 贏家迅速停損認賠，絕不猶豫拖延。<br>
+                    2. <b>向下攤平加碼</b> ➔ 嚴禁加碼下跌股票，只買強勢起漲股。<br>
+                    3. <b>夢想一夜暴富</b> ➔ 做充分準備，嚴守 SOP 穩定累積資產。<br>
+                    4. <b>聽信消息電視</b> ➔ 只看客觀走勢圖，消息多為出貨工具。<br>
+                    5. <b>因低本益比買牛皮股</b> ➔ 賺差價要買當下有題材有趨勢強勢股。<br>
+                    6. <b>賺一點就賣金雞母</b> ➔ 依技術訊號賣出，讓利潤奔馳不預設立場。<br>
+                    7. <b>不敢買進創新高股</b> ➔ 多頭會一直創新高，掌握回後買上漲。<br>
+                    8. <b>盤前沒策略盤中慌亂</b> ➔ 盤前定好策略，盤中冷靜執行，盤後客觀復盤！
                 </div>
             </div>
             """, unsafe_allow_html=True)
