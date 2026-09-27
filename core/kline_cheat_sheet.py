@@ -464,3 +464,86 @@ def render_kline_visual_cheat_sheet():
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+
+def render_ma_direction_dashboard(df, close_price=None, visible_mas=None):
+    """
+    在圖表上方渲染全自動均線即時方向、數值與位階狀態儀錶盤
+    支援 5MA (操盤線)、10MA (雙週線)、20MA (月線/趨勢線)、60MA (季線/生命線)
+    """
+    if df is None or len(df) < 2:
+        return
+
+    close = float(close_price if close_price is not None else df['Close'].iloc[-1])
+
+    ma_defs = [
+        {"col": "SMA_5", "name": "5MA", "alias": "操盤線", "color": "#FF3366"},
+        {"col": "SMA_10", "name": "10MA", "alias": "雙週線", "color": "#FFD700"},
+        {"col": "SMA_20", "name": "20MA", "alias": "趨勢線", "color": "#00BFFF"},
+        {"col": "SMA_60", "name": "60MA", "alias": "生命線", "color": "#A855F7"},
+    ]
+
+    cards_html = []
+    for m in ma_defs:
+        col = m["col"]
+        if col not in df.columns:
+            continue
+        if visible_mas is not None and col not in visible_mas:
+            continue
+
+        s = df[col].dropna()
+        if len(s) < 2:
+            continue
+
+        cur = float(s.iloc[-1])
+        prev = float(s.iloc[-2])
+        diff = cur - prev
+        dist = close - cur
+
+        if diff > 0.005:
+            dir_badge = "<span style='color:#FF7875; font-weight:bold;'>↗ 翻揚助漲</span>"
+            dir_border = "#FF4D4F"
+        elif diff < -0.005:
+            dir_badge = "<span style='color:#52C41A; font-weight:bold;'>↘ 下彎助跌</span>"
+            dir_border = "#2F9E44"
+        else:
+            dir_badge = "<span style='color:#FBBF24; font-weight:bold;'>➡️ 走平待變</span>"
+            dir_border = "#F59E0B"
+
+        if dist >= 0:
+            pos_badge = f"<span style='color:#FF7875; background:rgba(239,68,68,0.18); padding:1px 6px; border-radius:4px; font-weight:bold;'>站上 +{dist:.2f}</span>"
+        else:
+            pos_badge = f"<span style='color:#52C41A; background:rgba(34,197,94,0.18); padding:1px 6px; border-radius:4px; font-weight:bold;'>跌破 {dist:.2f}</span>"
+
+        diff_str = f"+{diff:.2f}" if diff >= 0 else f"{diff:.2f}"
+
+        card = f"""
+        <div style="flex:1; min-width:140px; background:#181D29; border:1px solid #2B3448; border-top:3px solid {m['color']}; border-radius:8px; padding:7px 10px; margin:3px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <span style="color:{m['color']}; font-weight:bold; font-size:0.88rem;">{m['name']} <span style="font-size:0.75rem; color:#888;">({m['alias']})</span></span>
+                <span style="font-weight:bold; font-size:0.92rem; color:#FFF;">{cur:.2f}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem;">
+                <div>{dir_badge} <span style="color:#888; font-size:0.72rem;">({diff_str})</span></div>
+                <div>{pos_badge}</div>
+            </div>
+        </div>
+        """
+        cards_html.append(card)
+
+    if not cards_html:
+        return
+
+    full_html = f"""
+    <div style="background:#111520; border:1px solid #232A3B; border-radius:10px; padding:6px 8px; margin-bottom:8px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; padding:0 4px;">
+            <span style="font-size:0.82rem; font-weight:bold; color:#94A3B8;">🧭 均線即時方向與位階狀態儀錶盤</span>
+            <span style="font-size:0.76rem; color:#64748B;">每日收盤自動計算斜率 (↗翻揚助漲 / ↘下彎助跌)</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+            {"".join(cards_html)}
+        </div>
+    </div>
+    """
+    st.markdown(full_html, unsafe_allow_html=True)
+

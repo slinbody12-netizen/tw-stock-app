@@ -1381,6 +1381,15 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if show_geometry and pattern_geo.get("summary_text"):
                 st.info(f"💡 **AI 型態幾何診斷**：{pattern_geo['summary_text']}")
 
+            # 🧭 均線即時方向與位階狀態儀錶盤 (5MA/10MA/20MA/60MA 翻揚助漲 vs 下彎助跌)
+            from core.kline_cheat_sheet import render_ma_direction_dashboard
+            vis_mas_t1 = []
+            if show_5ma: vis_mas_t1.append('SMA_5')
+            if 'SMA_10' in df: vis_mas_t1.append('SMA_10')
+            if show_20ma: vis_mas_t1.append('SMA_20')
+            if 'SMA_60' in df: vis_mas_t1.append('SMA_60')
+            render_ma_direction_dashboard(df, close_price=float(info['close']), visible_mas=vis_mas_t1 if vis_mas_t1 else None)
+
             # 繪製 Tab 1 專屬轉折波與支撐壓力圖
             if "45日" in t1_view_bars and len(df) > 45:
                 init_x = [df['Date'].iloc[-45], df['Date'].iloc[-1]]
@@ -1819,6 +1828,15 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 df_k = compute_ta_indicators(df_k)
             else:
                 df_k = df.copy()
+
+            # 🧭 均線即時方向與位階狀態儀錶盤 (多週期自適應：5MA/10MA/20MA/60MA 翻揚助漲 vs 下彎助跌)
+            from core.kline_cheat_sheet import render_ma_direction_dashboard
+            vis_k_mas = []
+            if show_k_5ma: vis_k_mas.append('SMA_5')
+            if show_k_10ma: vis_k_mas.append('SMA_10')
+            if show_k_20ma: vis_k_mas.append('SMA_20')
+            if show_k_60ma: vis_k_mas.append('SMA_60')
+            render_ma_direction_dashboard(df_k, close_price=float(df_k['Close'].iloc[-1]) if not df_k.empty else None, visible_mas=vis_k_mas if vis_k_mas else None)
 
             if "45根" in k_view_bars and len(df_k) > 45:
                 k_init_x = [df_k['Date'].iloc[-45], df_k['Date'].iloc[-1]]
