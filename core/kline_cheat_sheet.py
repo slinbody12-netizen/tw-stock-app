@@ -260,7 +260,7 @@ def render_kline_visual_cheat_sheet():
                 <span style="background:#2563EB; color:#FFF; font-size:0.75rem; padding:2px 8px; border-radius:12px; margin-left:8px; font-weight:bold;">視覺圖解實戰版</span>
             </div>
             <div style="color:#94A3B8; font-size:0.85rem;">
-                核心心法：看 K 線三件事（趨勢、位置、成交量）· 第五元素 1/2 價
+                核心心法：看 K 線三件事（趨勢、位置、成交量）· 第五元素 1/2 價 · 四大高檔反轉停利 · 五大實戰解套與贏家思維
             </div>
         </div>
     </div>

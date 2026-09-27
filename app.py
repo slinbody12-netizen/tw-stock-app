@@ -2308,9 +2308,11 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     st.caption(f"⚡ 當前 KD 指標值：K = **{cur_k:.1f}**，D = **{cur_d:.1f}**（常態震盪波動區間，依 5MA/20MA 雙線操作）。")
 
             # 56 個常見 K 線型態視覺化圖解寶典展開卡
-            with st.expander("📘 【56個常見K線型態圖解寶典】一根四元素與第五元素 1/2 價 · 變盤線高低檔對照 · 兩根六組對句 · 三根晨夜星 · 看K線三件事", expanded=False):
-                from core.kline_cheat_sheet import render_kline_visual_cheat_sheet
-                render_kline_visual_cheat_sheet()
+            with st.expander("📘 【56個常見K線型態圖解寶典】看K線三件事 · 第五元素 1/2 價 · 變盤線 · 兩根六組對句 · 晨夜星 · 四大反轉停利 · 五大實戰解套與贏家思維", expanded=False):
+                import importlib
+                import core.kline_cheat_sheet
+                importlib.reload(core.kline_cheat_sheet)
+                core.kline_cheat_sheet.render_kline_visual_cheat_sheet()
 
         # =========================================================================
         # TAB 3: 💼 主力籌碼 (法人/扣抵) - SpeedyAI 官方真實籌碼整合
