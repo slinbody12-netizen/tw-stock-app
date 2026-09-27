@@ -182,6 +182,71 @@ def get_candlestick_svg(candle_type: str, width: int = 120, height: int = 110) -
         elements.append('<rect x="87" y="40" width="16" height="32" fill="#2F9E44" rx="1.5"/>')
         elements.append('<text x="60" y="102" fill="#FF7875" font-size="10" font-weight="bold" text-anchor="middle">🏝️ 孤島夜星 (最強島轉)</text>')
 
+    # 17. CH9-3 現象一：跌破高檔連續兩日大量低點
+    elif candle_type == "reversal_2day_vol":
+        # Day 1: 高檔紅K
+        elements.append('<line x1="30" y1="18" x2="30" y2="52" stroke="#FF4D4F" stroke-width="1.8"/>')
+        elements.append('<rect x="23" y="24" width="14" height="22" fill="#FF4D4F" rx="1.5"/>')
+        # Day 2: 高檔小K (低點較高)
+        elements.append('<line x1="56" y1="12" x2="56" y2="48" stroke="#FF4D4F" stroke-width="1.8"/>')
+        elements.append('<rect x="49" y="18" width="14" height="24" fill="#FF4D4F" rx="1.5"/>')
+        # 大量低點水平虛線 (min low = 48)
+        elements.append('<line x1="16" y1="52" x2="104" y2="52" stroke="#F59E0B" stroke-dasharray="2,2" stroke-width="1.5"/>')
+        elements.append('<text x="75" y="49" fill="#F59E0B" font-size="8">大量低點</text>')
+        # Day 3: 長黑摜破 (Low=72, Close=68 < 52)
+        elements.append('<line x1="86" y1="32" x2="86" y2="74" stroke="#2F9E44" stroke-width="2"/>')
+        elements.append('<rect x="78" y="38" width="16" height="30" fill="#2F9E44" rx="1.5"/>')
+        # 下方成交量量柱 (連兩日爆大量)
+        elements.append('<rect x="25" y="80" width="10" height="18" fill="#FF4D4F" rx="1"/>')
+        elements.append('<rect x="51" y="76" width="10" height="22" fill="#FF4D4F" rx="1"/>')
+        elements.append('<rect x="81" y="78" width="10" height="20" fill="#2F9E44" rx="1"/>')
+        elements.append('<text x="60" y="104" fill="#FF7875" font-size="9" font-weight="bold" text-anchor="middle">跌破兩日大量低點</text>')
+
+    # 18. CH9-3 現象二：高檔爆量長黑 / 長黑吞噬
+    elif candle_type == "reversal_heavy_black":
+        # Day 1: 紅K
+        elements.append('<line x1="40" y1="28" x2="40" y2="62" stroke="#FF4D4F" stroke-width="1.8"/>')
+        elements.append('<rect x="33" y="34" width="14" height="22" fill="#FF4D4F" rx="1.5"/>')
+        # Day 2: 爆巨量長黑吞噬
+        elements.append('<line x1="78" y1="14" x2="78" y2="74" stroke="#2F9E44" stroke-width="2.5"/>')
+        elements.append('<rect x="68" y="22" width="20" height="46" fill="#2F9E44" rx="2"/>')
+        # 下方巨量柱
+        elements.append('<rect x="35" y="84" width="10" height="14" fill="#FF4D4F" rx="1"/>')
+        elements.append('<rect x="72" y="72" width="14" height="26" fill="#2F9E44" rx="1"/>')
+        elements.append('<text x="60" y="104" fill="#FF7875" font-size="9" font-weight="bold" text-anchor="middle">爆量長黑 (吞噬全出)</text>')
+
+    # 19. CH9-3 現象三：高檔爆量長上影線 (避雷針)
+    elif candle_type == "reversal_shooting_star":
+        # Day 1: 紅K
+        elements.append('<line x1="40" y1="36" x2="40" y2="68" stroke="#FF4D4F" stroke-width="1.8"/>')
+        elements.append('<rect x="33" y="42" width="14" height="20" fill="#FF4D4F" rx="1.5"/>')
+        # Day 2: 避雷針 (超長上影線)
+        elements.append('<line x1="80" y1="12" x2="80" y2="70" stroke="#E2E8F0" stroke-width="2"/>')
+        elements.append('<rect x="72" y="52" width="16" height="14" fill="#2F9E44" rx="1.5"/>')
+        # 下方爆大量柱
+        elements.append('<rect x="35" y="84" width="10" height="14" fill="#FF4D4F" rx="1"/>')
+        elements.append('<rect x="74" y="72" width="12" height="26" fill="#E2E8F0" rx="1"/>')
+        elements.append('<text x="60" y="104" fill="#FF7875" font-size="9" font-weight="bold" text-anchor="middle">避雷針 (獲利>15%先出1/2)</text>')
+
+    # 20. CH9-3 現象四：高檔爆量頭頭低盤整
+    elif candle_type == "reversal_lower_highs":
+        # 波峰 1 (最高)
+        elements.append('<circle cx="32" cy="22" r="3" fill="#FF4D4F"/>')
+        elements.append('<text x="32" y="18" fill="#FF7875" font-size="8" text-anchor="middle">頭1</text>')
+        # 波谷
+        elements.append('<circle cx="50" cy="52" r="2.5" fill="#F59E0B"/>')
+        # 波峰 2 (頭頭低)
+        elements.append('<circle cx="68" cy="30" r="3" fill="#FF7875"/>')
+        elements.append('<text x="68" y="26" fill="#FF7875" font-size="8" text-anchor="middle">頭2</text>')
+        # 折線
+        elements.append('<polyline points="20,40 32,22 50,52 68,30 88,68" fill="none" stroke="#E2E8F0" stroke-width="1.8"/>')
+        # 盤整頸線
+        elements.append('<line x1="25" y1="52" x2="95" y2="52" stroke="#F59E0B" stroke-dasharray="2,2" stroke-width="1.2"/>')
+        # 破頸線長黑
+        elements.append('<line x1="88" y1="46" x2="88" y2="76" stroke="#2F9E44" stroke-width="2"/>')
+        elements.append('<rect x="82" y="52" width="12" height="20" fill="#2F9E44" rx="1"/>')
+        elements.append('<text x="60" y="104" fill="#FF7875" font-size="9" font-weight="bold" text-anchor="middle">頭頭低 (破箱底空頭確認)</text>')
+
     return svg_header + "".join(elements) + svg_footer
 
 
@@ -202,12 +267,13 @@ def render_kline_visual_cheat_sheet():
     """, unsafe_allow_html=True)
 
     # 次級分頁直覺切換
-    v_tab1, v_tab2, v_tab3, v_tab4, v_tab5 = st.tabs([
+    v_tab1, v_tab2, v_tab3, v_tab4, v_tab5, v_tab6 = st.tabs([
         "🧭 看K線三件事",
         "🕯️ 第五元素 1/2 價",
         "⚖️ 變盤線高低檔對照",
         "⚔️ 兩根K棒六組對句",
-        "🌟 三根晨星與夜星"
+        "🌟 三根晨星與夜星",
+        "🛑 高檔四大反轉停利圖鑑"
     ])
 
     # -------------------------------------------------------------
@@ -459,6 +525,76 @@ def render_kline_visual_cheat_sheet():
                             • <b>形態結構</b>：長紅 + 左右兩側雙跳空缺口 + 頂部小星線孤立 + 向下摜破長黑。<br>
                             • <b>破壞力</b>：主力高檔斷頭出脫籌碼，高點追價買盤全部淪為孤島套牢冤魂！<br>
                             • <b>系列衍伸</b>：標準夜星、母子夜星、雙星夜星、雙鴉夜星、群星夜星。
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # -------------------------------------------------------------
+    # TAB 6: 高檔四大反轉停利圖鑑 (CH9 主力出貨與分批停利 SOP)
+    # -------------------------------------------------------------
+    with v_tab6:
+        st.caption("💡 實戰停利鐵律：「會買股票是徒弟，會賣股票的才是師父」！股價大漲至高檔，出現以下四大反轉訊號，務必果斷停利獲利入袋！")
+        tp_c1, tp_c2 = st.columns(2)
+        with tp_c1:
+            st.markdown(f"""
+            <div style="background:#171C28; border:1px solid #EF4444; border-radius:10px; padding:14px; margin-bottom:12px;">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div>{get_candlestick_svg('reversal_2day_vol', 130, 115)}</div>
+                    <div>
+                        <div style="color:#FF7875; font-weight:bold; font-size:1.02rem; margin-bottom:4px;">🚨 現象一：跌破連續兩日大量低點</div>
+                        <div style="color:#CBD5E1; font-size:0.83rem; line-height:1.5;">
+                            • <b>主力出貨特徵</b>：高檔連續 2 日爆巨量換手，第三日收盤摜破兩天最低點。<br>
+                            • <b>一日反轉確立</b>：買盤瞬間潰散，主力大戶出貨完畢！<br>
+                            • <b>停利動作</b>：<b>多單果斷全數停利退場！</b>絕不心存僥倖凹單。
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style="background:#171C28; border:1px solid #F59E0B; border-radius:10px; padding:14px;">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div>{get_candlestick_svg('reversal_shooting_star', 130, 115)}</div>
+                    <div>
+                        <div style="color:#FBBF24; font-weight:bold; font-size:1.02rem; margin-bottom:4px;">⚠️ 現象三：爆量長上影線 (避雷針)</div>
+                        <div style="color:#CBD5E1; font-size:0.83rem; line-height:1.5;">
+                            • <b>主力出貨特徵</b>：高檔創高後遭空方重擊壓回，爆巨量留長上影線。<br>
+                            • <b>15% 分批停利</b>：若未破前低但<b>獲利已逾 15%，先停利 1/2！</b><br>
+                            • <b>次日破低確認</b>：次日若開低走低或破底，<b>剩餘 1/2 全數清倉！</b>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with tp_c2:
+            st.markdown(f"""
+            <div style="background:#171C28; border:1px solid #EF4444; border-radius:10px; padding:14px; margin-bottom:12px;">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div>{get_candlestick_svg('reversal_heavy_black', 130, 115)}</div>
+                    <div>
+                        <div style="color:#FF7875; font-weight:bold; font-size:1.02rem; margin-bottom:4px;">🛑 現象二：爆量長黑K / 長黑吞噬</div>
+                        <div style="color:#CBD5E1; font-size:0.83rem; line-height:1.5;">
+                            • <b>主力出貨特徵</b>：高檔爆大量長黑或長黑吞噬前日紅K實體。<br>
+                            • <b>破前低</b>：形成長黑吞噬或貫穿，<b>多單果斷全數停利賣出！</b><br>
+                            • <b>未破前低</b>：若波段<b>獲利已逾 15%，先停利 1/2！</b>次日續跌破大量低點則全出。
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style="background:#171C28; border:1px solid #A855F7; border-radius:10px; padding:14px;">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div>{get_candlestick_svg('reversal_lower_highs', 130, 115)}</div>
+                    <div>
+                        <div style="color:#C084FC; font-weight:bold; font-size:1.02rem; margin-bottom:4px;">📉 現象四：高檔爆量頭頭低盤整</div>
+                        <div style="color:#CBD5E1; font-size:0.83rem; line-height:1.5;">
+                            • <b>主力出貨特徵</b>：高檔爆量後無法再過前高，形成「頭頭低」震盪。<br>
+                            • <b>短線停利</b>：出現頭頭低盤整，<b>短線多單立即停利出場！</b><br>
+                            • <b>長線停利</b>：後續跌破盤整區下緣低點（空頭確認），<b>長線多單全數停利清倉！</b>
                         </div>
                     </div>
                 </div>

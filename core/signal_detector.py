@@ -1345,6 +1345,219 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append(f"⚠️ 波段已大漲 {bagger_multiple:.1f} 倍 (翻倍極限：嚴禁做長線，僅限短線 5MA 操作)")
 
     # ----------------------------------------------------
+    # 實戰停利操盤全攻略 (CH9 紀律停利 · 獲利目標 · 四大高檔反轉現象)
+    # ----------------------------------------------------
+    # 1. 9-1 依據紀律停利 (Discipline-Based Take Profit)
+    # 短線做多：採用 5MA，收盤跌破 5MA 停利出場；多頭趨勢不變 + 股價在 20MA 之上持續做多 (拉回守穩再找轉折進場)
+    # 長線做多：採用 20MA，收盤跌破 20MA 停利；多頭趨勢不變 + 股價在 20MA+60MA 之上持續做多
+    ma5_tp_hit = (c < sma5)
+    ma20_tp_hit = (c < sma20)
+
+    if ma5_tp_hit:
+        short_tp_status = "🚨 跌破 5MA 操盤線 (短線多單紀律停利出場)"
+        if is_bull and c >= sma20:
+            short_tp_rebuy = "💡 多頭架構未破且在 20MA 之上，短線獲利入袋；待拉回守穩 20MA 轉折向上、再度突破 5MA 時重新進場！"
+        else:
+            short_tp_rebuy = "⚠️ 短線走弱跌破 5MA，保守觀望，嚴禁急於承接。"
+    else:
+        short_tp_status = f"🟢 守穩 5MA 操盤線 ({sma5:.2f}元)，短線多單持股續抱"
+        short_tp_rebuy = "多頭攻擊推升中，守穩 5MA 讓利潤奔馳。"
+
+    if ma20_tp_hit:
+        long_tp_status = "🚨 跌破 20MA 月線 (長線多單紀律停利出場)"
+    elif c >= sma20 and sma20 >= sma60:
+        long_tp_status = f"🟢 守穩 20MA ({sma20:.2f}元) 與 60MA ({sma60:.2f}元) 之上，長線多單波段續抱"
+    else:
+        long_tp_status = f"🟡 站上 20MA ({sma20:.2f}元)，中長線觀察均線多頭排列。"
+
+    # 2. 9-2 依據獲利目標設定停利 (Target-Based Take Profit) - 6大日線壓力關卡
+    # (1) 長均線壓力
+    long_mas = []
+    for ma_name, ma_val in [('20MA', sma20), ('60MA', sma60), ('120MA', float(last.get('SMA_120', 0))), ('240MA', float(last.get('SMA_240', 0)))]:
+        if ma_val > c * 1.002:
+            long_mas.append((ma_name, round(ma_val, 2)))
+    long_mas.sort(key=lambda x: x[1])
+    res_long_ma = long_mas[0] if long_mas else (None, None)
+
+    # (2) 前高壓力
+    recent_high_60 = float(df.iloc[-60:]['High'].max()) if len(df) >= 60 else float(df['High'].max())
+    res_prior_high = round(recent_high_60, 2) if recent_high_60 > c * 1.005 else None
+
+    # (3) 下降切線壓力 (若有下降趨勢線)
+    res_desc_line = round(res_price, 2) if res_price > c * 1.005 else None
+
+    # (4) 向上盤整區壓力 (箱型整理上緣)
+    box_high_val = float(df.iloc[-20:]['High'].max()) if len(df) >= 20 else float(df['High'].max())
+    res_box_top = round(box_high_val, 2) if is_consolidation and box_high_val > c * 1.005 else None
+
+    # (5) 大量向下跳空缺口壓力
+    res_down_gap = None
+    if len(df) >= 30:
+        for idx in range(len(df)-1, max(0, len(df)-40), -1):
+            cur_h = float(df['High'].iloc[idx])
+            prv_l = float(df['Low'].iloc[idx-1])
+            if prv_l > cur_h * 1.005 and prv_l > c * 1.005:  # 向下缺口未完全回補且高於目前股價
+                res_down_gap = round(prv_l, 2)
+                break
+
+    # (6) 大量下跌黑K壓力
+    res_heavy_black = unresolved_blacks[-1]['high'] if unresolved_blacks else None
+
+    # 彙整最近的第一道壓力目標
+    candidate_pressures = []
+    if res_long_ma[1]: candidate_pressures.append((f"長均線壓力 ({res_long_ma[0]})", res_long_ma[1]))
+    if res_prior_high: candidate_pressures.append(("波段前高壓力", res_prior_high))
+    if res_desc_line: candidate_pressures.append(("下降切線/形態壓力", res_desc_line))
+    if res_box_top: candidate_pressures.append(("盤整區頸線壓力", res_box_top))
+    if res_down_gap: candidate_pressures.append(("向下跳空缺口壓力", res_down_gap))
+    if res_heavy_black: candidate_pressures.append(("爆量黑K重壓", res_heavy_black))
+
+    candidate_pressures = [p for p in candidate_pressures if p[1] > c * 1.003]
+    candidate_pressures.sort(key=lambda x: x[1])
+    nearest_target = candidate_pressures[0] if candidate_pressures else ("創波段新高，上方無實體均線與前高壓力", round(c * 1.10, 2))
+
+    # 3. 9-3 依據訊號準備停利 (四大高檔反轉現象)
+    # 高檔環境檢定 (累積漲幅逾 15% 或距 20MA 乖離大或波段翻倍)
+    is_high_for_tp = is_high_position or is_multi_bagger or (c >= sma20 * 1.12) or (swing_gain >= 15.0)
+    reversal_alerts = []
+
+    # 現象一：高檔跌破連續 2 日大量 K 線低點
+    # 高檔連續 2 日爆出大量，今日收盤摜破這兩天大量區之最低點 -> 一日反轉主力出貨確立！
+    rev1_triggered = False
+    rev1_low = 0.0
+    rev1_desc = ""
+    if len(df) >= 4 and is_high_for_tp:
+        v1 = float(df['Volume'].iloc[-2])
+        v2 = float(df['Volume'].iloc[-3])
+        vma20_1 = float(df.get('Vol_MA20', df['Volume']).iloc[-2])
+        vma20_2 = float(df.get('Vol_MA20', df['Volume']).iloc[-3])
+        vma5_1 = float(df.get('Vol_MA5', df['Volume']).iloc[-2])
+        vma5_2 = float(df.get('Vol_MA5', df['Volume']).iloc[-3])
+
+        is_v1_heavy = (v1 >= vma20_1 * 1.3 or v1 >= vma5_1 * 1.2)
+        is_v2_heavy = (v2 >= vma20_2 * 1.3 or v2 >= vma5_2 * 1.2)
+
+        if is_v1_heavy and is_v2_heavy:
+            rev1_low = round(min(float(df['Low'].iloc[-2]), float(df['Low'].iloc[-3])), 2)
+            if c < rev1_low:
+                rev1_triggered = True
+                rev1_desc = f"高檔前兩日連續爆大量，今日收盤 ({c:.2f}元) 跌破兩日大量最低點 ({rev1_low:.2f}元)，一日反轉主力出貨確立！多單果斷全數停利退場！"
+                reversal_alerts.append(f"🚨【高檔反轉·跌破兩日大量低點】跌破前兩日爆量低點 {rev1_low:.2f} 元 (主力出貨一日反轉·果斷全數停利)")
+                signals.append(f"🚨 高檔跌破連續兩日大量低點 ({rev1_low:.2f}元·主力出貨一日反轉·果斷全數停利)")
+
+    # 現象二：高檔出現爆大量長黑 K 或 長黑吞噬 K 線
+    # 若爆量長黑未破前一日低點，但獲利 > 15%，先停利 1/2，次日下跌全數賣出；若已破前低，全數賣出！
+    rev2_triggered = False
+    rev2_action = ""
+    rev2_desc = ""
+    if is_high_for_tp and is_black and (vol_ratio >= 1.4 or vol_ratio_5 >= 1.35):
+        black_drop = (o - c) / o if o > 0 else 0
+        if black_drop >= 0.018 or change_pct <= -2.0:
+            rev2_triggered = True
+            if c < prev_l:  # 跌破前一日低點 (長黑吞噬 / 貫穿)
+                rev2_action = "全數停利賣出"
+                rev2_desc = f"高檔爆大量收長黑且跌破前日最低點 ({prev_l:.2f}元) 形成長黑吞噬/貫穿，主力帶頭倒貨大逃殺，多單全數停利賣出！"
+                reversal_alerts.append(f"🛑【高檔反轉·爆量長黑吞噬】摜破前低 {prev_l:.2f} 元 (主力帶頭倒貨·多單果斷全數停利)")
+                signals.append("🛑 高檔爆量長黑吞噬 (主力倒貨·多單果斷全數停利)")
+            else:  # 未破前一日低點
+                if swing_gain >= 15.0 or (c >= sma20 * 1.15):
+                    rev2_action = "先停利賣出 1/2"
+                    rev2_desc = f"高檔爆大量長黑但未跌破前日低點 ({prev_l:.2f}元)，波段獲利已逾 15%：依心法先停利賣出 1/2！次日若續跌破大量低點，剩餘 1/2 全數清倉！"
+                    reversal_alerts.append("⚠️【高檔反轉·爆量長黑】獲利逾 15% 且爆量長黑：先停利賣出 1/2！次日若續跌破大量低點全數清倉！")
+                    signals.append("⚠️ 高檔爆量長黑未破前低 (獲利逾15%·先停利 1/2，次日破低全出)")
+                else:
+                    rev2_action = "短線高度警戒，守前低"
+                    rev2_desc = f"高檔爆大量長黑未破前日低點 ({prev_l:.2f}元)，嚴密防守該黑K低點 ({l:.2f}元) 與前低，次日開低破低立即停利！"
+                    reversal_alerts.append(f"⚠️【高檔反轉·爆量長黑警戒】嚴守前低 {prev_l:.2f} 元與今日低點 {l:.2f} 元，次日轉弱立即停利！")
+
+    # 現象三：高檔出現爆大量長上影線 K 線 (避雷針 / 射擊之星)
+    # 若未破前一日低點，但獲利 > 15%，先停利 1/2，次日下跌全數賣出；若破前低全出！
+    rev3_triggered = False
+    rev3_action = ""
+    rev3_desc = ""
+    if is_high_for_tp and (vol_ratio >= 1.35 or vol_ratio_5 >= 1.30):
+        upper_body = max(c, o)
+        upper_shadow = h - upper_body
+        body_len = abs(c - o)
+        tot_range = h - l + 1e-9
+        if upper_shadow >= 1.3 * body_len and (upper_shadow / tot_range) >= 0.45:
+            rev3_triggered = True
+            if c < prev_l:  # 收盤已破前低
+                rev3_action = "全數停利賣出"
+                rev3_desc = f"高檔爆大量長上影線且摜破前日低點 ({prev_l:.2f}元)，多頭上攻無力主力逢高倒貨，多單果斷全數停利！"
+                reversal_alerts.append(f"🛑【高檔反轉·避雷針破低】高檔爆量長上影線破前低 {prev_l:.2f} 元 (主力逢高出貨·多單全數停利)")
+                signals.append("🛑 高檔爆量長上影破前低 (主力逢高倒貨·多單全數停利)")
+            else:  # 未破前低
+                if swing_gain >= 15.0 or (c >= sma20 * 1.15):
+                    rev3_action = "先停利賣出 1/2"
+                    rev3_desc = f"高檔爆大量長上影線（避雷針），波段獲利已逾 15%：依心法先停利賣出 1/2！次日若開低走低或跌破前低，剩餘 1/2 全數清倉！"
+                    reversal_alerts.append("⚠️【高檔反轉·爆量避雷針】獲利逾 15% 留長上影線：先停利賣出 1/2！次日開低破低全出！")
+                    signals.append("⚠️ 高檔爆量長上影避雷針 (獲利逾15%·先停利 1/2，次日開低破低全出)")
+                else:
+                    rev3_action = "防守避雷針低點"
+                    rev3_desc = f"高檔爆大量長上影線，上檔賣壓沉重，守今日低點 {l:.2f} 元，次日開低摜破立即停利！"
+                    reversal_alerts.append(f"⚠️【高檔反轉·避雷針警戒】留長上影線，防守低點 {l:.2f} 元，次日破線停利！")
+
+    # 現象四：多頭走勢出現爆大量「頭頭低」盤整，短線多單停利；跌破盤整低點空頭確認，長線多單停利
+    rev4_short_triggered = False
+    rev4_long_triggered = False
+    rev4_desc = ""
+    box_low_recent = float(df.iloc[-5:]['Low'].min()) if len(df) >= 5 else l
+    if is_high_for_tp and len(df) >= 8:
+        # 近期 3~5 日高點低於前方波段高點 (頭頭低盤整)
+        peak_idx = df.iloc[-15:]['High'].idxmax()
+        peak_h = float(df.loc[peak_idx, 'High'])
+        recent_h_max = float(df.iloc[-4:]['High'].max())
+        if peak_h > recent_h_max * 1.015 and df.index.get_loc(peak_idx) < len(df) - 3:
+            rev4_short_triggered = True
+            if c < box_low_recent * 1.001:  # 收盤跌破近期盤整低點
+                rev4_long_triggered = True
+                rev4_desc = f"多頭高檔爆量頭頭低盤整後，今日收盤 ({c:.2f}元) 跌破盤整低點 ({box_low_recent:.2f}元)【空頭確認】，長線多單依心法全數停利清倉！"
+                reversal_alerts.append(f"🚨【高檔反轉·破盤整空頭確認】收盤跌破盤整低點 {box_low_recent:.2f} 元 (空頭確認·長線多單全數停利清倉)")
+                signals.append(f"🚨 跌破高檔盤整低點 {box_low_recent:.2f} 元 (空頭確認·長線多單全數停利清倉)")
+            else:
+                rev4_desc = f"多頭高檔出現爆大量「頭頭低」盤整，短線多單依心法立即停利出場！長線多單嚴密防守盤整下緣支撐 ({box_low_recent:.2f}元)！"
+                reversal_alerts.append(f"⚠️【高檔反轉·頭頭低盤整】短線多單立即停利出場！長線多單守盤整低點 {box_low_recent:.2f} 元！")
+                signals.append("⚠️ 高檔爆量頭頭低盤整 (短線多單停利·長線守盤整箱底)")
+
+    # 綜合 CH9 實戰停利導航核心字典
+    signals_dict['ch9_take_profit'] = {
+        "is_high_for_tp": is_high_for_tp,
+        "ma5_tp_hit": ma5_tp_hit,
+        "ma5_price": sma5,
+        "short_tp_status": short_tp_status,
+        "short_tp_rebuy": short_tp_rebuy,
+        "ma20_tp_hit": ma20_tp_hit,
+        "ma20_price": sma20,
+        "long_tp_status": long_tp_status,
+        "nearest_target_name": nearest_target[0],
+        "nearest_target_price": nearest_target[1],
+        "candidate_pressures": candidate_pressures,
+        "reversal_alerts": reversal_alerts,
+        "rev1_break_2day_low": {
+            "triggered": rev1_triggered,
+            "two_day_low": rev1_low,
+            "desc": rev1_desc
+        },
+        "rev2_heavy_vol_black": {
+            "triggered": rev2_triggered,
+            "action": rev2_action,
+            "desc": rev2_desc
+        },
+        "rev3_upper_shadow": {
+            "triggered": rev3_triggered,
+            "action": rev3_action,
+            "desc": rev3_desc
+        },
+        "rev4_lower_highs_box": {
+            "short_triggered": rev4_short_triggered,
+            "long_triggered": rev4_long_triggered,
+            "box_low": box_low_recent,
+            "desc": rev4_desc
+        }
+    }
+
+    # ----------------------------------------------------
     # 鎖股池 3 階段管理 (等突破 / 高檔等回檔 / 回檔等上漲)
     # ----------------------------------------------------
     bias5 = float(last.get('BIAS_5', 0))

@@ -1767,6 +1767,132 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                   2. **做空**：跌破前一波轉折低點放空；每日收盤不破前一波轉折高點一路續抱；突破前高回補。
                 """)
 
+            # =========================================================================
+            # CH9 實戰停利操盤導航儀 (紀律停利 · 獲利目標 · 四大高檔反轉現象 · 15% 分批停利)
+            # =========================================================================
+            ch9_tp = signals_dict.get('ch9_take_profit', {})
+            tp_ma5 = ch9_tp.get('ma5_price', float(df.iloc[-1].get('SMA_5', c_curr)))
+            tp_ma20 = ch9_tp.get('ma20_price', float(df.iloc[-1].get('SMA_20', c_curr)))
+            tp_ma5_broken = ch9_tp.get('ma5_tp_hit', c_curr < tp_ma5)
+            tp_ma20_broken = ch9_tp.get('ma20_tp_hit', c_curr < tp_ma20)
+            tp_short_status = ch9_tp.get('short_tp_status', '')
+            tp_long_status = ch9_tp.get('long_tp_status', '')
+            tp_rebuy_guidance = ch9_tp.get('short_tp_rebuy', '')
+            tp_nearest_target = ch9_tp.get('nearest_target_name', '波段前高')
+            tp_target_price = ch9_tp.get('nearest_target_price', round(c_curr * 1.10, 2))
+            tp_pressures = ch9_tp.get('candidate_pressures', [])
+            tp_rev_alerts = ch9_tp.get('reversal_alerts', [])
+            is_high_for_tp = ch9_tp.get('is_high_for_tp', False)
+
+            target_gain_pct = round(((tp_target_price - c_curr) / c_curr) * 100, 1) if c_curr > 0 else 0.0
+
+            tp_badge_html = f"<span style='background:#2B1616; border:1px solid #FF4D4F; color:#FF7875; padding:3px 9px; border-radius:5px; font-size:0.82rem; font-weight:bold;'>🚨 跌破 5MA：短線停利！</span>" if tp_ma5_broken else f"<span style='background:#10282E; border:1px solid #13C2C2; color:#13C2C2; padding:3px 9px; border-radius:5px; font-size:0.82rem; font-weight:bold;'>🟢 守穩 5MA：短線續抱</span>"
+
+            with st.container(border=True):
+                tp_h1, tp_h2 = st.columns([1.5, 1])
+                with tp_h1:
+                    st.markdown("<div style='font-size:1.05rem; font-weight:bold; color:#13C2C2; margin-bottom:4px;'>🏆 實戰停利操盤導航儀</div>", unsafe_allow_html=True)
+                with tp_h2:
+                    st.markdown(f"<div style='text-align:right;'>{tp_badge_html}<span style='background:#181D29; border:1px solid #2B3448; color:#AAA; padding:3px 9px; border-radius:5px; font-size:0.8rem; margin-left:6px;'>目標：{tp_target_price:.2f} 元 (+{target_gain_pct}%)</span></div>", unsafe_allow_html=True)
+
+                st.markdown(f"<div style='font-size:0.85rem; color:#A0AEC0; margin-bottom:12px; line-height:1.5;'><b>操盤大師心法</b>：「會買股票是徒弟，會賣股票的才是師父」！保住資金才是最重要的工作。股票只是操作賺錢的商品，絕不眷戀賠錢的股票。{tp_rebuy_guidance}</div>", unsafe_allow_html=True)
+
+                # 四大停利點位對照盒
+                tpc_1, tpc_2, tpc_3, tpc_4 = st.columns(4)
+                with tpc_1:
+                    m5_color = "#FF7875" if tp_ma5_broken else "#52C41A"
+                    m5_text = "🚨 今日已跌破 (停利賣出)" if tp_ma5_broken else "🟢 守穩中 (持股續抱)"
+                    st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>⚡ 短線 5MA 停利價</div><div style='font-size:1.25rem; font-weight:bold; color:#FF3366; margin:3px 0;'>{tp_ma5:.2f} 元</div><div style='font-size:0.78rem; color:{m5_color};'>{m5_text}</div></div>", unsafe_allow_html=True)
+                with tpc_2:
+                    m20_color = "#FF7875" if tp_ma20_broken else "#52C41A"
+                    m20_text = "🚨 已破月線 (長線停利)" if tp_ma20_broken else "🟢 守穩月線上 (長線續抱)"
+                    st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>🛡️ 長線 20MA 停利價</div><div style='font-size:1.25rem; font-weight:bold; color:#00BFFF; margin:3px 0;'>{tp_ma20:.2f} 元</div><div style='font-size:0.78rem; color:{m20_color};'>{m20_text}</div></div>", unsafe_allow_html=True)
+                with tpc_3:
+                    st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>🎯 第一道壓力目標價</div><div style='font-size:1.25rem; font-weight:bold; color:#F59E0B; margin:3px 0;'>{tp_target_price:.2f} 元</div><div style='font-size:0.78rem; color:#E0A82E;'>{tp_nearest_target} (+{target_gain_pct}%)</div></div>", unsafe_allow_html=True)
+                with tpc_4:
+                    if tp_rev_alerts:
+                        st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>⚠️ 高檔四大反轉警訊</div><div style='font-size:1.25rem; font-weight:bold; color:#FF4D4F; margin:3px 0;'>🚨 {len(tp_rev_alerts)} 項警戒</div><div style='font-size:0.78rem; color:#FF7875;'>主力高檔出貨警戒</div></div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div class='chip-card'><div style='color:#AAA; font-size:0.82rem;'>⚠️ 高檔四大反轉警訊</div><div style='font-size:1.25rem; font-weight:bold; color:#52C41A; margin:3px 0;'>🟢 籌碼健康</div><div style='font-size:0.78rem; color:#95DE64;'>未見主力高檔倒貨</div></div>", unsafe_allow_html=True)
+
+                # 四大高檔反轉即時警訊條
+                if tp_rev_alerts:
+                    for alert_str in tp_rev_alerts:
+                        st.markdown(f"<div style='background:#2B1616; border-left:4px solid #FF4D4F; padding:8px 12px; border-radius:6px; font-size:0.85rem; color:#FFA39E; margin-top:8px;'><b>{alert_str}</b></div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div style='background:#13261A; border-left:4px solid #52C41A; padding:6px 12px; border-radius:6px; font-size:0.82rem; color:#95DE64; margin-top:8px;'>🟢 <b>四大高檔反轉檢核通過</b>：未出現【跌破兩日大量低點】、【爆量長黑吞噬】、【爆量長上影避雷針】或【高檔頭頭低盤整】，主力控盤籌碼穩健。</div>", unsafe_allow_html=True)
+
+            # 獲利 15% 分批停利 (1/2 先出) 互動試算導航
+            with st.expander("🏆 【獲利 15% 分批停利 (1/2 先出) 互動試算導航】", expanded=is_high_for_tp):
+                st.markdown("""
+                💡 **四大高檔反轉分批停利鐵律**：
+                > **「高檔若出現爆大量長黑或長上影線（避雷針），即便當日尚未跌破前一日低點，只要波段獲利已達 15% 以上，依心法立刻先停利賣出 1/2！次日若續跌破大量低點，剩餘 1/2 全數清倉！」**
+                """)
+                tp_sim_c1, tp_sim_c2 = st.columns([1.5, 2.5])
+                with tp_sim_c1:
+                    default_tp_buy = round(float(ch7_sl.get('pattern_stop', c_curr * 0.90)), 2)
+                    tp_sim_buy = st.number_input("輸入您的進場買進價 (元)：", value=default_tp_buy, step=0.1, key=f"t1_tp_sim_buy_{query}")
+                with tp_sim_c2:
+                    tp_sim_gain = round(((c_curr - tp_sim_buy) / tp_sim_buy) * 100, 2) if tp_sim_buy > 0 else 0.0
+                    target_15pct_p = round(tp_sim_buy * 1.15, 2)
+                    if tp_sim_gain >= 15.0:
+                        st.markdown(f"""
+                        <div style='background:#10282E; border:1px solid #13C2C2; border-radius:8px; padding:10px 14px; margin-top:12px;'>
+                            <div style='font-size:0.95rem; font-weight:bold; color:#13C2C2;'>🎉 帳面獲利已達 +{tp_sim_gain}% (超過 15% 分批停利門檻)！</div>
+                            <div style='font-size:0.85rem; color:#E0E6ED; margin-top:4px;'>
+                                • <b>第一批停利 (1/2)</b>：若高檔出現爆量長黑或長上影線，<b>未破前低先停利 1/2</b> 鎖定獲利！<br>
+                                • <b>第二批終極防守 (剩餘 1/2)</b>：以該爆量K線最低點為防線，次日若開低破底或摜破大量低點，全數清倉賣出！
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div style='background:#1E202E; border:1px solid #3A3F58; border-radius:8px; padding:10px 14px; margin-top:12px;'>
+                            <div style='font-size:0.9rem; font-weight:bold; color:#FFA94D;'>🛡️ 目前獲利 {tp_sim_gain:+.1f}% (尚未達 15% 分批停利門檻)</div>
+                            <div style='font-size:0.83rem; color:#AAA; margin-top:4px;'>
+                                距離 15% 分批停利門檻價尚需上漲至 <b>{target_15pct_p} 元</b>。目前請依據 5MA 操盤線或原設停損價紀律防守！
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            # 6 大日線壓力目標關卡對照表
+            with st.expander("🎯 【依據獲利目標設定停利】日線 6 大壓力關卡對照表", expanded=False):
+                if tp_pressures:
+                    p_rows = []
+                    for p_name, p_val in tp_pressures:
+                        diff_pct = round(((p_val - c_curr) / c_curr) * 100, 1)
+                        p_rows.append(f"• **{p_name}**：`{p_val:.2f} 元` (距離現價 **+{diff_pct}%**)")
+                    st.markdown("\n".join(p_rows))
+                else:
+                    st.markdown("• 🚀 **全均線多頭排列且創波段新高**：上方無均線與歷史套牢壓力關卡，以 5MA 移動停利一路抱牢奔馳！")
+                st.caption("💡 **獲利目標停利法**：進場前依據 6 大日線壓力（長均線、前高、下降切線、盤整區、向上缺口、大量黑K）預估短線獲利幅度，空間不足 5%~7% 嚴禁進場！")
+
+            # 實戰停利寶典展開卡
+            with st.expander("📘 【波段獲利停利寶典】依據紀律、獲利目標與四大高檔反轉現象", expanded=False):
+                st.markdown("""
+                - **股市名言**：「會買股票是徒弟，會賣股票的才是師父」！保住資金才是最重要的工作，股票只是操作賺錢的商品，絕不眷戀賠錢的股票。
+                - **9-1 依據紀律停利 (均線操盤 SOP)**：
+                  1. **短線做多 (5MA)**：採用 5MA 均線做短線停利，收盤跌破 5MA 停利出場！趨勢多頭不變且股價在 20MA 之上，拉回守穩再做多。
+                  2. **短線做空 (5MA)**：採用 5MA 均線做短線停利，收盤突破 5MA 停利回補！趨勢空頭不變且股價在 20MA 之下，反彈遇阻再做空。
+                  3. **長線做多 (20MA)**：採用 20MA 均線做長線停利，收盤跌破 20MA 停利出場！趨勢多頭不變且股價在 20MA+60MA 之上，持續做多。
+                  4. **長線做空 (20MA)**：採用 20MA 均線做長線停利，收盤突破 20MA 停利回補！
+                - **9-2 依據獲利目標設定停利 (日線/週線 6 大關卡)**：
+                  1. **短線做多 6 大日線壓力**：長均線壓力、前高壓力、下降切線壓力、向上盤整區壓力、大量向下缺口壓力、大量下跌黑K壓力。
+                  2. **短線做空 6 大日線支撐**：長均線支撐、前低支撐、上升切線支撐、向下盤整區支撐、大量向上缺口支撐、大量上漲紅K支撐。
+                  3. **中長線獲利目標**：量價研判「週線」之均線、前高/前低、切線、缺口、大量K棒，預估中長線獲利幅度。
+                - **9-3 依據訊號準備停利 (多頭高檔四大反轉現象主力出貨警訊)**：
+                  1. **現象一：跌破高檔連續兩日大量 K 線低點**，多單果斷全數停利退場（一日反轉主力出貨確立）！
+                  2. **現象二：高檔出現爆大量長黑K 或 長黑吞噬**：
+                     - 若未跌破前一日低點，但獲利超過 15%，**先停利 1/2**！次日若續跌破大量低點，剩餘 1/2 全數清倉！
+                     - 若收盤跌破前一日低點（吞噬/貫穿），主力帶頭倒貨大逃殺，**全數停利賣出**！
+                  3. **現象三：高檔出現爆大量長上影線 K 線 (避雷針 / 射擊之星)**：
+                     - 若未跌破前一日低點，但獲利超過 15%，**先停利 1/2**！次日開低走低或破底全數清倉！
+                     - 若當日收盤已破前低，主力逢高出貨確立，**全數停利賣出**！
+                  4. **現象四：多頭走勢出現爆大量「頭頭低」盤整**：
+                     - 短線多單：出現頭頭低盤整，短線多單立即停利出場！
+                     - 長線多單：後續跌破盤整區下緣低點（空頭確認），長線多單全數停利清倉，防禦轉空！
+                """)
+
             # 動態資金配置計算機
             with st.expander("💵 【動態資金配置計算機】(依大盤強弱調配持股成數 & 均分 3~5 檔)", expanded=False):
                 mkt = get_market_condition()
