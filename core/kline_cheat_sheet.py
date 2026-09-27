@@ -517,33 +517,32 @@ def render_ma_direction_dashboard(df, close_price=None, visible_mas=None):
 
         diff_str = f"+{diff:.2f}" if diff >= 0 else f"{diff:.2f}"
 
-        card = f"""
-        <div style="flex:1; min-width:140px; background:#181D29; border:1px solid #2B3448; border-top:3px solid {m['color']}; border-radius:8px; padding:7px 10px; margin:3px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                <span style="color:{m['color']}; font-weight:bold; font-size:0.88rem;">{m['name']} <span style="font-size:0.75rem; color:#888;">({m['alias']})</span></span>
-                <span style="font-weight:bold; font-size:0.92rem; color:#FFF;">{cur:.2f}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem;">
-                <div>{dir_badge} <span style="color:#888; font-size:0.72rem;">({diff_str})</span></div>
-                <div>{pos_badge}</div>
-            </div>
-        </div>
-        """
+        card = (
+            f'<div style="flex:1; min-width:140px; background:#181D29; border:1px solid #2B3448; border-top:3px solid {m["color"]}; border-radius:8px; padding:7px 10px; margin:3px;">'
+            f'<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">'
+            f'<span style="color:{m["color"]}; font-weight:bold; font-size:0.88rem;">{m["name"]} <span style="font-size:0.75rem; color:#888;">({m["alias"]})</span></span>'
+            f'<span style="font-weight:bold; font-size:0.92rem; color:#FFF;">{cur:.2f}</span>'
+            f'</div>'
+            f'<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem;">'
+            f'<div>{dir_badge} <span style="color:#888; font-size:0.72rem;">({diff_str})</span></div>'
+            f'<div>{pos_badge}</div>'
+            f'</div>'
+            f'</div>'
+        )
         cards_html.append(card)
 
     if not cards_html:
         return
 
-    full_html = f"""
-    <div style="background:#111520; border:1px solid #232A3B; border-radius:10px; padding:6px 8px; margin-bottom:8px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; padding:0 4px;">
-            <span style="font-size:0.82rem; font-weight:bold; color:#94A3B8;">🧭 均線即時方向與位階狀態儀錶盤</span>
-            <span style="font-size:0.76rem; color:#64748B;">每日收盤自動計算斜率 (↗翻揚助漲 / ↘下彎助跌)</span>
-        </div>
-        <div style="display:flex; flex-wrap:wrap; gap:4px;">
-            {"".join(cards_html)}
-        </div>
-    </div>
-    """
+    cards_str = "".join(cards_html)
+    full_html = (
+        '<div style="background:#111520; border:1px solid #232A3B; border-radius:10px; padding:6px 8px; margin-bottom:8px;">'
+        '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; padding:0 4px;">'
+        '<span style="font-size:0.82rem; font-weight:bold; color:#94A3B8;">🧭 均線即時方向與位階狀態儀錶盤</span>'
+        '<span style="font-size:0.76rem; color:#64748B;">每日收盤自動計算斜率 (↗翻揚助漲 / ↘下彎助跌)</span>'
+        '</div>'
+        f'<div style="display:flex; flex-wrap:wrap; gap:4px;">{cards_str}</div>'
+        '</div>'
+    )
     st.markdown(full_html, unsafe_allow_html=True)
 
