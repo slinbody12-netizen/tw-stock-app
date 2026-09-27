@@ -2259,15 +2259,33 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             st.markdown("#### 🔍 均線扣抵與未來走勢預判")
             deduct = signals_dict.get('deduction', {})
             d_cols = st.columns(3)
-            with d_cols[0]:
-                d5 = deduct.get('5MA', {})
-                st.metric("5MA 扣抵價", f"{d5.get('deduct_price', 'N/A')} 元", d5.get('status', ''))
-            with d_cols[1]:
-                d20 = deduct.get('20MA', {})
-                st.metric("20MA 扣抵價", f"{d20.get('deduct_price', 'N/A')} 元", d20.get('status', ''))
-            with d_cols[2]:
-                d60 = deduct.get('60MA', {})
-                st.metric("60MA 扣抵價", f"{d60.get('deduct_price', 'N/A')} 元", d60.get('status', ''))
+
+            ma_keys = ['5MA', '20MA', '60MA']
+            ma_names = ['5MA (操盤線)', '20MA (趨勢線)', '60MA (生命線)']
+
+            for col, m_k, m_n in zip(d_cols, ma_keys, ma_names):
+                with col:
+                    d_item = deduct.get(m_k, {})
+                    p_val = d_item.get('deduct_price', d_item.get('price'))
+                    if p_val is not None:
+                        status_text = d_item.get('status', '')
+                        diff_val = d_item.get('diff', 0.0)
+                        diff_str = f"現價高出 +{diff_val:.2f} 元" if diff_val >= 0 else f"現價低於 {diff_val:.2f} 元"
+                        next_p = d_item.get('next_price', p_val)
+                        next_st = d_item.get('next_status', '')
+                        date_str = d_item.get('date', '')
+
+                        st.metric(
+                            label=f"{m_n} 扣抵價",
+                            value=f"{p_val:.2f} 元",
+                            delta=status_text
+                        )
+                        st.caption(
+                            f"📅 扣抵日：{date_str} ({diff_str})<br>🔮 明日扣抵：<b>{next_p:.2f} 元</b> ({next_st})",
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.metric(f"{m_n} 扣抵價", "資料不足", "K線歷史不足")
 
             with st.expander("📘 【均線扣抵心法教學】為什麼扣抵決定均線方向？", expanded=False):
                 st.markdown("""

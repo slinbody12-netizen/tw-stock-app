@@ -293,17 +293,53 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     prev_sma20 = round(float(prev['SMA_20']), 2) if 'SMA_20' in prev and not np.isnan(prev['SMA_20']) else prev_sma5
     prev_sma60 = round(float(prev.get('SMA_60', prev_sma20)), 2)
 
-    # 1. 均線扣抵
+    # 1. 均線扣抵 (支援今日扣抵價、明日扣抵價、扣抵日、差價與走勢預判)
     deduction = {}
-    if len(df) >= 6:
-        d5 = float(df.iloc[-5]['Close'])
-        deduction['5MA'] = {"price": d5, "status": "扣低助漲 ↗" if c >= d5 else "扣高下彎 ↘"}
-    if len(df) >= 21:
-        d20 = float(df.iloc[-20]['Close'])
-        deduction['20MA'] = {"price": d20, "status": "扣低助漲 ↗" if c >= d20 else "扣高下彎 ↘"}
-    if len(df) >= 61:
-        d60 = float(df.iloc[-60]['Close'])
-        deduction['60MA'] = {"price": d60, "status": "扣低助漲 ↗" if c >= d60 else "扣高下彎 ↘"}
+    if len(df) >= 5:
+        idx5 = -5
+        d5 = float(df.iloc[idx5]['Close'])
+        d5_date = str(df.iloc[idx5].get('Date', ''))[:10]
+        d5_diff = c - d5
+        d5_next = float(df.iloc[-4]['Close']) if len(df) >= 5 else d5
+        deduction['5MA'] = {
+            "price": round(d5, 2),
+            "deduct_price": round(d5, 2),
+            "next_price": round(d5_next, 2),
+            "diff": round(d5_diff, 2),
+            "date": d5_date,
+            "status": "扣低助漲 ↗" if c >= d5 else "扣高助跌 ↘",
+            "next_status": "明日扣低助漲 ↗" if c >= d5_next else "明日扣高助跌 ↘"
+        }
+    if len(df) >= 20:
+        idx20 = -20
+        d20 = float(df.iloc[idx20]['Close'])
+        d20_date = str(df.iloc[idx20].get('Date', ''))[:10]
+        d20_diff = c - d20
+        d20_next = float(df.iloc[-19]['Close']) if len(df) >= 20 else d20
+        deduction['20MA'] = {
+            "price": round(d20, 2),
+            "deduct_price": round(d20, 2),
+            "next_price": round(d20_next, 2),
+            "diff": round(d20_diff, 2),
+            "date": d20_date,
+            "status": "扣低助漲 ↗" if c >= d20 else "扣高助跌 ↘",
+            "next_status": "明日扣低助漲 ↗" if c >= d20_next else "明日扣高助跌 ↘"
+        }
+    if len(df) >= 60:
+        idx60 = -60
+        d60 = float(df.iloc[idx60]['Close'])
+        d60_date = str(df.iloc[idx60].get('Date', ''))[:10]
+        d60_diff = c - d60
+        d60_next = float(df.iloc[-59]['Close']) if len(df) >= 60 else d60
+        deduction['60MA'] = {
+            "price": round(d60, 2),
+            "deduct_price": round(d60, 2),
+            "next_price": round(d60_next, 2),
+            "diff": round(d60_diff, 2),
+            "date": d60_date,
+            "status": "扣低助漲 ↗" if c >= d60 else "扣高助跌 ↘",
+            "next_status": "明日扣低助漲 ↗" if c >= d60_next else "明日扣高助跌 ↘"
+        }
     signals_dict['deduction'] = deduction
 
     # 2. 均線多頭排列
