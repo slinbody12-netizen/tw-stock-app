@@ -260,21 +260,22 @@ def render_kline_visual_cheat_sheet():
                 <span style="background:#2563EB; color:#FFF; font-size:0.75rem; padding:2px 8px; border-radius:12px; margin-left:8px; font-weight:bold;">視覺圖解實戰版</span>
             </div>
             <div style="color:#94A3B8; font-size:0.85rem;">
-                核心心法：看 K 線三件事（趨勢、位置、成交量）· 第五元素 1/2 價 · 四大高檔反轉停利 · 五大實戰解套與贏家思維
+                核心心法：看 K 線三件事 · 第五元素 1/2 價 · 高檔四大反轉 · 五大實戰解套 · 做多七不買禁忌 · 六年千萬計畫
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # 次級分頁直覺切換
-    v_tab1, v_tab2, v_tab3, v_tab4, v_tab5, v_tab6, v_tab7 = st.tabs([
+    v_tab1, v_tab2, v_tab3, v_tab4, v_tab5, v_tab6, v_tab7, v_tab8 = st.tabs([
         "🧭 看K線三件事",
         "🕯️ 第五元素 1/2 價",
         "⚖️ 變盤線高低檔對照",
         "⚔️ 兩根K棒六組對句",
         "🌟 三根晨星與夜星",
         "🛑 高檔四大反轉停利圖鑑",
-        "🆘 五大實戰解套與贏家思維"
+        "🆘 五大實戰解套與贏家思維",
+        "🛡️ 做多七不買與六年千萬"
     ])
 
     # -------------------------------------------------------------
@@ -684,6 +685,164 @@ def render_kline_visual_cheat_sheet():
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+    # -------------------------------------------------------------
+    # TAB 8: 做多七不買與六年千萬計畫 (CH11 贏家策略)
+    # -------------------------------------------------------------
+    with v_tab8:
+        st.caption("💡 操盤大師實戰精華：做多進場先排查七大禁忌位置；短線波段價差每月賺 5%，靠六年千萬複利藍圖改變人生！")
+
+        # 一、做多 7 大禁忌位置 (做多七不買)
+        st.markdown("""
+        <div style="background:#171C28; border:1px solid #30384F; border-radius:10px; padding:16px; margin-bottom:14px;">
+            <div style="color:#FF7875; font-weight:bold; font-size:1.08rem; margin-bottom:8px;">🛑 一、做多絕對不可進場的 7 大禁忌位置 (做多七不買)</div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap:10px;">
+                <div style="background:#1E2433; border-left:4px solid #EF4444; padding:10px; border-radius:6px;">
+                    <div style="color:#FF7875; font-weight:bold; font-size:0.88rem;">禁忌 1 · 盤底未反轉無三線多排</div>
+                    <div style="color:#CBD5E1; font-size:0.80rem; margin-top:4px; line-height:1.5;">
+                        打底還沒有完成，均線未呈現 5MA &gt; 10MA &gt; 20MA 多排。嚴禁盲目猜底摸底！
+                    </div>
+                </div>
+                <div style="background:#1E2433; border-left:4px solid #EF4444; padding:10px; border-radius:6px;">
+                    <div style="color:#FF7875; font-weight:bold; font-size:0.88rem;">禁忌 2 · 連漲第 3 根以上勿追</div>
+                    <div style="color:#CBD5E1; font-size:0.80rem; margin-top:4px; line-height:1.5;">
+                        股價連續推升 3 天以上短線正乖離過大，隨時獲利回吐，嚴禁追高，等量縮拉回再買！
+                    </div>
+                </div>
+                <div style="background:#1E2433; border-left:4px solid #EF4444; padding:10px; border-radius:6px;">
+                    <div style="color:#FF7875; font-weight:bold; font-size:0.88rem;">禁忌 3 · 重大壓力關卡前勿進</div>
+                    <div style="color:#CBD5E1; font-size:0.80rem; margin-top:4px; line-height:1.5;">
+                        週線/季線壓力、前高、向下缺口前若空間不足 3%，風報比極差，極易衝高解套回測！
+                    </div>
+                </div>
+                <div style="background:#1E2433; border-left:4px solid #EF4444; padding:10px; border-radius:6px;">
+                    <div style="color:#FF7875; font-weight:bold; font-size:0.88rem;">禁忌 4 · 跌破月線反彈未突破月線</div>
+                    <div style="color:#CBD5E1; font-size:0.80rem; margin-top:4px; line-height:1.5;">
+                        下彎 20MA 月線反壓沉重，屬空方反彈碰壁格局，月線未放量站回前嚴禁做多！
+                    </div>
+                </div>
+                <div style="background:#1E2433; border-left:4px solid #EF4444; padding:10px; border-radius:6px;">
+                    <div style="color:#FF7875; font-weight:bold; font-size:0.88rem;">禁忌 5 · 趨勢盤整或空頭勿做多</div>
+                    <div style="color:#CBD5E1; font-size:0.80rem; margin-top:4px; line-height:1.5;">
+                        做多只做「頭頭高、底底高」；盤整箱內常被雙巴，空頭走勢破底不斷，嚴禁逆勢做多！
+                    </div>
+                </div>
+                <div style="background:#1E2433; border-left:4px solid #EF4444; padding:10px; border-radius:6px;">
+                    <div style="color:#FF7875; font-weight:bold; font-size:0.88rem;">禁忌 6 · 連續急漲高檔爆量長紅</div>
+                    <div style="color:#CBD5E1; font-size:0.80rem; margin-top:4px; line-height:1.5;">
+                        波段大漲後在高檔爆出巨量長紅K，往往是主力末升段吸引散戶追高的誘多出貨棒！
+                    </div>
+                </div>
+                <div style="background:#1E2433; border-left:4px solid #EF4444; padding:10px; border-radius:6px;">
+                    <div style="color:#FF7875; font-weight:bold; font-size:0.88rem;">禁忌 7 · 多頭進場位是價漲黑K</div>
+                    <div style="color:#CBD5E1; font-size:0.80rem; margin-top:4px; line-height:1.5;">
+                        開高走低出貨黑K，缺乏實體長紅的多方攻擊力道，防範主力當沖隔日沖騙線！
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 二、贏家策略五大永遠原則 vs 集中火力 2~5 檔
+        w_c1, w_c2 = st.columns(2)
+        with w_c1:
+            st.markdown("""
+            <div style="background:#171C28; border:1px solid #3B82F6; border-radius:10px; padding:14px; height:100%;">
+                <div style="color:#60A5FA; font-weight:bold; font-size:1.02rem; margin-bottom:6px;">🏆 贏家操盤五大「永遠」原則</div>
+                <div style="color:#CBD5E1; font-size:0.82rem; line-height:1.65;">
+                    1. <b>永遠控制風險，嚴格執行停損</b>：不讓小賠擴大為致命大賠。<br>
+                    2. <b>永遠集中火力在 2 ~ 5 檔股票</b>：絕不分散買十幾檔，全神貫注追蹤掌握盤面節奏！<br>
+                    3. <b>永遠汰弱換強</b>：手中只留強勢上漲主升股，弱勢不漲果斷剃除換股！<br>
+                    4. <b>永遠只操作符合技術分析高勝率條件的股票</b>。<br>
+                    5. <b>永遠相信技術分析，紀律操作</b>。
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        with w_c2:
+            st.markdown("""
+            <div style="background:#171C28; border:1px solid #10B981; border-radius:10px; padding:14px; height:100%;">
+                <div style="color:#34D399; font-weight:bold; font-size:1.02rem; margin-bottom:6px;">🛡️ 停損的正面思考五大金句</div>
+                <div style="color:#CBD5E1; font-size:0.82rem; line-height:1.65;">
+                    1. <b>停損是為了賺錢所設的</b>。<br>
+                    2. <b>小賠容易快速反敗為勝</b>。<br>
+                    3. <b>當下小賠賣出，避開快速暴跌崩盤風險</b>；若賣錯伺機買回也不遺憾。<br>
+                    4. <b>當下小賠高價賣出，下跌止跌反轉再低價買回，何樂不為</b>！<br>
+                    5. <b>留得青山在，不怕沒柴燒！</b>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # 三、月獲利 5%、年獲利 60% 與六年千萬計畫 (複利滾動藍圖)
+        st.markdown("""
+        <div style="background:#171C28; border:1px solid #F59E0B; border-radius:10px; padding:16px; margin-top:14px; margin-bottom:14px;">
+            <div style="color:#FBBF24; font-weight:bold; font-size:1.08rem; margin-bottom:6px;">💰 月獲利 5% 年獲利 60% 與六年千萬計畫 (複利滾動藍圖)</div>
+            <div style="color:#CBD5E1; font-size:0.84rem; line-height:1.6; margin-bottom:12px;">
+                • <b>核心哲學</b>：短線價差操作，積小勝為大勝！以 60 萬元為例，每月 22 個交易日獲利 5% = 30,000 元；拆解為每 2 週只要操作 1 次 2.5% = 15,000 元！<br>
+                • <b>單利年化</b>：5% × 12 個月 = 年獲利 60%！每年獲利滾入本金複利前進：
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; text-align:center;">
+                <div style="background:#1E2433; border:1px solid #3A3F58; border-radius:8px; padding:8px;">
+                    <div style="color:#AAA; font-size:0.75rem;">第 1 年</div>
+                    <div style="color:#FFF; font-weight:bold; font-size:1.05rem;">96 萬</div>
+                    <div style="color:#52C41A; font-size:0.72rem;">年增 36 萬</div>
+                </div>
+                <div style="background:#1E2433; border:1px solid #3A3F58; border-radius:8px; padding:8px;">
+                    <div style="color:#AAA; font-size:0.75rem;">第 2 年</div>
+                    <div style="color:#FFF; font-weight:bold; font-size:1.05rem;">153.6 萬</div>
+                    <div style="color:#52C41A; font-size:0.72rem;">年增 57.6 萬</div>
+                </div>
+                <div style="background:#1E2433; border:1px solid #3A3F58; border-radius:8px; padding:8px;">
+                    <div style="color:#AAA; font-size:0.75rem;">第 3 年</div>
+                    <div style="color:#FFF; font-weight:bold; font-size:1.05rem;">245.7 萬</div>
+                    <div style="color:#52C41A; font-size:0.72rem;">年增 92.1 萬</div>
+                </div>
+                <div style="background:#1E2433; border:1px solid #3A3F58; border-radius:8px; padding:8px;">
+                    <div style="color:#AAA; font-size:0.75rem;">第 4 年</div>
+                    <div style="color:#FFF; font-weight:bold; font-size:1.05rem;">393.2 萬</div>
+                    <div style="color:#52C41A; font-size:0.72rem;">年增 147.5 萬</div>
+                </div>
+                <div style="background:#1E2433; border:1px solid #3A3F58; border-radius:8px; padding:8px;">
+                    <div style="color:#AAA; font-size:0.75rem;">第 5 年</div>
+                    <div style="color:#FFF; font-weight:bold; font-size:1.05rem;">629.1 萬</div>
+                    <div style="color:#52C41A; font-size:0.72rem;">年增 235.9 萬</div>
+                </div>
+                <div style="background:#2A2312; border:1px solid #F59E0B; border-radius:8px; padding:8px;">
+                    <div style="color:#FBBF24; font-size:0.75rem;">🎉 第 6 年突破</div>
+                    <div style="color:#FBBF24; font-weight:bold; font-size:1.15rem;">1,006 萬</div>
+                    <div style="color:#FBBF24; font-size:0.72rem;">年增 377.5 萬</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 四、六大高勝率進場位置與進場 K 線 4 大要件
+        st.markdown("""
+        <div style="background:#171C28; border:1px solid #30384F; border-radius:10px; padding:16px;">
+            <div style="color:#60A5FA; font-weight:bold; font-size:1.08rem; margin-bottom:8px;">🚀 四、六大高勝率進場位置與進場 K 線必備標準</div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+                <div style="background:#1E2433; padding:12px; border-radius:8px; border-left:4px solid #2563EB;">
+                    <div style="color:#60A5FA; font-weight:bold; font-size:0.92rem; margin-bottom:6px;">📋 尾盤進場 K 線 4 大必備要件</div>
+                    <div style="color:#CBD5E1; font-size:0.82rem; line-height:1.6;">
+                        1. <b>價漲量增</b>：成交量 &gt; 20MA 均量 1.25 倍。<br>
+                        2. <b>實體長紅</b>：當日漲幅 &gt; 2% 且實體大於影線。<br>
+                        3. <b>收盤站穩 5MA</b>：站在 5 日操盤生命線之上。<br>
+                        4. <b>突破昨日高點</b>：過昨高確認多方攻擊動能！
+                    </div>
+                </div>
+                <div style="background:#1E2433; padding:12px; border-radius:8px; border-left:4px solid #10B981;">
+                    <div style="color:#34D399; font-weight:bold; font-size:0.92rem; margin-bottom:6px;">🎯 六大高勝率進場型態位置</div>
+                    <div style="color:#CBD5E1; font-size:0.82rem; line-height:1.6;">
+                        1. <b>日線回後買上漲</b> (拉回守穩均線轉折買)<br>
+                        2. <b>盤整放量突破</b> (箱型平台一棒過頂)<br>
+                        3. <b>K 線橫盤放量突破</b> (以基準K線為母體突破)<br>
+                        4. <b>回檔 ABC 修正突破原始下降切線</b><br>
+                        5. <b>弱勢回檔大量黑 K 的突破</b> (放量長紅過黑K頂)<br>
+                        6. <b>突破緩角度往上的上升軌道線</b> (加速起漲)
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 def render_ma_direction_dashboard(df, close_price=None, visible_mas=None):

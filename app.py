@@ -1550,6 +1550,48 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             c_key1 = f"t1_plot_{query}_{st.session_state.get(f'chart_reset_{query}', 0)}"
             st.plotly_chart(fig1, use_container_width=True, config=chart_config, key=c_key1)
 
+            c_curr = float(info['close'])
+
+            # =========================================================================
+            # 做多七大禁忌位置即時排查 (七不買檢核儀)
+            # =========================================================================
+            dnb_info = signals_dict.get('ch11_do_not_buy', {})
+            dnb_pass = dnb_info.get('pass_all', True)
+            dnb_count = dnb_info.get('violation_count', 0)
+            dnb_badge = dnb_info.get('status_badge', '🟢 完美避開做多七大禁忌')
+            dnb_advice = dnb_info.get('advice', '')
+            dnb_violations = dnb_info.get('violations', [])
+
+            with st.container(border=True):
+                dnb_h1, dnb_h2 = st.columns([1.5, 1])
+                with dnb_h1:
+                    header_color = '#52C41A' if dnb_pass else '#FF7875'
+                    st.markdown(f"<div style='font-size:1.05rem; font-weight:bold; color:{header_color}; margin-bottom:4px;'>🛡️ 做多七大禁忌位置即時排查 (做多七不買檢核)</div>", unsafe_allow_html=True)
+                with dnb_h2:
+                    badge_bg = "#13261A" if dnb_pass else "#2B1616"
+                    badge_border = "#52C41A" if dnb_pass else "#FF4D4F"
+                    badge_color = "#95DE64" if dnb_pass else "#FFA39E"
+                    st.markdown(f"<div style='text-align:right;'><span style='background:{badge_bg}; border:1px solid {badge_border}; color:{badge_color}; padding:3px 9px; border-radius:5px; font-size:0.82rem; font-weight:bold;'>{dnb_badge}</span></div>", unsafe_allow_html=True)
+
+                st.markdown(f"<div style='font-size:0.85rem; color:#E0E6ED; margin-bottom:8px; line-height:1.5;'><b>助教進場把關</b>：{dnb_advice}</div>", unsafe_allow_html=True)
+
+                if not dnb_pass:
+                    v_items = "".join([f"<li style='margin-bottom:3px;'><b>禁忌 {v[0]}【{v[1]}】</b>：{v[2]}</li>" for v in dnb_violations])
+                    st.markdown(f"<div style='background:#2B1616; border-left:4px solid #FF4D4F; padding:8px 12px; border-radius:6px; font-size:0.83rem; color:#FFA39E; margin-bottom:8px;'><ul style='margin:0; padding-left:18px;'>{v_items}</ul></div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div style='background:#13261A; border-left:4px solid #52C41A; padding:6px 12px; border-radius:6px; font-size:0.82rem; color:#95DE64; margin-bottom:8px;'>🟢 <b>七項指標全數通關</b>：未出現追高、壓力前硬闖、下彎月線反彈、盤整空頭、高檔爆量長紅或價漲黑K，多頭攻擊路徑安全！</div>", unsafe_allow_html=True)
+
+                with st.expander("📋 查看【做多七大禁忌位置 (做多七不買)】標準規範與避雷原則", expanded=False):
+                    st.markdown("""
+                    1. **盤底還沒有反轉多頭，沒有三線多排勿進場**：嚴禁盲目猜底摸底，必須等打底完成且均線呈 5MA > 10MA > 20MA 多頭排列。
+                    2. **上漲第 3 根以上位置勿追高**：連漲 3 天以上短線正乖離過大，隨時獲利回吐，等拉回量縮守穩均線再買。
+                    3. **重大壓力關卡前勿進場**：週線/季線壓力前、前高前、向下缺口前若空間不足 3% 風報比差，極易衝高解套回測。
+                    4. **回檔跌破月線再上漲未突破月線勿進場**：下彎月線形成強大蓋頭反壓，反彈碰壁極易再破底。
+                    5. **趨勢盤整或空頭走勢勿進場做多**：做多只做「頭頭高、底底高」，絕不在盤整箱內或空頭走勢逆勢摸多。
+                    6. **連續急漲高檔爆出大量長紅 K 勿進場追高**：連續大漲後在高檔爆出巨量長紅，多為主力末升段誘多出貨棒。
+                    7. **多頭進場位置出現「價漲黑 K」勿進場**：開高走低出貨黑K，缺乏實體攻擊力道，防假突破。
+                    """)
+
             # =========================================================================
             # CH7 實戰停損與風控操盤導航儀 (官方四大策略停損 · 移動停利 · 絕對停損檢核)
             # =========================================================================
@@ -1561,7 +1603,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             is_trail = ch7_sl.get('is_trailing_stop_active', False)
             trail_p = ch7_sl.get('trailing_stop_price', 0.0)
             abs_warns = ch7_sl.get('absolute_warnings', [])
-            c_curr = float(info['close'])
+
 
             trail_badge_html = f"<span style='background:#10282E; border:1px solid #13C2C2; color:#13C2C2; padding:3px 9px; border-radius:5px; font-size:0.8rem; font-weight:bold; margin-right:6px;'>🏆 已啟動移動停利：{trail_p:.2f} 元</span>" if is_trail else ""
 
@@ -2120,6 +2162,58 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 | **8** | **盤前沒策略、盤中不知反應、盤後不知解讀**：東看西看隨便買，何處停損停利毫無依據。 | **盤前定策略、盤中嚴執行、盤後客觀檢討**：進場前先想輸再想贏，嚴格執行交易計畫！ |
                 """)
 
+            # 贏家實戰策略寶典展開卡
+            with st.expander("📘 【贏家實戰策略寶典】做多七大禁忌 · 六年千萬複利藍圖 · 集中火力 2~5 檔", expanded=False):
+                st.markdown("""
+                ### 🛑 一、做多絕對不可進場的 7 大禁忌位置 (做多七不買)
+                1. **盤底還沒有反轉多頭，沒有三線多排勿進場**：嚴禁盲目摸底，必須等打底完成且均線呈 5MA > 10MA > 20MA 多頭排列。
+                2. **上漲第 3 根以上位置勿追高**：連漲 3 天以上短線正乖離過大，隨時獲利回吐，等回檔量縮守穩均線再買。
+                3. **重大壓力關卡前勿進場**：週線/季線壓力前、前高前若空間不足 3% 風報比差，極易衝高解套回測。
+                4. **回檔跌破月線再上漲未突破月線勿進場**：下彎月線形成強大蓋頭反壓，反彈碰壁極易再破底。
+                5. **趨勢盤整或空頭走勢勿進場做多**：做多只做「頭頭高、底底高」，絕不在盤整或空頭逆勢摸多。
+                6. **連續急漲高檔爆出大量長紅 K 勿進場追高**：連續大漲後在高檔爆出巨量長紅，多為主力末升段誘多出貨棒。
+                7. **多頭進場位置出現「價漲黑 K」勿進場**：開高走低出貨黑K，缺乏實體攻擊力道，防假突破。
+
+                ---
+                ### 🏆 二、贏家操盤五大「永遠」原則與集中火力 2~5 檔
+                1. **永遠控制風險，嚴格執行停損**：控制風險為首要任務，絕不讓小賠擴大為致命大賠。
+                2. **永遠集中火力在 2 ~ 5 檔**：資金絕不分散買十幾二十檔股票！集中火力便於全神貫注追蹤盤面走勢與靈活進退。
+                3. **永遠汰弱換強**：手中只留強勢上漲的主升股，弱勢不漲或轉弱的果斷剔除換股！
+                4. **永遠只操作符合技術分析高勝率條件的股票**。
+                5. **永遠相信技術分析，紀律操作**。
+                - **停損的正面思考五大金句**：
+                  (1) 停損是為了賺錢所設的
+                  (2) 小賠容易快速反敗為勝
+                  (3) 當下小賠賣出，避開快速暴跌崩盤風險；若賣錯伺機買回也不遺憾
+                  (4) 當下小賠高價賣出，下跌止跌反轉再低價買回，何樂不為
+                  (5) 留得青山在，不怕沒柴燒！
+
+                ---
+                ### 💰 三、月獲利 5%、年獲利 60% 與六年千萬計畫 (複利滾動藍圖)
+                - **核心哲學**：短線價差操作，嚴守做多紀律！不求一次暴賺翻倍，追求積小勝為大勝的穩定複利！
+                - **基準本金**：以 60 萬元為例，每月 22 個交易日獲利 5% = 30,000 元。
+                - **拆解操作**：每月操作 2 次 (每 2 週 1 次)，每次只要獲利 2.5% = 獲利 15,000 元！
+                - **單利年化**：5% × 12 個月 = 年獲利 60%！每年獲利滾入本金複利：
+                  - 第 1 年：60 萬 ➔ 96 萬 (年增 36 萬)
+                  - 第 2 年：96 萬 ➔ 153.6 萬 (年增 57.6 萬)
+                  - 第 3 年：153.6 萬 ➔ 245.76 萬 (年增 92.16 萬)
+                  - 第 4 年：245.76 萬 ➔ 393.22 萬 (年增 147.46 萬)
+                  - 第 5 年：393.22 萬 ➔ 629.15 萬 (年增 235.93 萬)
+                  - 第 6 年：629.15 萬 ➔ 1,006.63 萬 (🎉 正式突破一千萬！)
+
+                ---
+                ### 🚀 四、六大高勝率進場位置與進場 K 線 4 大要件
+                - **選股三大黃金濾網**：多頭趨勢確認 (頭頭高底底高)、均線 4 線多排、KD 多排向上。
+                - **尾盤進場 K 線 4 大要件**：價漲量增 (>20均量1.25倍)、實體紅K漲幅 > 2%、收盤突破 5MA、突破昨高。
+                - **六大高勝率進場位置**：
+                  1. 日線回後買上漲
+                  2. 盤整放量突破
+                  3. K 線橫盤放量突破
+                  4. 回檔 ABC 修正突破原始下降切線
+                  5. 弱勢回檔大量黑 K 的突破 (放量長紅收盤過黑K頂)
+                  6. 突破緩角度往上的上升軌道線 (軌道線上緣突破加速起漲)
+                """)
+
             # 動態資金配置計算機
             with st.expander("💵 【動態資金配置計算機】(依大盤強弱調配持股成數 & 均分 3~5 檔)", expanded=False):
                 mkt = get_market_condition()
@@ -2570,6 +2664,20 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if cq8.button("👉 股市能當事業永續經營嗎？", use_container_width=True, key=f"qp8_{query}"):
                 st.session_state[ai_inp_key] = "請問股市可以當作事業來經營嗎？有何獨特優勢？"
                 st.session_state[f"ai_trigger_{query}"] = "請問股市可以當作事業來經營嗎？有何獨特優勢？"
+
+            cq9, cq10, cq11, cq12 = st.columns(4)
+            if cq9.button("👉 做多有哪 7 大禁忌位置？", use_container_width=True, key=f"qp9_{query}"):
+                st.session_state[ai_inp_key] = "請問做多絕對不可進場的 7 大禁忌位置 (做多七不買) 是什麼？如何排查？"
+                st.session_state[f"ai_trigger_{query}"] = "請問做多絕對不可進場的 7 大禁忌位置 (做多七不買) 是什麼？如何排查？"
+            if cq10.button("👉 什麼是月獲利5%六年千萬？", use_container_width=True, key=f"qp10_{query}"):
+                st.session_state[ai_inp_key] = "請問如何透過月獲利 5%、年獲利 60% 實現六年千萬複利計畫？"
+                st.session_state[f"ai_trigger_{query}"] = "請問如何透過月獲利 5%、年獲利 60% 實現六年千萬複利計畫？"
+            if cq11.button("👉 贏家為何要集中火力2~5檔？", use_container_width=True, key=f"qp11_{query}"):
+                st.session_state[ai_inp_key] = "請問贏家操盤有哪五大永遠原則？為什麼資金必須集中 2~5 檔？"
+                st.session_state[f"ai_trigger_{query}"] = "請問贏家操盤有哪五大永遠原則？為什麼資金必須集中 2~5 檔？"
+            if cq12.button("👉 六大高勝率進場與K線要件？", use_container_width=True, key=f"qp12_{query}"):
+                st.session_state[ai_inp_key] = "請問六大高勝率進場位置與進場 K 線必備四大條件為何？"
+                st.session_state[f"ai_trigger_{query}"] = "請問六大高勝率進場位置與進場 K 線必備四大條件為何？"
 
             c_inp, c_ask_btn = st.columns([5, 1])
             with c_inp:
@@ -4658,6 +4766,10 @@ elif "AI" in menu or "助教" in menu:
             key="qa_ask_mode"
         )
         preset_options = [
+            "做多絕對不可進場的 7 大禁忌位置 (做多七不買) 是什麼？如何排查？",
+            "如何透過月獲利 5%、年獲利 60% 實現六年千萬複利計畫？",
+            "贏家操盤有哪五大永遠原則？為什麼資金必須集中 2~5 檔？",
+            "六大高勝率進場位置與進場 K 線必備四大要件為何？",
             "股票套牢了該如何運用五大解套 SOP 與反手做空賺價差解套？",
             "為什麼散戶總是「買進就跌，賣出就漲」？該如何徹底擺脫魔咒？",
             "股價創新高到底能不能買？不敢買創高的盲點與回後買上漲 SOP 為何？",

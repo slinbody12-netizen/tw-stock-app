@@ -146,6 +146,73 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
     }
 
 
+def check_do_not_buy_rules(df: pd.DataFrame, trend_info: dict, last: pd.Series, prev: pd.Series, signals_dict: dict) -> dict:
+    """
+    11-2 做多絕對不可進場的 7 大禁忌位置 (做多七不買)：
+    1. 盤底還沒有反轉多頭，沒有三線多排勿進場
+    2. 上漲第 3 根以上位置勿追高
+    3. 重大壓力關卡前 (週線/季線壓力前、盤整區壓力前、大量下跌黑K或長上影線前) 勿進場
+    4. 回檔跌破月線再上漲未突破月線勿進場 (下彎月線反彈碰壁)
+    5. 趨勢盤整或空頭勿進場做多
+    6. 連續急漲高檔的大量長紅K勿進場 (高檔爆量誘多防反轉)
+    7. 多頭進場位置，是價漲的黑K勿進場 (開高走低出貨黑K)
+    """
+    violations = []
+
+    c = float(last['Close'])
+    o = float(last['Open'])
+    prev_c = float(prev['Close'])
+    sma5 = float(last.get('SMA_5', c))
+    sma10 = float(last.get('SMA_10', c))
+    sma20 = float(last.get('SMA_20', c))
+    prev_sma20 = float(prev.get('SMA_20', sma20))
+    vol_ratio = float(signals_dict.get('vol_ratio', 1.0))
+    up_days = int(signals_dict.get('up_days', 0))
+
+    # 禁忌 1：盤底還沒有反轉多頭，沒有三線多排
+    is_three_ma_bull = (sma5 >= sma10 and sma10 >= sma20)
+    if not is_three_ma_bull and not (signals_dict.get('bottom_breakout', False) or signals_dict.get('iron_man', False)):
+        violations.append((1, "盤底未反轉無三線多排", "均線尚未形成 5MA > 10MA > 20MA 多頭排列，仍在打底或均線紊亂，不可盲目猜底進場"))
+
+    # 禁忌 2：上漲第 3 根以上位置勿追高
+    if up_days >= 3:
+        violations.append((2, f"連續上漲第 {up_days} 根位置勿追高", f"股價已連續推升 {up_days} 天，短線正乖離過大，極易遭遇獲利調節回檔，應耐心等拉回再切入"))
+
+    # 禁忌 3：重大壓力關卡前勿進場 (空間不足 3%)
+    candidate_pressures = signals_dict.get('ch9_take_profit', {}).get('candidate_pressures', [])
+    if candidate_pressures:
+        nearest_p_name, nearest_p_val = candidate_pressures[0]
+        if nearest_p_val > c and (nearest_p_val - c) / c <= 0.03:
+            violations.append((3, f"重大壓力關卡前 ({nearest_p_name} {nearest_p_val:.2f}元)", f"距離上方重壓僅剩 {((nearest_p_val-c)/c*100):.1f}% 空間，風報比極差，極易衝高解套回測"))
+
+    # 禁忌 4：回檔跌破月線再上漲未突破月線
+    if c < sma20 and (sma20 < prev_sma20 * 0.9995):
+        violations.append((4, f"跌破月線反彈未突破月線 (20MA {sma20:.2f}元)", "股價仍在下彎月線之下，屬空方反彈碰壁格局，月線未站回前嚴禁做多"))
+
+    # 禁忌 5：趨勢盤整或空頭勿進場做多
+    trend_st = trend_info.get('trend_status', '盤整')
+    if trend_st in ["空頭趨勢", "盤整趨勢"] and not (signals_dict.get('bottom_breakout', False) or signals_dict.get('box_range_breakout', False)):
+        violations.append((5, f"趨勢為【{trend_st}】非確立多頭", "多頭做多只做『頭頭高、底底高』；盤整或空頭走勢嚴禁逆勢做多"))
+
+    # 禁忌 6：連續急漲高檔大量長紅K
+    is_high = (c >= sma20 * 1.15) or signals_dict.get('is_multi_bagger', False) or (signals_dict.get('swing_gain', 0) >= 18.0)
+    if is_high and vol_ratio >= 2.2 and (c >= o * 1.035):
+        violations.append((6, "高檔爆大量長紅K誘多出貨", "連續急漲後在高檔爆出巨量長紅K，往往是主力末升段吸引散戶追高的誘多出貨棒，嚴禁追價"))
+
+    # 禁忌 7：多頭進場位置出現價漲黑K
+    if (c > prev_c) and (c < o):
+        violations.append((7, "價漲收實體黑K (開高走低出貨)", "今日雖然價格微幅上漲，但K線收實體黑K棒，代表開高走低有籌碼逢高倒貨，不符強勢紅K進場標準"))
+
+    pass_all = (len(violations) == 0)
+    return {
+        "pass_all": pass_all,
+        "violation_count": len(violations),
+        "violations": violations,
+        "status_badge": "🟢 完美避開做多七大禁忌" if pass_all else f"🛑 觸發 {len(violations)} 項做多禁忌",
+        "advice": "全面通過進場安全檢核，可依技術 SOP 於 12:40~13:30 尾盤伺機進場！" if pass_all else "目前線型命中做多禁忌位置，嚴禁衝動追價，耐心等待拉回守穩再做！"
+    }
+
+
 def detect_signals(df: pd.DataFrame, trend_info: dict):
     """
     偵測所有關鍵技術分析訊號與官方 App 策略
@@ -1693,6 +1760,18 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # ----------------------------------------------------
     elim_info = check_14_elimination_rules(df, trend_info, last, prev, signals_dict)
     signals_dict['elimination_info'] = elim_info
+
+    # ----------------------------------------------------
+    # CH11-2 做多絕對不可進場的 7 大禁忌位置 (做多七不買) 檢核
+    # ----------------------------------------------------
+    do_not_buy_info = check_do_not_buy_rules(df, trend_info, last, prev, signals_dict)
+    signals_dict['ch11_do_not_buy'] = do_not_buy_info
+
+    if do_not_buy_info['pass_all'] and is_bull:
+        signals.append("🛡️ 完美避開做多七大禁忌 (符合高勝率進場規範)")
+    elif not do_not_buy_info['pass_all']:
+        for v in do_not_buy_info['violations'][:1]:
+            signals.append(f"⚠️ 做多禁忌：{v[1]}")
 
     # ----------------------------------------------------
     # 助教把關：實戰安全評級 (Safety Rating)
