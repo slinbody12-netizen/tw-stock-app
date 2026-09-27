@@ -1434,9 +1434,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             ), row=1, col=1)
 
             if show_5ma:
-                fig1.add_trace(go.Scatter(x=df['Date'], y=df['SMA_5'], name="5MA (操盤線)", line=dict(color='#FF3366', width=2.0)), row=1, col=1)
+                fig1.add_trace(go.Scatter(x=df['Date'], y=df['SMA_5'], name="5MA (操盤線)", line=dict(color='#FF3366', width=2.0), showlegend=False), row=1, col=1)
             if show_20ma:
-                fig1.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], name="20MA (趨勢線)", line=dict(color='#00BFFF', width=2.2)), row=1, col=1)
+                fig1.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], name="20MA (趨勢線)", line=dict(color='#00BFFF', width=2.2), showlegend=False), row=1, col=1)
 
             if show_wave and t1_lines:
                 wave_x = [t1_lines[0]['x0']] + [l['x1'] for l in t1_lines]
@@ -1868,13 +1868,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             ), row=1, col=1)
 
             if show_k_5ma and 'SMA_5' in df_k:
-                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_5'], name="5MA", line=dict(color='#FF3366', width=1.8)), row=1, col=1)
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_5'], name="5MA", line=dict(color='#FF3366', width=1.8), showlegend=False), row=1, col=1)
             if show_k_10ma and 'SMA_10' in df_k:
-                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_10'], name="10MA", line=dict(color='#FFD700', width=1.6)), row=1, col=1)
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_10'], name="10MA", line=dict(color='#FFD700', width=1.6), showlegend=False), row=1, col=1)
             if show_k_20ma and 'SMA_20' in df_k:
-                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_20'], name="20MA", line=dict(color='#00BFFF', width=2.0)), row=1, col=1)
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_20'], name="20MA", line=dict(color='#00BFFF', width=2.0), showlegend=False), row=1, col=1)
             if show_k_60ma and 'SMA_60' in df_k:
-                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_60'], name="60MA", line=dict(color='#A855F7', width=1.8)), row=1, col=1)
+                fig2.add_trace(go.Scatter(x=df_k['Date'], y=df_k['SMA_60'], name="60MA", line=dict(color='#A855F7', width=1.8), showlegend=False), row=1, col=1)
 
             if "成交量" in k_sub_chart:
                 v_cols = ['#FF4D4F' if df_k.loc[k, 'Close'] >= df_k.loc[k, 'Open'] else '#2F9E44' for k in range(len(df_k))]
