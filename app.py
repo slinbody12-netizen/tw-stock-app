@@ -1855,6 +1855,54 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                         </div>
                         """, unsafe_allow_html=True)
 
+                # 由使用者自主勾選啟用「持股張數與獲利金額精算連動」
+                enable_shares_calc = st.checkbox(
+                    "📊 啟用持股張數與金額精算連動 (自訂張數試算 1/2 停利回收現金與鎖定獲利)",
+                    value=False,
+                    key=f"t1_tp_shares_chk_{query}"
+                )
+
+                if enable_shares_calc:
+                    sh_col1, sh_col2, sh_col3 = st.columns([1.2, 1.4, 1.4])
+                    with sh_col1:
+                        user_lots = st.number_input("持有部位張數 (張)：", min_value=1, max_value=1000, value=2, step=1, key=f"t1_tp_lots_{query}")
+
+                    sell_lots = max(1, user_lots // 2) if user_lots > 1 else 1
+                    keep_lots = user_lots - sell_lots
+                    sell_cash = sell_lots * c_curr * 1000
+                    gain_per_share = c_curr - tp_sim_buy
+                    sell_profit = sell_lots * gain_per_share * 1000
+                    profit_sign = "+" if sell_profit >= 0 else ""
+
+                    with sh_col2:
+                        st.metric(
+                            label="建議先停利 (1/2)",
+                            value=f"{sell_lots} 張",
+                            delta=f"回收現金 {int(sell_cash):,} 元"
+                        )
+                    with sh_col3:
+                        st.metric(
+                            label="本次停利鎖定獲利",
+                            value=f"{profit_sign}{int(sell_profit):,} 元",
+                            delta=f"剩餘續抱 {keep_lots} 張"
+                        )
+
+                    prev_low_p = float(df['Low'].iloc[-2]) if len(df) >= 2 else c_curr * 0.95
+                    if keep_lots > 0:
+                        st.markdown(f"""
+                        <div style='background:#181D29; border:1px solid #2B3448; border-left:4px solid #13C2C2; border-radius:6px; padding:8px 12px; font-size:0.83rem; color:#CBD5E1; margin-top:8px;'>
+                            💼 <b>部位精算指引</b>：
+                            • <b>本次建議先賣出</b>：<b>{sell_lots} 張</b> (取回本金與利潤共 <b>{int(sell_cash):,} 元</b>，鎖定利潤 <b>{profit_sign}{int(sell_profit):,} 元</b>！)<br>
+                            • <b>剩餘部位續抱</b>：<b>{keep_lots} 張</b> (防守點設在該大量 K 棒最低點或前日低點 <b>{prev_low_p:.2f} 元</b>，次日若摜破則剩餘 {keep_lots} 張全數出清；若續創新高則繼續享受波段行情)！
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div style='background:#181D29; border:1px solid #2B3448; border-left:4px solid #F59E0B; border-radius:6px; padding:8px 12px; font-size:0.83rem; color:#CBD5E1; margin-top:8px;'>
+                            💼 <b>單張部位精算叮嚀</b>：目前設定為持股 1 張，若欲嚴格執行 1/2 停利，可於盤中透過「零股交易」賣出 500 股 (鎖定約 <b>{profit_sign}{int(sell_profit/2):,} 元</b> 獲利)；或守穩 5MA 操盤線，收盤跌破則整張全數停利出場。
+                        </div>
+                        """, unsafe_allow_html=True)
+
             # 6 大日線壓力目標關卡對照表
             with st.expander("🎯 【依據獲利目標設定停利】日線 6 大壓力關卡對照表", expanded=False):
                 if tp_pressures:
