@@ -53,7 +53,7 @@ def calculate_turning_points(df: pd.DataFrame, ma_period=5, filter_mode="standar
                     raw_points.append(point)
 
                 state = -1
-                seg_start_idx = max_high_idx
+                seg_start_idx = max_high_idx + 1
 
         elif state == -1:
             if c > ma:
@@ -77,7 +77,7 @@ def calculate_turning_points(df: pd.DataFrame, ma_period=5, filter_mode="standar
                     raw_points.append(point)
 
                 state = 1
-                seg_start_idx = min_low_idx
+                seg_start_idx = min_low_idx + 1
 
     # 處理最後行進中波段 (尚未經 5MA 轉折確認，標註為暫高/暫底)
     if seg_start_idx < len(valid_df):
