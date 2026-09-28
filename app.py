@@ -522,14 +522,14 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     sign = "+" if is_up else ""
     
     badge_html = ""
-    # 排名勳章 (綜合品質排序)
+    # 排名勳章 (綜合品質排序) - 大字尊爵醒目版
     rank_badge = item.get('rank_badge', '')
     if "No.1" in rank_badge:
-        badge_html += f"<span style='background:linear-gradient(90deg, #FA8C16, #FF4D4F); color:white; padding:2px 8px; border-radius:4px; font-size:0.78rem; font-weight:bold; margin-right:4px;'>{rank_badge}</span>"
+        badge_html += f"<span style='background:linear-gradient(135deg, #FF4D4F 0%, #FA8C16 100%); color:#FFFFFF; padding:4px 12px; border-radius:6px; font-size:1.02rem; font-weight:900; margin-right:6px; box-shadow:0 0 12px rgba(255, 77, 79, 0.6); border:1px solid rgba(255, 255, 255, 0.4); display:inline-block;'>👑 {rank_badge}</span>"
     elif "No.2" in rank_badge or "No.3" in rank_badge:
-        badge_html += f"<span style='background:#FA8C16; color:white; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px;'>{rank_badge}</span>"
+        badge_html += f"<span style='background:linear-gradient(135deg, #D97706 0%, #F59E0B 100%); color:#FFFFFF; padding:3px 10px; border-radius:6px; font-size:0.95rem; font-weight:800; margin-right:6px; box-shadow:0 0 10px rgba(245, 158, 11, 0.45); border:1px solid rgba(255, 255, 255, 0.3); display:inline-block;'>⭐ {rank_badge}</span>"
     elif "No." in rank_badge:
-        badge_html += f"<span style='background:#2B3045; color:#AAA; padding:1px 5px; border-radius:3px; font-size:0.72rem; margin-right:4px;'>{rank_badge}</span>"
+        badge_html += f"<span style='background:#23293E; color:#94A3B8; padding:2px 7px; border-radius:4px; font-size:0.78rem; font-weight:bold; margin-right:4px; border:1px solid #3B4261; display:inline-block;'>{rank_badge}</span>"
 
     # 市場與交易特性標記
     if item.get('market') == 'TWO':
