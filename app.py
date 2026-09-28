@@ -119,19 +119,55 @@ st.markdown("""
         z-index: -9999 !important;
     }
 
-    header {
+    header,
+    header[data-testid="stHeader"] {
         background: transparent !important;
+        pointer-events: none !important; /* 核心修復：使滑鼠穿透透明頂部標題列，絕不遮擋右上角捲軸滑塊與點擊操作 */
     }
 
-    /* 保障左上角側邊欄收合/展開控制按鈕正常使用 */
-    [data-testid="collapsedControl"] {
+    /* 保障左上角側邊欄收合/展開控制按鈕正常使用且可點擊 */
+    [data-testid="collapsedControl"],
+    [data-testid="collapsedControl"] button,
+    header [data-testid="collapsedControl"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
+        pointer-events: auto !important;
         z-index: 99999 !important;
         position: fixed !important;
         top: 10px !important;
         left: 10px !important;
+    }
+
+    /* 自訂全站精準高質感滾動條 (永久可見、防消失、防遮擋、易拖曳) */
+    html {
+        scroll-behavior: smooth;
+    }
+    ::-webkit-scrollbar {
+        width: 10px !important;
+        height: 10px !important;
+    }
+    ::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.6) !important;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #475569 !important;
+        border-radius: 6px !important;
+        border: 2px solid transparent !important;
+        background-clip: content-box !important;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #64748B !important;
+        border-radius: 6px !important;
+    }
+    ::-webkit-scrollbar-thumb:active {
+        background: #3B82F6 !important;
+    }
+
+    /* 支援 Firefox 滾動條樣式 */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: #475569 rgba(15, 23, 42, 0.6);
     }
 
     /* 2. 科技風頂部動態光影進度條 (Top Glowing Progress Bar) - 系統在運算時於視窗最頂端自動閃耀流動 */
