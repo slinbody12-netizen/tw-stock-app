@@ -987,6 +987,9 @@ if is_guest:
                 st.rerun()
             else:
                 st.error("❌ 金鑰錯誤，請重新確認！")
+    with st.sidebar.popover("📘 實戰操盤完全手冊", use_container_width=True):
+        from core.app_guideline import render_app_guideline
+        render_app_guideline()
     if st.sidebar.button("🚪 登出系統", key="sidebar_guest_logout", use_container_width=True):
         st.session_state.clear()
         st.query_params.clear()
@@ -997,6 +1000,10 @@ else:
         MENU_OPTIONS,
         key="nav_menu_radio"
     )
+
+    with st.sidebar.popover("📘 實戰操盤完全手冊", use_container_width=True):
+        from core.app_guideline import render_app_guideline
+        render_app_guideline()
 
     if st.session_state.get("copilot_authenticated", False):
         c_u = st.session_state.get("copilot_user", {})
@@ -2777,6 +2784,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 elif menu == "🎯 全攻略選股池 (多/空策略)":
     st.header("🎯 全攻略條件選股雷達 · 旗艦專業版")
     st.caption("完整收錄 8 大波段子策略、長抱存股、盤中強勢、一點鐘尾盤進場與助教實戰安全評級")
+
+    with st.expander("📘 【技術分析全攻略 · 官方 App 實戰操盤完全指南】(大師心法 · 5 秒選股 · 1 分鐘審查 · 守護神紀律 · 作戰SOP)", expanded=False):
+        from core.app_guideline import render_app_guideline
+        render_app_guideline()
 
     # ----------------------------------------------------
     # 🔥 全市場主流族群即時熱度雷達 (Top-Down 資金流向與熱門板塊)
@@ -4666,6 +4677,10 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
 elif "AI" in menu or "助教" in menu:
     st.header("🧑‍🏫 專業技術分析實戰 AI 助教")
     st.caption("內建全套實戰技術分析操盤心法、學員實戰答疑、高檔爆量黑K排查與歷史覆盤時光機")
+
+    with st.expander("📘 【技術分析全攻略 · 官方 App 實戰操盤完全使用指南】(大師心法 · 5 秒選股 · 1 分鐘審查 · 守護神紀律 · 作戰SOP)", expanded=False):
+        from core.app_guideline import render_app_guideline
+        render_app_guideline()
 
     col_sel1, col_sel2 = st.columns([1, 1])
     with col_sel1:
