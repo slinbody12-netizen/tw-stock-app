@@ -531,6 +531,16 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     elif "No." in rank_badge:
         badge_html += f"<span style='background:#23293E; color:#94A3B8; padding:2px 7px; border-radius:4px; font-size:0.78rem; font-weight:bold; margin-right:4px; border:1px solid #3B4261; display:inline-block;'>{rank_badge}</span>"
 
+    # 💎 鎖股伏兵提示標籤 (拉回量縮·好股票綠辣椒等轉折紅K)
+    safety_str = item.get('safety_rating', '')
+    if not is_up and "安全" in safety_str:
+        if "No.1" in rank_badge:
+            badge_html += "<span style='background:linear-gradient(135deg, #059669 0%, #10B981 100%); color:#FFFFFF; padding:4px 12px; border-radius:6px; font-size:0.90rem; font-weight:900; margin-right:6px; box-shadow:0 0 10px rgba(16, 185, 129, 0.5); border:1px solid rgba(255, 255, 255, 0.4); display:inline-block;' title='今日收黑回檔呈現綠辣椒，今日切勿盲目急買！本檔各項結構名列前茅，屬頂級鎖股標的。等次日出現轉折紅K突破今日高點即可大膽切入！'>💎 冠軍鎖股伏兵 (等轉折紅K)</span>"
+        elif "No.2" in rank_badge or "No.3" in rank_badge:
+            badge_html += "<span style='background:linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color:#FFFFFF; padding:3px 10px; border-radius:6px; font-size:0.84rem; font-weight:800; margin-right:6px; box-shadow:0 0 8px rgba(20, 184, 166, 0.45); border:1px solid rgba(255, 255, 255, 0.3); display:inline-block;' title='精選鎖股伏兵：回測均線不破，等轉折紅K過昨高切入。'>💎 精選鎖股伏兵 (等轉折紅K)</span>"
+        elif "No." in rank_badge:
+            badge_html += "<span style='background:#064E3B; color:#6EE7B7; padding:2px 8px; border-radius:4px; font-size:0.78rem; font-weight:bold; margin-right:4px; border:1px solid #059669; display:inline-block;' title='優質鎖股：拉回不破線，靜待轉折。'>💎 鎖股伏兵</span>"
+
     # 市場與交易特性標記
     if item.get('market') == 'TWO':
         badge_html += "<span style='background:#722ED1; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>櫃</span>"
@@ -748,6 +758,15 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     swing = sig.get('swing_3_5d', {})
     swing_html = ""
     if swing:
+        pullback_hint = ""
+        if not is_up and ("No.1" in rank_badge or "No.2" in rank_badge or "No.3" in rank_badge or "安全" in safety):
+            pullback_hint = (
+                f"<div style='background:rgba(5, 150, 105, 0.18); border-left:4px solid #10B981; border-radius:5px; padding:6px 10px; margin-bottom:8px; color:#A7F3D0; font-size:0.83rem; line-height:1.55;'>"
+                f"💎 <b>大師實戰指引 (鎖股伏兵戰法)</b>：今日收黑呈現綠辣椒，<b>今日切勿盲目急買！</b><br>"
+                f"本檔結構健全且各項評比居前，屬<b>頂級鎖股標的</b>。<br>"
+                f"🎯 <b>最佳出擊時機</b>：今日列入第一優先鎖股名單，<b>次日盤中或尾盤若出現「轉折紅K」並突破今日高點 ({item['price']} 元)，即為最安全低風險的起漲出擊點！</b>"
+                f"</div>"
+            )
         stop_type_label = swing.get('stop_type', '紅K低點')
         stop_str = f"🛑 <b>建議停損</b>：守 <b>{swing.get('stop_loss')}</b> 元 ({stop_type_label}，風險 -{swing.get('risk_pct')}%)<br>"
         trail_str = ""
@@ -760,6 +779,7 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         swing_html = (
             f"<div style='background:#151824; border-left:3px solid #13C2C2; padding:7px 10px; border-radius:6px; font-size:0.82rem; margin-top:6px; color:#E0E6ED;'>"
             f"<div style='font-weight:bold; color:#13C2C2; margin-bottom:2px;'>🎯 3-5 天短線波段戰術指引 (停損風控)：</div>"
+            f"{pullback_hint}"
             f"{trail_str}"
             f"{stop_str}"
             f"🛡️ <b>短線生命線</b>：守 <b>5MA ({swing.get('ma5_defend')} 元)</b> 收盤站穩<br>"
@@ -4216,17 +4236,26 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                 p_reward = p['reward_pct']
                 p_strat = p['strategy']
                 p_badge = p.get('rank_badge', f'No.{p_idx+1}')
-                p_chili = "🌶️" * p.get('chili_count', 1)
+                if p_chg >= 0:
+                    p_chili = "🌶️" * p.get('chili_count', 1)
+                else:
+                    p_chili = "<span style='filter: hue-rotate(95deg) saturate(2); display:inline-block;'>🌶️</span>" * p.get('chili_count', 1)
 
                 chg_sign = "+" if p_chg >= 0 else ""
                 chg_color = "#FF4D4F" if p_chg >= 0 else "#52C41A"
 
-                border_color = "#3B82F6" if p_idx == 0 else "#2F3247"
-                card_bg = "#181B26" if p_idx == 0 else "#161824"
-                badge_bg = "linear-gradient(90deg, #FA8C16, #FF4D4F)" if p_idx == 0 else "#2A1B2D"
+                if p_chg >= 0:
+                    border_color = "#3B82F6" if p_idx == 0 else "#2F3247"
+                    card_bg = "#181B26" if p_idx == 0 else "#161824"
+                    badge_bg = "linear-gradient(90deg, #FA8C16, #FF4D4F)" if p_idx == 0 else "#2A1B2D"
+                else:
+                    border_color = "#10B981" if p_idx == 0 else "#2F3247"
+                    card_bg = "#141D20" if p_idx == 0 else "#161824"
+                    badge_bg = "linear-gradient(90deg, #059669, #10B981)" if p_idx == 0 else "linear-gradient(90deg, #065F46, #047857)"
 
                 why_buy_html = "".join([f"<div>• {w}</div>" for w in p.get('why_buy', [])])
                 action_plan_html = f'<div style="background: #262014; border-left: 4px solid #FA8C16; padding: 10px 14px; border-radius: 6px; color: #FFE8CC; font-size: 0.92rem; line-height: 1.6; margin-top: 10px;">{p.get("action_plan", "")}</div>' if p.get("action_plan") else ""
+                why_buy_title = "💡 為什麼推薦這檔鎖股伏兵？（拉回量縮·等轉折紅K出擊）：" if p_chg < 0 else "💡 為什麼今天尾盤買這檔？（副駕駛嚴選理由）："
 
                 card_html = (
                     f'<div style="background: {card_bg}; border: 2px solid {border_color}; border-radius: 12px; padding: 18px; margin-bottom: 14px;">'
@@ -4249,7 +4278,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                     f'<div style="background: #202434; padding: 10px 12px; border-radius: 8px; text-align: center;"><div style="color: #8892B0; font-size: 0.8rem;">⚖️ 風報比 (Reward/Risk)</div><div style="font-size: 1.15rem; font-weight: bold; color: #13C2C2;">1 : {p_rr}</div></div>'
                     f'</div>'
                     f'<div style="background: #151822; padding: 12px 14px; border-radius: 8px; margin-bottom: 12px;">'
-                    f'<div style="font-weight: bold; color: #4FD1C5; margin-bottom: 6px; font-size: 0.95rem;">💡 為什麼今天尾盤買這檔？（副駕駛嚴選理由）：</div>'
+                    f'<div style="font-weight: bold; color: #4FD1C5; margin-bottom: 6px; font-size: 0.95rem;">{why_buy_title}</div>'
                     f'<div style="font-size: 0.9rem; color: #E2E8F0; line-height: 1.7;">{why_buy_html}</div>'
                     f'</div>'
                     f'{action_plan_html}'
@@ -4257,7 +4286,8 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                 )
                 st.markdown(card_html, unsafe_allow_html=True)
 
-                with st.expander(f"👉 我在尾盤下單買了【{p_name}】！點此將這檔交由【持股守護神】自動盯盤", expanded=False):
+                expander_label = f"👉 我已將【{p_name}】列入鎖股伏兵（或已逢低分批布局）！點此交由【持股守護神】自動盯盤" if p_chg < 0 else f"👉 我在尾盤下單買了【{p_name}】！點此將這檔交由【持股守護神】自動盯盤"
+                with st.expander(expander_label, expanded=False):
                     with st.form(f"form_buy_tail_{p_code}_{p_idx}", clear_on_submit=False):
                         col_b1, col_b2, col_b3 = st.columns(3)
                         with col_b1:
@@ -4267,7 +4297,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                         with col_b3:
                             user_stop_p = st.number_input("自訂防守停損價 (元)", value=p_stop, step=0.1, key=f"buy_sl_{p_code}_{p_idx}")
 
-                        btn_buy_submit = st.form_submit_button(f"🚀 確認買進【{p_name} ({p_code})】並啟動守護神！", type="primary", use_container_width=True)
+                        btn_buy_submit = st.form_submit_button(f"🛡️ 確認將【{p_name} ({p_code})】納入守護神盯盤追蹤！", type="primary", use_container_width=True)
                         if btn_buy_submit:
                             reason_str = f"尾盤 Top {p_idx+1} 精選：{p_strat}，風報比 1:{p_rr}"
                             add_holding(

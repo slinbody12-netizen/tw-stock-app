@@ -796,6 +796,13 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
                     break
     
     badges = ["👑 今日唯一首選 No.1", "🥈 戰略精選 No.2", "🥉 戰略精選 No.3", "🎖️ 戰略精選 No.4", "🎖️ 戰略精選 No.5"]
+    pullback_badges = [
+        "💎 冠軍鎖股伏兵 No.1 (拉回守穩·等轉折紅K)",
+        "💎 戰略鎖股伏兵 No.2 (等轉折紅K)",
+        "💎 戰略鎖股伏兵 No.3 (等轉折紅K)",
+        "💎 戰略鎖股伏兵 No.4 (等轉折紅K)",
+        "💎 戰略鎖股伏兵 No.5 (等轉折紅K)"
+    ]
     picks = []
     
     for idx, item in enumerate(top_items):
@@ -807,6 +814,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         target_p = float(stk_swing.get('target_res', close_p * 1.10))
         risk_pct = round(((close_p - stop_p) / close_p) * 100, 1)
         reward_pct = round(((target_p - close_p) / close_p) * 100, 1)
+        is_pullback_stock = stk['change_pct'] < 0
         
         if item.get('is_main_wave'):
             strat_name = "主升段第二波 (鎖一做二·飆股發動)"
@@ -822,6 +830,8 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             strat_name = "多頭確認 (強勢起漲)"
         
         reasons = []
+        if is_pullback_stock:
+            reasons.append(f"💎 <b>拉回量縮守穩 (綠辣椒伏兵)</b>：今日收黑回檔洗盤呈現綠辣椒，但未破 5MA 短線生命線 ({stk.get('sma5', close_p):.2f} 元)，屬標準強勢多頭拉回測支撐，列為第一優先鎖股名冊！")
         if item.get('is_main_wave'):
             reasons.append("🚀 <b>主升段第二波發動</b>：強勢飆股主升段戰法，第一波急漲拉回洗盤守穩月線，今日放量過昨高站回 5MA，為第二波主升段絕佳買點！")
         elif item.get('is_turnover'):
@@ -829,15 +839,17 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         elif item.get('is_squeeze'):
             reasons.append("🌀 <b>四線高度糾結突破</b>：5/10/20/60MA 底部平躺糾結 1~3 個月，今日長紅放量首度突破四線！四線糾結放量突破後面常有倍數大波段，次日若未漲停鎖死，開平或小漲可把握進場！")
         elif item['is_pullback']:
-            reasons.append("🎯 <b>拉回測線有守</b>：前幾日回測均線支撐未跌破，今日轉折紅K確認站回 5MA 操盤線。")
+            if not is_pullback_stock:
+                reasons.append("🎯 <b>拉回測線有守</b>：前幾日回測均線支撐未跌破，今日轉折紅K確認站回 5MA 操盤線。")
         elif item.get('is_bottom'):
             reasons.append("🌱 <b>低檔放量起跑</b>：橫盤打底完成，首度出量紅K突破均線糾結。")
         else:
-            reasons.append("🔥 <b>多頭排列攻擊</b>：均線多頭排列，股價站穩 5MA 展開波段推升。")
+            if not is_pullback_stock:
+                reasons.append("🔥 <b>多頭排列攻擊</b>：均線多頭排列，股價站穩 5MA 展開波段推升。")
             
         reasons.append(f"📈 <b>操盤線翻揚助漲</b>：5MA 走平或翻揚向上，短線多頭慣性強勁。")
         reasons.append(f"⚖️ <b>絕佳風報比 1 : {stk_swing.get('rr_ratio', item['rr'])}</b>：下方防守空間僅 -{risk_pct}%，上方前高頸線潛在報酬 +{reward_pct}%。")
-        if stk.get('chili_count', 1) >= 2:
+        if stk.get('chili_count', 1) >= 2 and not is_pullback_stock:
             reasons.append(f"🌶️ <b>主力籌碼支持</b>：獲得主力特定買盤推升，動能評級達 {stk.get('chili_count')} 根辣椒。")
         if stk.get('major_cost', 0) > 0:
             reasons.append(f"💼 <b>大戶成本優勢</b>：主力5日建倉均價 {stk.get('major_cost')} 元，現價評定【{stk.get('cost_badge')}】。")
@@ -852,15 +864,24 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         elif sec_badge:
             reasons.append(f"📊 <b>產業板塊評級</b>：所屬【{sec_name}】目前處於【{sec_badge}】(熱度 {sec_heat} 分)。")
             
-        action_plan = (
-            f"⏰ <b>實戰操作指引</b>：今日 <b>12:40 - 13:30 尾盤</b>，若股價維持在 <b>{close_p} 元附近（收盤站穩 5MA）</b>，"
-            f"即可於尾盤現價進場；進場後嚴格遵守紀律，以 <b>{stop_p} 元</b> 為短線停損防守點（跌破無條件離場），"
-            f"波段目標先看前波壓力 <b>{target_p} 元</b>！"
-        )
+        if is_pullback_stock:
+            action_plan = (
+                f"⏰ <b>實戰操作指引 (💎 鎖股伏兵策略)</b>：今日收黑回檔呈現綠辣椒，<b>今日尾盤暫不追進</b>！"
+                f"該股因多頭結構健全、站穩 5MA 操盤線 ({stk.get('sma5', close_p):.2f} 元) 且風報比極佳 (1 : {stk_swing.get('rr_ratio', item['rr'])} )，列為<b>第一優先鎖股名冊</b>。<br>"
+                f"🎯 <b>次日作戰指南</b>：請列入自選盯盤，<b>次日盤中或尾盤若出現『轉折紅K』並突破今日高點 ({close_p:.2f} 元之上)，即為最安全低風險的起漲出擊點！</b>"
+                f"進場後以 <b>{stop_p:.2f} 元</b> 為嚴格停損防守點，波段目標看 <b>{target_p:.2f} 元</b>！"
+            )
+        else:
+            action_plan = (
+                f"⏰ <b>實戰操作指引</b>：今日 <b>12:40 - 13:30 尾盤</b>，若股價維持在 <b>{close_p:.2f} 元附近（收盤站穩 5MA）</b>，"
+                f"即可於尾盤現價進場；進場後嚴格遵守紀律，以 <b>{stop_p:.2f} 元</b> 為短線停損防守點（跌破無條件離場），"
+                f"波段目標先看前波壓力 <b>{target_p:.2f} 元</b>！"
+            )
         
+        assigned_badge = pullback_badges[idx] if (is_pullback_stock and idx < len(pullback_badges)) else (badges[idx] if idx < len(badges) else f"No.{idx+1} 戰術精選")
         picks.append({
             "rank": idx + 1,
-            "rank_badge": badges[idx] if idx < len(badges) else f"No.{idx+1} 戰術精選",
+            "rank_badge": assigned_badge,
             "code": stk['code'],
             "name": stk['name'],
             "market": stk.get('market', 'TW'),
@@ -905,6 +926,7 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         "rr_ratio": top['rr_ratio'],
         "ma5": top['ma5'],
         "chili_count": top['chili_count'],
+        "rank_badge": top.get('rank_badge', 'No.1 首選'),
         "why_buy": top['why_buy'],
         "action_plan": top['action_plan']
     }
