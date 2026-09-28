@@ -760,11 +760,12 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     if swing:
         pullback_hint = ""
         if not is_up and ("No.1" in rank_badge or "No.2" in rank_badge or "No.3" in rank_badge or "安全" in safety):
+            stk_c = item.get('close', 0.0)
             pullback_hint = (
                 f"<div style='background:rgba(5, 150, 105, 0.18); border-left:4px solid #10B981; border-radius:5px; padding:6px 10px; margin-bottom:8px; color:#A7F3D0; font-size:0.83rem; line-height:1.55;'>"
                 f"💎 <b>大師實戰指引 (鎖股伏兵戰法)</b>：今日收黑呈現綠辣椒，<b>今日切勿盲目急買！</b><br>"
                 f"本檔結構健全且各項評比居前，屬<b>頂級鎖股標的</b>。<br>"
-                f"🎯 <b>最佳出擊時機</b>：今日列入第一優先鎖股名單，<b>次日盤中或尾盤若出現「轉折紅K」並突破今日高點 ({item['price']} 元)，即為最安全低風險的起漲出擊點！</b>"
+                f"🎯 <b>最佳出擊時機</b>：今日列入第一優先鎖股名單，<b>次日盤中或尾盤若出現「轉折紅K」並突破今日高點 ({stk_c:.2f} 元之上)，即為最安全低風險的起漲出擊點！</b>"
                 f"</div>"
             )
         stop_type_label = swing.get('stop_type', '紅K低點')
