@@ -328,7 +328,8 @@ def batch_fetch_realtime_quotes(stock_list: list) -> dict:
     items_to_query = []
     for item in stock_list:
         if isinstance(item, str):
-            items_to_query.append((item, "TW"))
+            _, code, _, mkt, _, _, _ = resolve_ticker(item)
+            items_to_query.append((code, mkt))
         elif isinstance(item, dict):
             items_to_query.append((item.get('code', ''), item.get('market', 'TW')))
 
@@ -344,26 +345,43 @@ def batch_fetch_realtime_quotes(stock_list: list) -> dict:
 
 def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realtime=True, realtime_quote=None):
     """
-    抓取台股日K線數據，回傳 (df, info_dict)
+    獲取台股日K線數據，回傳 (df, info_dict)
     """
     ticker, code, name, market, industry, has_futures, has_cb = resolve_ticker(query)
     os.makedirs(CACHE_DIR, exist_ok=True)
     cache_file = os.path.join(CACHE_DIR, f"{ticker}_{period}.pkl")
-
-    df = None
-    cache_file = os.path.join(CACHE_DIR, f"{ticker}_{period}.pkl")
     cache_file_1y = os.path.join(CACHE_DIR, f"{ticker}_1y.pkl")
 
-    # 檢查快取 (優先檢查本檔，或1年快取)
+    df = None
+    fallback_df = None
+
+    # 檢查快取 (優先檢查本檔，或1年快取，並嚴格檢核時效性)
     if not force_refresh:
         for cf in [cache_file, cache_file_1y]:
             if os.path.exists(cf):
                 try:
+                    # 1. 若該快取檔在近 6 小時內剛寫入/更新過，保證最新，直接載入
+                    mtime = os.path.getmtime(cf)
+                    if (time.time() - mtime) < 21600:
+                        with open(cf, 'rb') as f:
+                            loaded = pickle.load(f)
+                            if isinstance(loaded, pd.DataFrame) and not loaded.empty and len(loaded) >= 5:
+                                df = loaded
+                                break
+
+                    # 2. 若快取超過 6 小時，檢核最後一根 K 棒是否在 4 天內 (涵蓋週四/週五/週末連假)
                     with open(cf, 'rb') as f:
                         loaded = pickle.load(f)
                         if isinstance(loaded, pd.DataFrame) and not loaded.empty and len(loaded) >= 5:
-                            df = loaded
-                            break
+                            if fallback_df is None:
+                                fallback_df = loaded
+
+                            last_cached_dt = pd.to_datetime(loaded['Date'].iloc[-1]).date()
+                            today_dt = pd.Timestamp.now().date()
+                            days_diff = (today_dt - last_cached_dt).days
+                            if days_diff <= 4:
+                                df = loaded
+                                break
                 except Exception:
                     pass
 
@@ -387,10 +405,14 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
                 raw = pd.DataFrame()
 
         if raw.empty:
-            return pd.DataFrame(), {
-                "ticker": ticker, "code": code, "name": name,
-                "market": market, "industry": industry, "error": "查無此股票行情數據"
-            }
+            # 若網路獲取失敗但有舊快取，則降級使用舊快取避免拋出異常
+            if fallback_df is not None and not fallback_df.empty:
+                df = fallback_df
+            else:
+                return pd.DataFrame(), {
+                    "ticker": ticker, "code": code, "name": name,
+                    "market": market, "industry": industry, "error": "查無此股票行情數據"
+                }
 
         # 整理欄位
         raw = raw.reset_index()

@@ -58,7 +58,7 @@
   {
     "code": "1587",
     "name": "宣得",
-    "market": "TWO",
+    "market": "TW",
     "industry": "電子零組件",
     "has_futures": false,
     "has_cb": false
@@ -758,7 +758,7 @@
   {
     "code": "3229",
     "name": "晟鈦",
-    "market": "TWO",
+    "market": "TW",
     "industry": "PCB硬板",
     "has_futures": false,
     "has_cb": false
@@ -780,13 +780,13 @@
   {
     "code": "3306",
     "name": "鼎天",
-    "market": "TW",
+    "market": "TWO",
     "industry": "GPS/車聯網"
   },
   {
     "code": "3324",
     "name": "雙鴻",
-    "market": "TW",
+    "market": "TWO",
     "industry": "散熱模組"
   },
   {
@@ -800,7 +800,7 @@
   {
     "code": "3363",
     "name": "上緯投控",
-    "market": "TW",
+    "market": "TWO",
     "industry": "綠能材料",
     "has_futures": false,
     "has_cb": false
@@ -820,7 +820,7 @@
   {
     "code": "3441",
     "name": "聯一光",
-    "market": "TW",
+    "market": "TWO",
     "industry": "光學鏡片",
     "has_futures": false,
     "has_cb": false
@@ -850,7 +850,7 @@
   {
     "code": "3498",
     "name": "陽程",
-    "market": "TW",
+    "market": "TWO",
     "industry": "自動化設備",
     "has_futures": false,
     "has_cb": false
@@ -968,7 +968,7 @@
   {
     "code": "4577",
     "name": "達航科技",
-    "market": "TW",
+    "market": "TWO",
     "industry": "設備工具",
     "has_futures": false,
     "has_cb": false
@@ -1176,7 +1176,7 @@
   {
     "code": "6226",
     "name": "元展",
-    "market": "TWO",
+    "market": "TW",
     "industry": "電子零組件",
     "has_futures": false,
     "has_cb": false
@@ -1228,7 +1228,7 @@
   {
     "code": "6426",
     "name": "統新",
-    "market": "TWO",
+    "market": "TW",
     "industry": "光通訊",
     "has_futures": false,
     "has_cb": false
@@ -1268,7 +1268,7 @@
   {
     "code": "6532",
     "name": "聯穎",
-    "market": "TW",
+    "market": "TWO",
     "industry": "電子零組件",
     "has_futures": false,
     "has_cb": false
@@ -1284,7 +1284,7 @@
   {
     "code": "6588",
     "name": "菱光科技",
-    "market": "TW",
+    "market": "TWO",
     "industry": "影像感測",
     "has_futures": false,
     "has_cb": false
@@ -1370,7 +1370,7 @@
   {
     "code": "7717",
     "name": "聚德光電-KY",
-    "market": "TW",
+    "market": "TWO",
     "industry": "光通訊元件",
     "has_futures": false,
     "has_cb": false

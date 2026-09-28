@@ -241,13 +241,14 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
         except Exception:
             realtime_map = {}
 
+    has_realtime = bool(realtime_map)
     analyzed = []
 
     for item in stock_list:
         code = item['code']
         try:
             q_live = realtime_map.get(code)
-            df, info = fetch_stock_kline(code, period="6mo", enable_realtime=enable_realtime, realtime_quote=q_live)
+            df, info = fetch_stock_kline(code, period="6mo", enable_realtime=has_realtime, realtime_quote=q_live)
             if df.empty or len(df) < 15:
                 continue
 

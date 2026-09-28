@@ -3173,22 +3173,42 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     st.session_state.browsing_stock_list = [item['code'] for item in results]
     st.session_state.browsing_stock_names = {item['code']: item['name'] for item in results}
 
-    st.markdown(f"**掃描結果（{scope_tag}）：符合【{target_strategy}】共 `{len(results)}` 檔標的**")
-
-    # 助教安全統計摘要
+    # 助教安全統計摘要與過濾器
     safe_count = sum(1 for s in results if "安全" in s.get('safety_rating', ''))
     caution_count = sum(1 for s in results if "警訊" in s.get('safety_rating', ''))
     danger_count = sum(1 for s in results if "嚴禁" in s.get('safety_rating', ''))
-    st.caption(f"💡 **助教安全把關**：安全首選 `{safe_count}` 檔 | 警訊注意 `{caution_count}` 檔 (前方有爆量黑K或空間狹窄) | 嚴禁追高 `{danger_count}` 檔")
 
-    if results:
+    col_stat1, col_stat2 = st.columns([3, 2])
+    with col_stat1:
+        st.markdown(f"**掃描結果（{scope_tag}）：符合【{target_strategy}】共 `{len(results)}` 檔標的**")
+        st.caption(f"💡 **助教安全把關**：🟢 安全首選 `{safe_count}` 檔 ｜ 🟡 警訊注意 `{caution_count}` 檔 ｜ 🔴 嚴禁追高/已淘汰 `{danger_count}` 檔")
+    with col_stat2:
+        filter_safe_only = st.toggle(
+            "🛡️ 僅看【🟢 安全首選】(自動隱藏淘汰與警訊股)",
+            value=False,
+            key=f"filter_safe_only_{target_strategy}",
+            help="開啟後，系統會自動剔除被 14 大淘汰法淘汰、綠色辣椒或帶有警訊之標的，只保留純金首選！"
+        )
+
+    final_display = results
+    if filter_safe_only:
+        final_display = [s for s in results if "安全" in s.get('safety_rating', '')]
+        if not final_display:
+            st.warning(f"在【{target_strategy}】中，目前暫無符合【🟢 安全首選】之完美標的（現有標的皆帶有淘汰瑕疵或警訊，建議空手觀望或切換其他策略）。")
+
+    # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
+    st.session_state.browsing_stock_list = [item['code'] for item in final_display]
+    st.session_state.browsing_stock_names = {item['code']: item['name'] for item in final_display}
+
+    if final_display:
         cols = st.columns(2)
-        for idx, item in enumerate(results):
+        for idx, item in enumerate(final_display):
             c = cols[idx % 2]
             with c:
                 render_stock_card(item, key_prefix=f"scr_{target_strategy}_{idx}", current_strategy=target_strategy)
     else:
-        st.info(f"目前在【{target_strategy}】條件下暫無符合標的，您可以切換其他子策略或放寬價格位階重新掃描。")
+        if not filter_safe_only:
+            st.info(f"目前在【{target_strategy}】條件下暫無符合標的，您可以切換其他子策略或放寬價格位階重新掃描。")
 
 # ----------------------------------------------------
 # 功能分頁：大盤同步 · 滯後補漲雷達 (Market Sync & Catch-Up Radar)
