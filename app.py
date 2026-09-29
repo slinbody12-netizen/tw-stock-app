@@ -95,12 +95,23 @@ st.markdown("""
     footer,
     [data-testid="manage-app-button"],
     button[data-testid="manage-app-button"],
-    div[class*="manage-app"],
-    div[class*="ManageApp"],
-    div[data-testid*="manageApp"],
-    div[data-testid*="ManageApp"],
-    div[class*="viewerBadge"],
+    [class*="viewerBadge"],
+    [class*="ViewerBadge"],
+    [class*="viewer_badge"],
+    [class*="manageApp"],
+    [class*="ManageApp"],
+    [class*="manage-app"],
+    [class*="manage_app"],
+    [data-testid*="manageApp"],
+    [data-testid*="ManageApp"],
+    [data-testid*="manage-app"],
+    [data-testid*="StatusWidget"],
+    [data-testid*="statusWidget"],
+    .stStatusWidget,
+    [data-testid="stConnectionStatus"],
     div[class*="FloatingActionButton"],
+    div[class*="floatingActionButton"],
+    [data-testid="stFloatingActionButton"],
     iframe[title="streamlit_cloud_badge"],
     [data-testid="stToolbarActions"],
     header [data-testid="stToolbarActions"],
@@ -109,7 +120,9 @@ st.markdown("""
     #GithubIcon,
     header a[href*="github"],
     header a[href*="streamlit"],
-    header [data-testid="stToolbarActions"] button {
+    header [data-testid="stToolbarActions"] button,
+    .stApp > div[style*="position: fixed"][style*="bottom:"],
+    .stApp div[style*="position: fixed; bottom:"] {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
@@ -409,17 +422,26 @@ function eradicateManageApp() {
         var targets = [
             '[data-testid="manage-app-button"]',
             'button[data-testid="manage-app-button"]',
-            'div[class*="manage-app"]',
-            'div[class*="ManageApp"]',
-            'div[data-testid*="manageApp"]',
-            'div[data-testid*="ManageApp"]',
-            'div[class*="viewerBadge"]',
+            '[class*="viewerBadge"]',
+            '[class*="ViewerBadge"]',
+            '[class*="manageApp"]',
+            '[class*="ManageApp"]',
+            '[class*="manage-app"]',
+            '[class*="manage_app"]',
+            '[data-testid*="manageApp"]',
+            '[data-testid*="ManageApp"]',
+            '[data-testid*="manage-app"]',
+            '[data-testid*="StatusWidget"]',
+            '[data-testid*="statusWidget"]',
+            '.stStatusWidget',
+            '[data-testid="stConnectionStatus"]',
             'div[class*="FloatingActionButton"]',
             'iframe[title="streamlit_cloud_badge"]'
         ];
         
         function purgeFromDoc(doc) {
             if (!doc) return;
+            // 1. 選擇器清除
             targets.forEach(function(sel) {
                 try {
                     var els = doc.querySelectorAll(sel);
@@ -431,6 +453,23 @@ function eradicateManageApp() {
                     });
                 } catch(e) {}
             });
+            // 2. 文本內容主動查殺 (萬能防護：只要包含 Manage app 一律就地隱藏)
+            try {
+                doc.querySelectorAll("button, div, a, span, p").forEach(function(el) {
+                    if (el.textContent && el.textContent.toLowerCase().indexOf("manage app") !== -1) {
+                        var p = el;
+                        while (p && p.parentElement && p.parentElement !== doc.body && p.parentElement.children.length === 1) {
+                            p = p.parentElement;
+                        }
+                        if (p) {
+                            p.style.setProperty('display', 'none', 'important');
+                            p.style.setProperty('visibility', 'hidden', 'important');
+                            p.style.setProperty('opacity', '0', 'important');
+                            p.style.setProperty('pointer-events', 'none', 'important');
+                        }
+                    }
+                });
+            } catch(e) {}
         }
 
         // 清理當前頁面與父層容器
@@ -439,7 +478,7 @@ function eradicateManageApp() {
     } catch(e) {}
 }
 eradicateManageApp();
-setInterval(eradicateManageApp, 500);
+setInterval(eradicateManageApp, 300);
 
 try {
     var pWin = window.parent || window;
@@ -3716,7 +3755,7 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
         with sec_c3:
             follower_safety_filter = st.selectbox(
                 "小弟安全燈號",
-                ["全部評級", "🟢 僅安全首選", "🟢/🟡 排除淘汰"],
+                ["🟢/🟡 實戰推薦 (排除破底淘汰股)", "🟢 僅安全接棒 (結構完好)", "🌐 全部候選 (含淘汰警示)"],
                 index=0,
                 key="sec_follower_safety_filter"
             )
@@ -3746,9 +3785,9 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
                 continue
 
             f_followers = fleet_data['followers']
-            if follower_safety_filter == "🟢 僅安全首選":
-                valid_followers = [f for f in f_followers if "安全首選" in f.get('safety_rating', '')]
-            elif "排除淘汰" in follower_safety_filter:
+            if "僅安全接棒" in follower_safety_filter:
+                valid_followers = [f for f in f_followers if "安全" in f.get('safety_rating', '')]
+            elif "實戰推薦" in follower_safety_filter or "排除" in follower_safety_filter:
                 valid_followers = [f for f in f_followers if "淘汰" not in f.get('safety_rating', '') and "嚴禁" not in f.get('safety_rating', '')]
             else:
                 valid_followers = f_followers
@@ -3803,11 +3842,11 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
                             f_chg_color = "#FF4D4F" if f_chg > 0 else ("#52C41A" if f_chg < 0 else "#E0E6ED")
                             f_sign = "+" if f_chg > 0 else ""
 
-                            fol_safety = fol.get('safety_rating', '🟢 安全首選')
-                            if "安全首選" in fol_safety:
-                                fol_badge = "<span style='background:rgba(82, 196, 26, 0.18); border:1px solid #52C41A; color:#52C41A; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>🟢 安全首選</span>"
-                            elif "警訊" in fol_safety:
-                                fol_badge = "<span style='background:rgba(250, 173, 20, 0.18); border:1px solid #FAAD14; color:#FAAD14; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>🟡 警訊注意</span>"
+                            fol_safety = fol.get('safety_rating', '🟢 安全接棒')
+                            if "安全" in fol_safety:
+                                fol_badge = "<span style='background:rgba(82, 196, 26, 0.18); border:1px solid #52C41A; color:#52C41A; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>🟢 安全接棒</span>"
+                            elif "守線" in fol_safety or "警訊" in fol_safety:
+                                fol_badge = "<span style='background:rgba(250, 173, 20, 0.18); border:1px solid #FAAD14; color:#FAAD14; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>🟡 守線觀察</span>"
                             else:
                                 fol_badge = f"<span style='background:rgba(255, 77, 79, 0.18); border:1px solid #FF4D4F; color:#FF4D4F; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>{fol_safety}</span>"
 

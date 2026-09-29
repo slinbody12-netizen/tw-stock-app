@@ -678,6 +678,22 @@ def scan_sector_spillover_candidates(
             is_5ma_rising = cur_sma5 >= prev_sma5
             above_5ma = last_c >= cur_sma5
 
+            # 族群接棒小弟安全評級精確分流：
+            # 1. 致命空頭 (跌破前低底底低、嚴重空排破線)：嚴格判定 🔴 命中淘汰
+            # 2. 結構安全 (守穩月線 20MA 且未破 20 日低點)：
+            #    - 若已站上 5MA 或股價在月線之上：判定 🟢 安全接棒 (如台塑、廣達、聯電、元大金)
+            #    - 若仍在均線下方測線震盪：判定 🟡 守線觀察
+            raw_safety = signals_dict.get('safety_rating', '🟢 安全首選')
+            if ("淘汰" in raw_safety or "嚴禁" in raw_safety) or not is_struct_safe:
+                safety_rating = '🔴 命中淘汰'
+            elif is_struct_safe:
+                if above_5ma or last_c >= sma20 or "安全首選" in raw_safety:
+                    safety_rating = '🟢 安全接棒'
+                else:
+                    safety_rating = '🟡 守線觀察'
+            else:
+                safety_rating = '🔴 命中淘汰'
+
             catchup_target = round(last_c * (1 + spillover_gap / 100), 2)
             stop_loss = round(max(low_20, last_c * 0.95), 2)
             if stop_loss >= last_c:
