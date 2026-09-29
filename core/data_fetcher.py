@@ -14,6 +14,13 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 
+def get_tw_now():
+    """獲取台灣標準時間 (UTC+8) Timestamp，避免海外伺服器 (AWS / Streamlit Cloud) 時區偏差"""
+    try:
+        return pd.Timestamp.now(tz='Asia/Taipei').tz_localize(None)
+    except Exception:
+        return (pd.Timestamp.utcnow() + pd.Timedelta(hours=8)).tz_localize(None)
+
 CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'cache')
 STOCK_LIST_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'tw_stock_list.json')
 
@@ -150,48 +157,105 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 def fetch_realtime_quote(code: str, market: str = "TW") -> dict:
     """
-    從台灣證券交易所 (TWSE) / 櫃買中心 (TPEx) 官方 MIS 接口取得盤中即時行情
+    從台灣證券交易所 (TWSE) / 櫃買中心 (TPEx) 官方 MIS 接口取得盤中即時行情，
+    若遇境外伺服器 (如 Streamlit Cloud / AWS) 連線阻擋，自動無縫切換 Yahoo Finance 雙引擎備援！
     """
     if not code:
         return {}
 
-    # 專門支援台股加權指數 (^TWII / t00) 即時動態行情
-    if code in ["^TWII", "TWII", "t00", "TSE", "IX0001"]:
-        url = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&json=1&delay=0"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Referer': 'https://mis.twse.com.tw/stock/fibest.jsp'
-        }
+    tw_now = get_tw_now()
+    is_index = code in ["^TWII", "TWII", "t00", "TSE", "IX0001"]
+
+    # 1. 若為加權指數 (^TWII)，Yahoo Finance fast_info 全球暢通、毫無海外阻擋，優先直接獲取
+    if is_index:
         try:
-            r = requests.get(url, headers=headers, timeout=4)
+            t = yf.Ticker("^TWII")
+            fi = dict(t.fast_info)
+            c = float(fi.get('lastPrice') or fi.get('last_price') or 0)
+            if c > 0:
+                y = float(fi.get('regularMarketPreviousClose') or fi.get('previousClose') or c)
+                o = float(fi.get('open') or c)
+                h = float(fi.get('dayHigh') or c)
+                l = float(fi.get('dayLow') or c)
+                chg = round(c - y, 2)
+                pct = round((chg / y) * 100, 2) if y > 0 else 0.0
+                v_shares = int(fi.get('lastVolume') or 0)
+                return {
+                    "code": "^TWII",
+                    "name": "加權指數",
+                    "date": tw_now.floor('D'),
+                    "date_str": tw_now.strftime('%Y-%m-%d'),
+                    "time": tw_now.strftime('%H:%M:%S'),
+                    "open": o,
+                    "high": h,
+                    "low": l,
+                    "close": c,
+                    "prev_close": y,
+                    "change": chg,
+                    "change_pct": pct,
+                    "volume": v_shares,
+                    "volume_lots": int(v_shares / 1000) if v_shares else 0,
+                    "is_realtime": True
+                }
+        except Exception:
+            pass
+
+    # 2. 嘗試官方 TWSE MIS 接口 (毫秒級撮合)
+    try:
+        if is_index:
+            url = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&json=1&delay=0"
+        elif code.isdigit():
+            ch_candidates = [f"otc_{code}.tw", f"tse_{code}.tw"] if market == "TWO" else [f"tse_{code}.tw", f"otc_{code}.tw"]
+            url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={'|'.join(ch_candidates)}&json=1&delay=0"
+        else:
+            url = None
+
+        if url:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'Referer': 'https://mis.twse.com.tw/stock/fibest.jsp'
+            }
+            r = requests.get(url, headers=headers, timeout=(1.5, 2.0))
             if r.status_code == 200:
                 data = r.json()
                 items = data.get('msgArray', [])
-                if items:
-                    it = items[0]
-                    d_str = it.get('d', '')
-                    t_str = it.get('t', '')
+                target_item = None
+                for it in items:
+                    if is_index or it.get('c') == code:
+                        target_item = it
+                        break
+                if target_item:
+                    d_str = target_item.get('d', '')
+                    t_str = target_item.get('t', '')
                     if d_str and len(d_str) == 8:
                         today_date = pd.to_datetime(f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}")
                         date_formatted = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}"
-                        o = float(it.get('o', 0)) if it.get('o') not in [None, '-', ''] else 0.0
-                        h = float(it.get('h', 0)) if it.get('h') not in [None, '-', ''] else 0.0
-                        l = float(it.get('l', 0)) if it.get('l') not in [None, '-', ''] else 0.0
-                        y = float(it.get('y', 0)) if it.get('y') not in [None, '-', ''] else 0.0
-                        z = it.get('z', '-')
+                        o = float(target_item.get('o', 0)) if target_item.get('o') not in [None, '-', ''] else 0.0
+                        h = float(target_item.get('h', 0)) if target_item.get('h') not in [None, '-', ''] else 0.0
+                        l = float(target_item.get('l', 0)) if target_item.get('l') not in [None, '-', ''] else 0.0
+                        y = float(target_item.get('y', 0)) if target_item.get('y') not in [None, '-', ''] else 0.0
+                        z = target_item.get('z', '-')
                         if z in ['-', '', None]:
-                            z = y
-                        c = float(z)
+                            b_list = target_item.get('b', '').split('_')
+                            a_list = target_item.get('a', '').split('_')
+                            if b_list and b_list[0] and b_list[0] != '-':
+                                z = b_list[0]
+                            elif a_list and a_list[0] and a_list[0] != '-':
+                                z = a_list[0]
+                            else:
+                                z = y
+                        c = float(z) if z not in [None, '-', ''] else y
                         if c > 0:
                             if o <= 0: o = c
                             if h <= 0: h = max(o, c)
                             if l <= 0: l = min(o, c)
                             chg = round(c - y, 2)
                             pct = round((chg / y) * 100, 2) if y > 0 else 0.0
+                            v_lots = int(target_item.get('v', 0) or 0)
                             return {
-                                "code": "^TWII",
-                                "name": "加權指數",
+                                "code": code,
+                                "name": target_item.get('n', code),
                                 "date": today_date,
                                 "date_str": date_formatted,
                                 "time": t_str,
@@ -202,98 +266,50 @@ def fetch_realtime_quote(code: str, market: str = "TW") -> dict:
                                 "prev_close": y,
                                 "change": chg,
                                 "change_pct": pct,
-                                "volume": int(it.get('v', 0) or 0) * 1000,
-                                "volume_lots": int(it.get('v', 0) or 0),
+                                "volume": v_lots * 1000,
+                                "volume_lots": v_lots,
                                 "is_realtime": True
                             }
-        except Exception:
-            pass
-        return {}
-
-    if not code.isdigit():
-        return {}
-
-    ch_candidates = [f"otc_{code}.tw", f"tse_{code}.tw"] if market == "TWO" else [f"tse_{code}.tw", f"otc_{code}.tw"]
-    query_str = "|".join(ch_candidates)
-    url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={query_str}&json=1&delay=0"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Referer': 'https://mis.twse.com.tw/stock/fibest.jsp'
-    }
-
-    try:
-        r = requests.get(url, headers=headers, timeout=4)
-        if r.status_code != 200:
-            return {}
-        data = r.json()
-        items = data.get('msgArray', [])
-        target_item = None
-        for it in items:
-            if it.get('c') == code:
-                target_item = it
-                break
-        if not target_item:
-            return {}
-
-        d_str = target_item.get('d', '')
-        t_str = target_item.get('t', '')
-        if not d_str or len(d_str) != 8:
-            return {}
-
-        today_date = pd.to_datetime(f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}")
-        date_formatted = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}"
-
-        o = float(target_item.get('o', 0)) if target_item.get('o') not in [None, '-', ''] else 0.0
-        h = float(target_item.get('h', 0)) if target_item.get('h') not in [None, '-', ''] else 0.0
-        l = float(target_item.get('l', 0)) if target_item.get('l') not in [None, '-', ''] else 0.0
-        y = float(target_item.get('y', 0)) if target_item.get('y') not in [None, '-', ''] else 0.0
-        v_lots = int(target_item.get('v', 0)) if target_item.get('v') not in [None, '-', ''] else 0
-        v_shares = v_lots * 1000
-
-        z = target_item.get('z', '-')
-        if z == '-' or not z:
-            z = target_item.get('trade', {}).get('z', '-')
-        if z == '-' or not z:
-            b_list = target_item.get('b', '').split('_')
-            a_list = target_item.get('a', '').split('_')
-            if b_list and b_list[0] and b_list[0] != '-':
-                z = b_list[0]
-            elif a_list and a_list[0] and a_list[0] != '-':
-                z = a_list[0]
-            else:
-                z = y
-
-        c = float(z) if z not in [None, '-', ''] else y
-        if c <= 0:
-            return {}
-
-        if o <= 0: o = c
-        if h <= 0: h = max(o, c)
-        if l <= 0: l = min(o, c)
-
-        chg = round(c - y, 2)
-        pct = round((chg / y) * 100, 2) if y > 0 else 0.0
-
-        return {
-            "code": code,
-            "name": target_item.get('n', ''),
-            "date": today_date,
-            "date_str": date_formatted,
-            "time": t_str,
-            "open": o,
-            "high": h,
-            "low": l,
-            "close": c,
-            "prev_close": y,
-            "change": chg,
-            "change_pct": pct,
-            "volume": v_shares,
-            "volume_lots": v_lots,
-            "is_realtime": True
-        }
     except Exception:
-        return {}
+        pass
+
+    # 3. 全球備援雙引擎：Yahoo Finance fast_info (100% 暢通，專克雲端環境與境外 IP 阻擋)
+    try:
+        yf_ticker_str = "^TWII" if is_index else (
+            code if "." in code else f"{code}.{market}"
+        )
+        t = yf.Ticker(yf_ticker_str)
+        fi = dict(t.fast_info)
+        c = float(fi.get('lastPrice') or fi.get('last_price') or 0)
+        if c > 0:
+            y = float(fi.get('regularMarketPreviousClose') or fi.get('previousClose') or c)
+            o = float(fi.get('open') or c)
+            h = float(fi.get('dayHigh') or c)
+            l = float(fi.get('dayLow') or c)
+            chg = round(c - y, 2)
+            pct = round((chg / y) * 100, 2) if y > 0 else 0.0
+            v_shares = int(fi.get('lastVolume') or 0)
+            return {
+                "code": code,
+                "name": "加權指數" if is_index else code,
+                "date": tw_now.floor('D'),
+                "date_str": tw_now.strftime('%Y-%m-%d'),
+                "time": tw_now.strftime('%H:%M:%S'),
+                "open": o,
+                "high": h,
+                "low": l,
+                "close": c,
+                "prev_close": y,
+                "change": chg,
+                "change_pct": pct,
+                "volume": v_shares,
+                "volume_lots": int(v_shares / 1000) if v_shares else 0,
+                "is_realtime": True
+            }
+    except Exception:
+        pass
+
+    return {}
 
 def _fetch_realtime_chunk(chunk):
     headers = {
@@ -383,7 +399,7 @@ def _fetch_realtime_chunk(chunk):
 
 def batch_fetch_realtime_quotes(stock_list: list) -> dict:
     """
-    批次獲取多檔股票之盤中即時行情 (並行請求，1~2秒內完成全市場更新)
+    批次獲取多檔股票之盤中即時行情 (並行請求 + Yahoo Finance fast_info 全球備援)
     """
     if not stock_list:
         return {}
@@ -404,6 +420,20 @@ def batch_fetch_realtime_quotes(stock_list: list) -> dict:
         for partial in executor.map(_fetch_realtime_chunk, chunks):
             all_results.update(partial)
 
+    # 關鍵防護：若 TWSE MIS 在境外伺服器 (如 AWS / Streamlit Cloud) 遭到阻擋導致回傳不足，
+    # 全自動無縫切換 Yahoo Finance fast_info 並行備援！
+    if len(all_results) < len(items_to_query) * 0.3:
+        missing_items = [it for it in items_to_query if it[0] not in all_results]
+        def _get_yf_quote(it):
+            code, mkt = it
+            q = fetch_realtime_quote(code, market=mkt)
+            return code, q
+
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            for c, q in ex.map(_get_yf_quote, missing_items):
+                if q and q.get('close', 0) > 0:
+                    all_results[c] = q
+
     return all_results
 
 def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realtime=True, realtime_quote=None):
@@ -423,28 +453,33 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
         for cf in [cache_file, cache_file_1y]:
             if os.path.exists(cf):
                 try:
-                    # 1. 若該快取檔在近 6 小時內剛寫入/更新過，保證最新，直接載入
-                    mtime = os.path.getmtime(cf)
-                    if (time.time() - mtime) < 21600:
-                        with open(cf, 'rb') as f:
-                            loaded = pickle.load(f)
-                            if isinstance(loaded, pd.DataFrame) and not loaded.empty and len(loaded) >= 5:
-                                df = loaded
-                                break
-
-                    # 2. 若快取超過 6 小時，檢核最後一根 K 棒是否在 4 天內 (涵蓋週四/週五/週末連假)
                     with open(cf, 'rb') as f:
                         loaded = pickle.load(f)
-                        if isinstance(loaded, pd.DataFrame) and not loaded.empty and len(loaded) >= 5:
-                            if fallback_df is None:
-                                fallback_df = loaded
+                    if isinstance(loaded, pd.DataFrame) and not loaded.empty and len(loaded) >= 5:
+                        if fallback_df is None:
+                            fallback_df = loaded
 
-                            last_cached_dt = pd.to_datetime(loaded['Date'].iloc[-1]).date()
-                            today_dt = pd.Timestamp.now().date()
-                            days_diff = (today_dt - last_cached_dt).days
-                            if days_diff <= 4:
-                                df = loaded
-                                break
+                        last_cached_dt = pd.to_datetime(loaded['Date'].iloc[-1]).date()
+                        tw_now = get_tw_now()
+                        today_dt = tw_now.date()
+                        is_weekday = today_dt.weekday() < 5
+                        market_started = (tw_now.hour > 9) or (tw_now.hour == 9 and tw_now.minute >= 0)
+
+                        # 若今天為平日且已過 09:00 開盤，但快取的最後一筆日K停留在今天之前，視為過期不可直接採用！
+                        if is_weekday and market_started and last_cached_dt < today_dt:
+                            continue
+
+                        # 1. 若該快取檔在近 6 小時內剛寫入/更新過，且日期完整，直接載入
+                        mtime = os.path.getmtime(cf)
+                        if (time.time() - mtime) < 21600:
+                            df = loaded
+                            break
+
+                        # 2. 檢核最後一根 K 棒是否在 4 天內 (涵蓋週四/週五/週末連假)
+                        days_diff = (today_dt - last_cached_dt).days
+                        if days_diff <= 4:
+                            df = loaded
+                            break
                 except Exception:
                     pass
 
@@ -567,8 +602,14 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
 
     last_row = df.iloc[-1]
     prev_row = df.iloc[-2] if len(df) > 1 else last_row
-    change = last_row['Close'] - prev_row['Close']
-    change_pct = (change / prev_row['Close']) * 100 if prev_row['Close'] != 0 else 0
+    
+    if quote and quote.get('prev_close', 0) > 0:
+        prev_close_val = float(quote['prev_close'])
+    else:
+        prev_close_val = float(prev_row['Close'])
+
+    change = last_row['Close'] - prev_close_val
+    change_pct = (change / prev_close_val) * 100 if prev_close_val != 0 else 0
 
     sma5_val = round(float(last_row.get('SMA_5', last_row['Close'])), 2)
     sma20_val = round(float(last_row.get('SMA_20', last_row['Close'])), 2)
@@ -595,7 +636,7 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
         "open": round(float(last_row['Open']), 2),
         "high": round(float(last_row['High']), 2),
         "low": round(float(last_row['Low']), 2),
-        "prev_close": round(float(prev_row['Close']), 2),
+        "prev_close": round(float(prev_close_val), 2),
         "change": round(float(change), 2),
         "change_pct": round(float(change_pct), 2),
         "volume": int(last_row['Volume']),

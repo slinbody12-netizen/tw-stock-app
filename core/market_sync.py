@@ -19,27 +19,41 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from typing import List, Dict, Any, Tuple, Optional
 
-from core.data_fetcher import fetch_stock_kline, batch_fetch_realtime_quotes
+from core.data_fetcher import fetch_stock_kline, batch_fetch_realtime_quotes, get_tw_now
 from core.screener import load_stock_list
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
 
-_MKT_CACHE = {"df": None, "info": None, "timestamp": None}
+_MKT_CACHE = {}
 
-def get_market_benchmark(period: str = "3mo", force_refresh: bool = False) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
+def get_market_benchmark(period: str = "6mo", force_refresh: bool = False) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
     """獲取大盤加權指數 K 線與行情數據 (帶 60 秒盤中即時快取)"""
     global _MKT_CACHE
-    now = pd.Timestamp.now()
-    if not force_refresh and _MKT_CACHE["df"] is not None and _MKT_CACHE["timestamp"] is not None:
-        if (now - _MKT_CACHE["timestamp"]).total_seconds() < 60:
-            return _MKT_CACHE["df"].copy(), _MKT_CACHE["info"]
+    now = get_tw_now()
+    today_str = now.strftime('%Y-%m-%d')
+    cached = _MKT_CACHE.get(period)
+
+    if not force_refresh and cached is not None:
+        c_time = cached.get("timestamp")
+        c_info = cached.get("info")
+        if c_time is not None and (now - c_time).total_seconds() < 60:
+            is_weekday = now.weekday() < 5
+            market_started = (now.hour > 9) or (now.hour == 9 and now.minute >= 0)
+            if is_weekday and market_started:
+                # 盤中開盤時間：確認快取資料日期為今天；若為舊日行情則強制重刷
+                if c_info and c_info.get("latest_date") == today_str:
+                    return cached["df"].copy(), cached["info"]
+            else:
+                return cached["df"].copy(), cached["info"]
 
     df_mkt, info_mkt = fetch_stock_kline("^TWII", period=period, force_refresh=force_refresh, enable_realtime=True)
     if df_mkt is not None and not df_mkt.empty:
-        _MKT_CACHE["df"] = df_mkt
-        _MKT_CACHE["info"] = info_mkt
-        _MKT_CACHE["timestamp"] = now
+        _MKT_CACHE[period] = {
+            "df": df_mkt,
+            "info": info_mkt,
+            "timestamp": now
+        }
         return df_mkt.copy(), info_mkt
     return None, None
 

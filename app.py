@@ -27,10 +27,12 @@ import core.screener
 import core.sector_radar
 import core.ai_assistant
 import core.copilot
+import core.data_fetcher
 import core.tracker
 import core.market_sync
 
 # 強制重載 core 模組，確保 Streamlit Cloud 部署即時同步最新簽名與函式
+importlib.reload(core.data_fetcher)
 importlib.reload(core.wave_engine)
 importlib.reload(core.trend_analyzer)
 importlib.reload(core.signal_detector)
@@ -3351,7 +3353,7 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
         m_sma20 = info_mkt.get("sma20", 0.0) or float(df_mkt['SMA_20'].iloc[-1] if 'SMA_20' in df_mkt.columns else m_close)
 
         m_time_str = f" ({info_mkt.get('quote_time')})" if info_mkt.get('quote_time') else ""
-        col_m1.metric(f"加權指數 (^TWII){m_time_str}", f"{m_close:,.2f}", f"{m_chg:+.2f}%", delta_color="inverse" if m_chg < 0 else "normal")
+        col_m1.metric(f"加權指數 (^TWII){m_time_str}", f"{m_close:,.2f}", f"{m_chg:+.2f}%", delta_color="inverse")
         col_m2.metric("大盤 5 日累積動能", f"{m_r5:+.2f}%", help="大盤近 5 個交易日之累積漲跌幅")
         col_m3.metric("大盤 20 日波段動能", f"{m_r20:+.2f}%", help="大盤近 20 個交易日月線級別波段漲跌幅")
         
