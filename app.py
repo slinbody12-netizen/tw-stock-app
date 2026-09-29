@@ -180,6 +180,18 @@ st.markdown("""
         top: auto !important;
     }
 
+    /* 徹底隱藏側邊欄內部的「<<<」收合按鈕，從源頭杜絕誤觸造成選單消失 */
+    [data-testid="stSidebarCollapseButton"],
+    section[data-testid="stSidebar"] button[aria-label="Close sidebar"],
+    section[data-testid="stSidebar"] button[aria-label="收合側邊欄"],
+    header [data-testid="stSidebarCollapseButton"] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        width: 0 !important;
+        height: 0 !important;
+    }
+
     /* 自訂全站精準高質感滾動條 (永久可見、防消失、防遮擋、易拖曳) */
     html {
         scroll-behavior: smooth;
@@ -424,6 +436,40 @@ function ensureSidebarControls() {
 }
 ensureSidebarControls();
 setInterval(ensureSidebarControls, 300);
+
+function forceExpandSidebar() {
+    try {
+        var pWin = window.parent || window;
+        if (pWin && pWin.localStorage) {
+            for (var k in pWin.localStorage) {
+                if (k.toLowerCase().includes('sidebar') || k.toLowerCase().includes('collapse')) {
+                    pWin.localStorage.removeItem(k);
+                }
+            }
+        }
+        
+        var pDoc = (pWin && pWin.document) ? pWin.document : document;
+        if (!pDoc) return;
+        
+        var sidebar = pDoc.querySelector('section[data-testid="stSidebar"]');
+        var isCollapsed = !sidebar || sidebar.getAttribute('aria-expanded') === 'false' || (sidebar.offsetWidth < 50);
+        
+        if (isCollapsed) {
+            var openBtn = pDoc.querySelector('[data-testid="stSidebarCollapsedControl"] button') ||
+                          pDoc.querySelector('[data-testid="stSidebarCollapsedControl"]') ||
+                          pDoc.querySelector('button[aria-label="Open sidebar"]') ||
+                          pDoc.querySelector('button[aria-label="展開側邊欄"]') ||
+                          pDoc.querySelector('[data-testid="collapsedControl"] button') ||
+                          pDoc.querySelector('[data-testid="collapsedControl"]');
+            if (openBtn) {
+                openBtn.click();
+            }
+        }
+    } catch(e) {}
+}
+forceExpandSidebar();
+var expandTimer = setInterval(forceExpandSidebar, 350);
+setTimeout(function() { clearInterval(expandTimer); }, 6000);
 </script>
 """, height=0, width=0)
 
