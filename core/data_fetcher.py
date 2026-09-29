@@ -152,7 +152,65 @@ def fetch_realtime_quote(code: str, market: str = "TW") -> dict:
     """
     從台灣證券交易所 (TWSE) / 櫃買中心 (TPEx) 官方 MIS 接口取得盤中即時行情
     """
-    if not code or not code.isdigit():
+    if not code:
+        return {}
+
+    # 專門支援台股加權指數 (^TWII / t00) 即時動態行情
+    if code in ["^TWII", "TWII", "t00", "TSE", "IX0001"]:
+        url = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&json=1&delay=0"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'Referer': 'https://mis.twse.com.tw/stock/fibest.jsp'
+        }
+        try:
+            r = requests.get(url, headers=headers, timeout=4)
+            if r.status_code == 200:
+                data = r.json()
+                items = data.get('msgArray', [])
+                if items:
+                    it = items[0]
+                    d_str = it.get('d', '')
+                    t_str = it.get('t', '')
+                    if d_str and len(d_str) == 8:
+                        today_date = pd.to_datetime(f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}")
+                        date_formatted = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}"
+                        o = float(it.get('o', 0)) if it.get('o') not in [None, '-', ''] else 0.0
+                        h = float(it.get('h', 0)) if it.get('h') not in [None, '-', ''] else 0.0
+                        l = float(it.get('l', 0)) if it.get('l') not in [None, '-', ''] else 0.0
+                        y = float(it.get('y', 0)) if it.get('y') not in [None, '-', ''] else 0.0
+                        z = it.get('z', '-')
+                        if z in ['-', '', None]:
+                            z = y
+                        c = float(z)
+                        if c > 0:
+                            if o <= 0: o = c
+                            if h <= 0: h = max(o, c)
+                            if l <= 0: l = min(o, c)
+                            chg = round(c - y, 2)
+                            pct = round((chg / y) * 100, 2) if y > 0 else 0.0
+                            return {
+                                "code": "^TWII",
+                                "name": "加權指數",
+                                "date": today_date,
+                                "date_str": date_formatted,
+                                "time": t_str,
+                                "open": o,
+                                "high": h,
+                                "low": l,
+                                "close": c,
+                                "prev_close": y,
+                                "change": chg,
+                                "change_pct": pct,
+                                "volume": int(it.get('v', 0) or 0) * 1000,
+                                "volume_lots": int(it.get('v', 0) or 0),
+                                "is_realtime": True
+                            }
+        except Exception:
+            pass
+        return {}
+
+    if not code.isdigit():
         return {}
 
     ch_candidates = [f"otc_{code}.tw", f"tse_{code}.tw"] if market == "TWO" else [f"tse_{code}.tw", f"otc_{code}.tw"]
@@ -245,6 +303,9 @@ def _fetch_realtime_chunk(chunk):
     }
     ch_list = []
     for code, market in chunk:
+        if code in ["^TWII", "TWII", "t00"]:
+            ch_list.append("tse_t00.tw")
+            continue
         if not code or not code.isdigit():
             continue
         p = "otc_" if market == "TWO" else "tse_"
@@ -261,6 +322,8 @@ def _fetch_realtime_chunk(chunk):
                 code = it.get('c')
                 if not code:
                     continue
+                if code == "t00":
+                    code = "^TWII"
                 d_str = it.get('d', '')
                 t_str = it.get('t', '')
                 if not d_str or len(d_str) != 8:
@@ -423,8 +486,11 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
             df[col] = df[col].astype(float)
         df['Volume'] = df['Volume'].fillna(0).astype(int)
         
-        # 排除休市日或無成交日
-        df = df[df['Volume'] > 0].reset_index(drop=True)
+        # 排除休市日或無成交日 (若是大盤指數則允許 Volume == 0)
+        if ticker.startswith("^"):
+            df = df[df['Close'] > 0].reset_index(drop=True)
+        else:
+            df = df[df['Volume'] > 0].reset_index(drop=True)
         if len(df) < 5:
             return pd.DataFrame(), {
                 "ticker": ticker, "code": code, "name": name,
@@ -441,7 +507,7 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
 
     # ---------------- 證交所盤中即時行情無縫拼接 ----------------
     quote = realtime_quote
-    if quote is None and enable_realtime and code.isdigit() and not df.empty:
+    if quote is None and enable_realtime and (code.isdigit() or code.startswith("^") or code in ["^TWII", "TWII", "t00"]) and not df.empty:
         try:
             quote = fetch_realtime_quote(code, market=market)
         except Exception:
@@ -504,6 +570,18 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
     change = last_row['Close'] - prev_row['Close']
     change_pct = (change / prev_row['Close']) * 100 if prev_row['Close'] != 0 else 0
 
+    sma5_val = round(float(last_row.get('SMA_5', last_row['Close'])), 2)
+    sma20_val = round(float(last_row.get('SMA_20', last_row['Close'])), 2)
+
+    # 計算 5 日與 20 日累積報酬率 (動能)
+    idx_5 = max(0, len(df) - 6)
+    idx_20 = max(0, len(df) - 21)
+    p_close = float(last_row['Close'])
+    p_5 = float(df['Close'].iloc[idx_5]) if idx_5 < len(df) else p_close
+    p_20 = float(df['Close'].iloc[idx_20]) if idx_20 < len(df) else p_close
+    return_5d = round(((p_close - p_5) / (p_5 + 1e-9)) * 100, 2)
+    return_20d = round(((p_close - p_20) / (p_20 + 1e-9)) * 100, 2)
+
     info = {
         "ticker": ticker,
         "code": code,
@@ -522,6 +600,10 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
         "change_pct": round(float(change_pct), 2),
         "volume": int(last_row['Volume']),
         "volume_str": f"{int(last_row['Volume'] / 1000):,} 張" if ticker != "^TWII" else f"{int(last_row['Volume'] / 100000000)} 億",
+        "sma5": sma5_val,
+        "sma20": sma20_val,
+        "return_5d": return_5d,
+        "return_20d": return_20d,
         "is_realtime": bool(quote and quote.get('is_realtime')),
         "quote_time": quote.get('time', '') if quote else ''
     }

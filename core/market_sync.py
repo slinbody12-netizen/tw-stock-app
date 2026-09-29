@@ -19,7 +19,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from typing import List, Dict, Any, Tuple, Optional
 
-from core.data_fetcher import fetch_stock_kline
+from core.data_fetcher import fetch_stock_kline, batch_fetch_realtime_quotes
 from core.screener import load_stock_list
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
@@ -27,15 +27,15 @@ from core.signal_detector import detect_signals
 
 _MKT_CACHE = {"df": None, "info": None, "timestamp": None}
 
-def get_market_benchmark(period: str = "3mo") -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
-    """獲取大盤加權指數 K 線與行情數據 (帶短期快取)"""
+def get_market_benchmark(period: str = "3mo", force_refresh: bool = False) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
+    """獲取大盤加權指數 K 線與行情數據 (帶 60 秒盤中即時快取)"""
     global _MKT_CACHE
     now = pd.Timestamp.now()
-    if _MKT_CACHE["df"] is not None and _MKT_CACHE["timestamp"] is not None:
-        if (now - _MKT_CACHE["timestamp"]).total_seconds() < 300:
+    if not force_refresh and _MKT_CACHE["df"] is not None and _MKT_CACHE["timestamp"] is not None:
+        if (now - _MKT_CACHE["timestamp"]).total_seconds() < 60:
             return _MKT_CACHE["df"].copy(), _MKT_CACHE["info"]
 
-    df_mkt, info_mkt = fetch_stock_kline("^TWII", period=period)
+    df_mkt, info_mkt = fetch_stock_kline("^TWII", period=period, force_refresh=force_refresh, enable_realtime=True)
     if df_mkt is not None and not df_mkt.empty:
         _MKT_CACHE["df"] = df_mkt
         _MKT_CACHE["info"] = info_mkt
@@ -230,22 +230,32 @@ def scan_market_sync_candidates(
     stock_list: Optional[List[Dict[str, Any]]] = None,
     filter_mode: str = "lagging_only", # 'lagging_only' / 'all_sync' / 'all'
     min_shape_corr: float = 65.0,
-    top_n: int = 25
+    top_n: int = 25,
+    force_refresh: bool = False
 ) -> List[Dict[str, Any]]:
     """
-    掃描全市場或指定股池，比對與大盤同步之滯後補漲股
+    掃描全市場或指定股池，比對與大盤同步之滯後補漲股 (全面支援盤中即時行情無縫對齊)
     """
-    df_mkt, info_mkt = get_market_benchmark(period="3mo")
+    df_mkt, info_mkt = get_market_benchmark(period="3mo", force_refresh=force_refresh)
     if df_mkt is None or df_mkt.empty:
         return []
 
     if stock_list is None:
         stock_list = load_stock_list()
 
+    # 盤中並行獲取全市場即時報價，確保所有候選個股皆為最新盤中撮合價
+    realtime_map = {}
+    try:
+        realtime_map = batch_fetch_realtime_quotes(stock_list)
+    except Exception:
+        realtime_map = {}
+
+    has_realtime = bool(realtime_map)
     candidates = []
     for s in stock_list:
         code = s['code']
-        df_s, info_s = fetch_stock_kline(code, period="3mo")
+        q_live = realtime_map.get(code)
+        df_s, info_s = fetch_stock_kline(code, period="3mo", force_refresh=force_refresh, enable_realtime=has_realtime, realtime_quote=q_live)
         res = analyze_market_sync_single(df_s, df_mkt, s, lookback_bars=40)
         if not res:
             continue

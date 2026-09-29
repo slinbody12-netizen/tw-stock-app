@@ -3328,7 +3328,7 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
     st.header("🛰️ 大盤同步 · 滯後補漲雷達")
     st.caption("🎯 **量化策略核心**：在大盤處於多頭或波段反彈浪潮時，追蹤走勢波形與大盤高度同步（相似度 > 70%），但漲勢節奏落後大盤、尚未全面發作的主流熱門股。藉由資金板塊輪動外溢效益，精準掌握低風險、高風報比的『**滯後補漲發動波**』！")
 
-    # 大盤即時環境健檢
+    # 大盤即時環境健檢 (確保盤中與證交所即時行情無縫對齊)
     df_mkt, info_mkt = get_market_benchmark(period="6mo")
     if df_mkt is not None and not df_mkt.empty:
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
@@ -3337,14 +3337,25 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
         m_r5 = info_mkt.get("return_5d", 0.0)
         m_r20 = info_mkt.get("return_20d", 0.0)
         
-        m_color = "#FF4D4F" if m_chg >= 0 else "#52C41A"
-        col_m1.metric("加權指數 (^TWII)", f"{m_close:,.2f}", f"{m_chg:+.2f}%", delta_color="inverse" if m_chg < 0 else "normal")
+        # 雙重防護：若 info_mkt 內未計算，直接由 df_mkt 現場計算
+        if m_r5 == 0.0 and len(df_mkt) >= 6:
+            p_now = float(df_mkt['Close'].iloc[-1])
+            p_5 = float(df_mkt['Close'].iloc[-6])
+            m_r5 = round(((p_now - p_5) / p_5) * 100, 2)
+        if m_r20 == 0.0 and len(df_mkt) >= 21:
+            p_now = float(df_mkt['Close'].iloc[-1])
+            p_20 = float(df_mkt['Close'].iloc[-21])
+            m_r20 = round(((p_now - p_20) / p_20) * 100, 2)
+
+        m_sma5 = info_mkt.get("sma5", 0.0) or float(df_mkt['SMA_5'].iloc[-1] if 'SMA_5' in df_mkt.columns else m_close)
+        m_sma20 = info_mkt.get("sma20", 0.0) or float(df_mkt['SMA_20'].iloc[-1] if 'SMA_20' in df_mkt.columns else m_close)
+
+        m_time_str = f" ({info_mkt.get('quote_time')})" if info_mkt.get('quote_time') else ""
+        col_m1.metric(f"加權指數 (^TWII){m_time_str}", f"{m_close:,.2f}", f"{m_chg:+.2f}%", delta_color="inverse" if m_chg < 0 else "normal")
         col_m2.metric("大盤 5 日累積動能", f"{m_r5:+.2f}%", help="大盤近 5 個交易日之累積漲跌幅")
         col_m3.metric("大盤 20 日波段動能", f"{m_r20:+.2f}%", help="大盤近 20 個交易日月線級別波段漲跌幅")
         
         # 大盤技術格局判斷
-        m_sma5 = info_mkt.get("sma5", 0.0)
-        m_sma20 = info_mkt.get("sma20", 0.0)
         if m_close >= m_sma5 and m_sma5 >= m_sma20:
             m_status = "🔥 多頭強勢發動 (站穩5MA/20MA)"
             m_s_color = "#FF4D4F"
@@ -3410,7 +3421,8 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
                 stock_list=scan_universe,
                 filter_mode=filter_mode_val,
                 min_shape_corr=float(min_shape_sim),
-                top_n=25
+                top_n=25,
+                force_refresh=do_rescan
             )
             st.session_state[cache_key] = sync_candidates
     else:
