@@ -166,41 +166,7 @@ def fetch_realtime_quote(code: str, market: str = "TW") -> dict:
     tw_now = get_tw_now()
     is_index = code in ["^TWII", "TWII", "t00", "TSE", "IX0001"]
 
-    # 1. 若為加權指數 (^TWII)，Yahoo Finance fast_info 全球暢通、毫無海外阻擋，優先直接獲取
-    if is_index:
-        try:
-            t = yf.Ticker("^TWII")
-            fi = dict(t.fast_info)
-            c = float(fi.get('lastPrice') or fi.get('last_price') or 0)
-            if c > 0:
-                y = float(fi.get('regularMarketPreviousClose') or fi.get('previousClose') or c)
-                o = float(fi.get('open') or c)
-                h = float(fi.get('dayHigh') or c)
-                l = float(fi.get('dayLow') or c)
-                chg = round(c - y, 2)
-                pct = round((chg / y) * 100, 2) if y > 0 else 0.0
-                v_shares = int(fi.get('lastVolume') or 0)
-                return {
-                    "code": "^TWII",
-                    "name": "加權指數",
-                    "date": tw_now.floor('D'),
-                    "date_str": tw_now.strftime('%Y-%m-%d'),
-                    "time": tw_now.strftime('%H:%M:%S'),
-                    "open": o,
-                    "high": h,
-                    "low": l,
-                    "close": c,
-                    "prev_close": y,
-                    "change": chg,
-                    "change_pct": pct,
-                    "volume": v_shares,
-                    "volume_lots": int(v_shares / 1000) if v_shares else 0,
-                    "is_realtime": True
-                }
-        except Exception:
-            pass
-
-    # 2. 嘗試官方 TWSE MIS 接口 (毫秒級撮合)
+    # 1. 第一優先：台灣證券交易所 (TWSE) / 櫃買中心 (TPEx) 官方 MIS 接口 (0.4秒極速，含 13:33 官方收盤撮合價)
     try:
         if is_index:
             url = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&json=1&delay=0"
@@ -216,7 +182,7 @@ def fetch_realtime_quote(code: str, market: str = "TW") -> dict:
                 'Accept': 'application/json, text/javascript, */*; q=0.01',
                 'Referer': 'https://mis.twse.com.tw/stock/fibest.jsp'
             }
-            r = requests.get(url, headers=headers, timeout=(1.5, 2.0))
+            r = requests.get(url, headers=headers, timeout=(2.5, 3.5))
             if r.status_code == 200:
                 data = r.json()
                 items = data.get('msgArray', [])
@@ -254,8 +220,8 @@ def fetch_realtime_quote(code: str, market: str = "TW") -> dict:
                             pct = round((chg / y) * 100, 2) if y > 0 else 0.0
                             v_lots = int(target_item.get('v', 0) or 0)
                             return {
-                                "code": code,
-                                "name": target_item.get('n', code),
+                                "code": "^TWII" if is_index else code,
+                                "name": "加權指數" if is_index else target_item.get('n', code),
                                 "date": today_date,
                                 "date_str": date_formatted,
                                 "time": t_str,
@@ -273,7 +239,7 @@ def fetch_realtime_quote(code: str, market: str = "TW") -> dict:
     except Exception:
         pass
 
-    # 3. 全球備援雙引擎：Yahoo Finance fast_info (100% 暢通，專克雲端環境與境外 IP 阻擋)
+    # 2. 第二優先（雲端海外備援）：Yahoo Finance fast_info (專克境外伺服器連線阻擋)
     try:
         yf_ticker_str = "^TWII" if is_index else (
             code if "." in code else f"{code}.{market}"
