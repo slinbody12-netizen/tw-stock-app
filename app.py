@@ -84,7 +84,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* 1. 徹底摧毀並隱藏所有 GitHub 後門、編輯鉛筆、Manage App、分享、星標、三點選單、工具列與頁腳 */
+    /* 1. 徹底摧毀並隱藏所有 GitHub 後門、編輯鉛筆、Manage App、分享、星標、三點選單、頁腳 */
     #MainMenu,
     .stDeployButton,
     footer,
@@ -97,15 +97,13 @@ st.markdown("""
     div[class*="viewerBadge"],
     div[class*="FloatingActionButton"],
     iframe[title="streamlit_cloud_badge"],
-    [data-testid="stToolbar"],
-    header [data-testid="stToolbar"],
     [data-testid="stToolbarActions"],
+    header [data-testid="stToolbarActions"],
     div[data-testid="stToolbarActions"],
     header div[class*="actionElements"],
     #GithubIcon,
     header a[href*="github"],
     header a[href*="streamlit"],
-    header [data-testid="stToolbar"] button,
     header [data-testid="stToolbarActions"] button {
         display: none !important;
         visibility: hidden !important;
@@ -120,93 +118,110 @@ st.markdown("""
         z-index: -9999 !important;
     }
 
+    /* 保留頂部 Header 與 Toolbar，但穿透未使用的空白區域 */
     header,
-    header[data-testid="stHeader"] {
+    header[data-testid="stHeader"],
+    [data-testid="stToolbar"],
+    header [data-testid="stToolbar"] {
         background: transparent !important;
+        box-shadow: none !important;
+        pointer-events: none !important;
     }
 
     /* 側邊欄內部「<<<」收合按鈕：維持可見且優化質感，支援手機與大螢幕收合 */
     [data-testid="stSidebarCollapseButton"],
+    [data-testid="stSidebarCollapseButton"] button,
     section[data-testid="stSidebar"] button[aria-label="Close sidebar"],
     section[data-testid="stSidebar"] button[aria-label="收合側邊欄"],
     header [data-testid="stSidebarCollapseButton"] {
-        display: flex !important;
+        display: inline-flex !important;
         visibility: visible !important;
         opacity: 0.85 !important;
         color: #94A3B8 !important;
         cursor: pointer !important;
+        pointer-events: auto !important;
         transition: all 0.2s ease-in-out !important;
     }
     [data-testid="stSidebarCollapseButton"]:hover,
+    [data-testid="stSidebarCollapseButton"] button:hover,
     section[data-testid="stSidebar"] button[aria-label="Close sidebar"]:hover {
         opacity: 1 !important;
         color: #38BDF8 !important;
         transform: scale(1.08) !important;
     }
 
-    /* 保障左上角原生側邊欄收合/展開控制按鈕 (收合時 100% 絕對可見且可點擊) */
+    /* 醒目科技藍膠囊按鈕：官方原生展開按鈕 (新舊版通用：stExpandSidebarButton / stSidebarCollapsedControl) */
+    [data-testid="stExpandSidebarButton"],
+    button[data-testid="stExpandSidebarButton"],
+    header button[data-testid="stExpandSidebarButton"],
     [data-testid="collapsedControl"],
     [data-testid="stSidebarCollapsedControl"],
-    [data-testid*="SidebarCollapsedControl"],
-    [data-testid*="stSidebarCollapse"],
-    button[aria-label="Open sidebar"],
-    header [data-testid="collapsedControl"],
-    header [data-testid="stSidebarCollapsedControl"] {
-        display: flex !important;
+    [data-testid="collapsedControl"] button,
+    [data-testid="stSidebarCollapsedControl"] button {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 6px !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: auto !important;
-        z-index: 999999 !important;
+        cursor: pointer !important;
         position: fixed !important;
         top: 12px !important;
         left: 12px !important;
+        z-index: 999999 !important;
         background: linear-gradient(135deg, #1E293B, #0F172A) !important;
         border: 2px solid #38BDF8 !important;
-        border-radius: 20px !important;
+        border-radius: 24px !important;
         box-shadow: 0 4px 16px rgba(56, 189, 248, 0.45) !important;
-        padding: 4px 12px !important;
-        cursor: pointer !important;
-        align-items: center !important;
-        justify-content: center !important;
+        padding: 6px 14px !important;
+        color: #38BDF8 !important;
+        font-weight: bold !important;
+        font-size: 0.88rem !important;
         transition: all 0.2s ease !important;
+        text-decoration: none !important;
+        box-sizing: border-box !important;
+        height: auto !important;
+        min-height: unset !important;
     }
 
+    [data-testid="stExpandSidebarButton"]:hover,
+    button[data-testid="stExpandSidebarButton"]:hover,
+    header button[data-testid="stExpandSidebarButton"]:hover,
     [data-testid="collapsedControl"]:hover,
-    [data-testid="stSidebarCollapsedControl"]:hover {
+    [data-testid="stSidebarCollapsedControl"]:hover,
+    [data-testid="collapsedControl"] button:hover,
+    [data-testid="stSidebarCollapsedControl"] button:hover {
         transform: scale(1.06) !important;
-        box-shadow: 0 6px 22px rgba(56, 189, 248, 0.65) !important;
+        box-shadow: 0 6px 24px rgba(56, 189, 248, 0.7) !important;
         border-color: #60A5FA !important;
     }
 
-    [data-testid="collapsedControl"] button,
-    [data-testid="stSidebarCollapsedControl"] button {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: auto !important;
-        background: transparent !important;
-        border: none !important;
-        cursor: pointer !important;
-    }
-
+    [data-testid="stExpandSidebarButton"] svg,
+    [data-testid="stExpandSidebarButton"] span,
     [data-testid="collapsedControl"] svg,
-    [data-testid="stSidebarCollapsedControl"] svg,
-    [data-testid*="SidebarCollapsedControl"] svg,
-    [data-testid*="stSidebarCollapse"] svg,
-    button[aria-label="Open sidebar"] svg,
-    header [data-testid="collapsedControl"] svg,
-    header [data-testid="stSidebarCollapsedControl"] svg {
-        display: block !important;
+    [data-testid="stSidebarCollapsedControl"] svg {
+        display: inline-block !important;
         visibility: visible !important;
         opacity: 1 !important;
-        pointer-events: auto !important;
-        width: 1.4rem !important;
-        height: 1.4rem !important;
+        width: 1.2rem !important;
+        height: 1.2rem !important;
         fill: #38BDF8 !important;
         color: #38BDF8 !important;
-        position: static !important;
-        left: auto !important;
-        top: auto !important;
+        pointer-events: none !important;
+    }
+
+    [data-testid="stExpandSidebarButton"]::after,
+    button[data-testid="stExpandSidebarButton"]::after,
+    header button[data-testid="stExpandSidebarButton"]::after,
+    [data-testid="collapsedControl"] button::after,
+    [data-testid="stSidebarCollapsedControl"] button::after {
+        content: "主選單 ❯" !important;
+        color: #38BDF8 !important;
+        font-size: 0.88rem !important;
+        font-weight: bold !important;
+        white-space: nowrap !important;
+        pointer-events: none !important;
     }
 
     /* 自訂全站精準高質感滾動條 (永久可見、防消失、防遮擋、易拖曳) */
@@ -395,9 +410,14 @@ function eradicateManageApp() {
             'div[data-testid*="ManageApp"]',
             'div[class*="viewerBadge"]',
             'div[class*="FloatingActionButton"]',
-            'header [data-testid="stToolbar"]',
+            'iframe[title="streamlit_cloud_badge"]',
             '[data-testid="stToolbarActions"]',
-            '#GithubIcon'
+            'header [data-testid="stToolbarActions"]',
+            'div[data-testid="stToolbarActions"]',
+            'header div[class*="actionElements"]',
+            '#GithubIcon',
+            'header a[href*="github"]',
+            'header a[href*="streamlit"]'
         ];
         
         function purgeFromDoc(doc) {
@@ -427,73 +447,14 @@ function eradicateManageApp() {
 eradicateManageApp();
 setInterval(eradicateManageApp, 400);
 
-function ensureFloatingMenuButton() {
-    try {
-        var pWin = window.parent || window;
-        var pDoc = (pWin && pWin.document) ? pWin.document : document;
-        if (!pDoc || !pDoc.body) return;
-        
-        var sidebar = pDoc.querySelector('section[data-testid="stSidebar"]');
-        var isCollapsed = !sidebar || sidebar.getAttribute('aria-expanded') === 'false' || (sidebar.offsetWidth < 50);
-        
-        var existingBtn = pDoc.getElementById('custom-floating-menu-btn');
-        if (isCollapsed) {
-            if (!existingBtn) {
-                var btn = pDoc.createElement('div');
-                btn.id = 'custom-floating-menu-btn';
-                btn.innerHTML = '<span style="font-size:1.1rem;margin-right:5px;line-height:1;">☰</span><span style="font-size:0.86rem;letter-spacing:0.5px;">主選單 ❯</span>';
-                btn.style.cssText = 'position:fixed; top:12px; left:12px; z-index:9999999; background:linear-gradient(135deg, #1E293B, #0F172A); color:#38BDF8; border:2px solid #38BDF8; border-radius:24px; padding:6px 14px; font-weight:bold; box-shadow:0 4px 16px rgba(56,189,248,0.45); cursor:pointer; display:flex; align-items:center; user-select:none; transition:all 0.2s ease;';
-                btn.onmouseover = function() { btn.style.transform = 'scale(1.06)'; btn.style.boxShadow = '0 6px 24px rgba(56,189,248,0.7)'; };
-                btn.onmouseout = function() { btn.style.transform = 'scale(1)'; btn.style.boxShadow = '0 4px 16px rgba(56,189,248,0.45)'; };
-                btn.onclick = function(e) {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    
-                    // 1. 發送原生快捷鍵 'c' 給頂層 window 與 document
-                    try {
-                        var kOpts = { key: 'c', code: 'KeyC', keyCode: 67, which: 67, bubbles: true, cancelable: true };
-                        pWin.dispatchEvent(new KeyboardEvent('keydown', kOpts));
-                        pDoc.dispatchEvent(new KeyboardEvent('keydown', kOpts));
-                    } catch(err) {}
-
-                    // 2. 點擊原生展開按鈕
-                    try {
-                        var openBtn = pDoc.querySelector('[data-testid="stSidebarCollapsedControl"] button') ||
-                                      pDoc.querySelector('[data-testid="stSidebarCollapsedControl"]') ||
-                                      pDoc.querySelector('button[aria-label="Open sidebar"]') ||
-                                      pDoc.querySelector('button[aria-label="展開側邊欄"]') ||
-                                      pDoc.querySelector('[data-testid="collapsedControl"] button') ||
-                                      pDoc.querySelector('[data-testid="collapsedControl"]');
-                        if (openBtn) {
-                            openBtn.click();
-                        }
-                    } catch(err) {}
-
-                    // 3. 兼容舊版與手機版：直接移除收合樣式
-                    try {
-                        if (sidebar) {
-                            sidebar.setAttribute('aria-expanded', 'true');
-                            sidebar.style.removeProperty('display');
-                            sidebar.style.setProperty('transform', 'none', 'important');
-                            sidebar.style.setProperty('margin-left', '0px', 'important');
-                            sidebar.style.setProperty('visibility', 'visible', 'important');
-                            sidebar.style.setProperty('opacity', '1', 'important');
-                        }
-                    } catch(err) {}
-                };
-                pDoc.body.appendChild(btn);
-            } else {
-                existingBtn.style.display = 'flex';
-            }
-        } else {
-            if (existingBtn) {
-                existingBtn.style.display = 'none';
-            }
-        }
-    } catch(e) {}
-}
-ensureFloatingMenuButton();
-setInterval(ensureFloatingMenuButton, 250);
+try {
+    var pWin = window.parent || window;
+    var pDoc = (pWin && pWin.document) ? pWin.document : document;
+    if (pDoc) {
+        var old = pDoc.getElementById('custom-floating-menu-btn');
+        if (old) old.remove();
+    }
+} catch(e) {}
 </script>
 """, height=0, width=0)
 
