@@ -2007,10 +2007,10 @@ def get_daily_market_briefing() -> dict:
             pass
 
     return {
-        "date": "2026-09-24",
+        "date": "2026-09-29",
         "title": "🛰️ AI 操盤系統 · 每日市場量化多空雷達 (Market Strategy Cockpit)",
-        "badge": "🟢 多頭高檔換手 · 5MA 核心攻防",
-        "badge_color": "#2563EB",
+        "badge": "🟢 連三變盤守穩 5MA · 蓄勢挑戰前高 48,601 點",
+        "badge_color": "#16A34A",
         "sections": [
             {
                 "title": "大盤技術面與多空量化定位",
