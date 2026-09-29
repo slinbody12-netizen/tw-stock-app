@@ -3333,78 +3333,79 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
     # 大盤即時環境健檢 (確保盤中與證交所即時行情無縫對齊)
     df_mkt, info_mkt = get_market_benchmark(period="6mo")
     if df_mkt is not None and not df_mkt.empty:
-        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        m_close = info_mkt.get("close", 0.0)
-        m_chg = info_mkt.get("change_pct", 0.0)
-        m_r5 = info_mkt.get("return_5d", 0.0)
-        m_r20 = info_mkt.get("return_20d", 0.0)
-        
-        # 雙重防護：若 info_mkt 內未計算，直接由 df_mkt 現場計算
-        if m_r5 == 0.0 and len(df_mkt) >= 6:
-            p_now = float(df_mkt['Close'].iloc[-1])
-            p_5 = float(df_mkt['Close'].iloc[-6])
-            m_r5 = round(((p_now - p_5) / p_5) * 100, 2)
-        if m_r20 == 0.0 and len(df_mkt) >= 21:
-            p_now = float(df_mkt['Close'].iloc[-1])
-            p_20 = float(df_mkt['Close'].iloc[-21])
-            m_r20 = round(((p_now - p_20) / p_20) * 100, 2)
+        with st.container(border=True):
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            m_close = info_mkt.get("close", 0.0)
+            m_chg = info_mkt.get("change_pct", 0.0)
+            m_r5 = info_mkt.get("return_5d", 0.0)
+            m_r20 = info_mkt.get("return_20d", 0.0)
+            
+            # 雙重防護：若 info_mkt 內未計算，直接由 df_mkt 現場計算
+            if m_r5 == 0.0 and len(df_mkt) >= 6:
+                p_now = float(df_mkt['Close'].iloc[-1])
+                p_5 = float(df_mkt['Close'].iloc[-6])
+                m_r5 = round(((p_now - p_5) / p_5) * 100, 2)
+            if m_r20 == 0.0 and len(df_mkt) >= 21:
+                p_now = float(df_mkt['Close'].iloc[-1])
+                p_20 = float(df_mkt['Close'].iloc[-21])
+                m_r20 = round(((p_now - p_20) / p_20) * 100, 2)
 
-        m_sma5 = info_mkt.get("sma5", 0.0) or float(df_mkt['SMA_5'].iloc[-1] if 'SMA_5' in df_mkt.columns else m_close)
-        m_sma20 = info_mkt.get("sma20", 0.0) or float(df_mkt['SMA_20'].iloc[-1] if 'SMA_20' in df_mkt.columns else m_close)
-        m_sma60 = info_mkt.get("sma60", 0.0) or float(df_mkt['SMA_60'].iloc[-1] if 'SMA_60' in df_mkt.columns else m_sma20)
+            m_sma5 = info_mkt.get("sma5", 0.0) or float(df_mkt['SMA_5'].iloc[-1] if 'SMA_5' in df_mkt.columns else m_close)
+            m_sma20 = info_mkt.get("sma20", 0.0) or float(df_mkt['SMA_20'].iloc[-1] if 'SMA_20' in df_mkt.columns else m_close)
+            m_sma60 = info_mkt.get("sma60", 0.0) or float(df_mkt['SMA_60'].iloc[-1] if 'SMA_60' in df_mkt.columns else m_sma20)
 
-        m_time_str = f" ({info_mkt.get('quote_time')})" if info_mkt.get('quote_time') else ""
-        col_m1.metric(f"加權指數 (^TWII){m_time_str}", f"{m_close:,.2f}", f"{m_chg:+.2f}%", delta_color="inverse")
-        col_m2.metric("大盤 5 日累積動能", f"{m_r5:+.2f}%", help="大盤近 5 個交易日之累積漲跌幅")
-        col_m3.metric("大盤 20 日波段動能", f"{m_r20:+.2f}%", help="大盤近 20 個交易日月線級別波段漲跌幅")
-        
-        # 大盤技術格局判斷
-        if m_close >= m_sma5 and m_sma5 >= m_sma20:
-            m_status = "🔥 多頭強勢發動 (站穩5MA/20MA)"
-            m_s_color = "#FF4D4F"
-        elif m_close >= m_sma20:
-            m_status = "🟢 守穩月線整理 (伺機攻堅)"
-            m_s_color = "#52C41A"
-        else:
-            m_status = "⚠️ 跌破月線震盪 (需嚴控持股水位)"
-            m_s_color = "#FAAD14"
-        col_m4.markdown(f"<div style='font-size:0.85rem; color:#888; margin-top:4px;'>大盤技術位階</div><div style='font-size:1.05rem; font-weight:bold; color:{m_s_color}; margin-top:2px;'>{m_status}</div>", unsafe_allow_html=True)
+            m_time_str = f" ({info_mkt.get('quote_time')})" if info_mkt.get('quote_time') else ""
+            col_m1.metric(f"加權指數 (^TWII){m_time_str}", f"{m_close:,.2f}", f"{m_chg:+.2f}%", delta_color="inverse")
+            col_m2.metric("大盤 5 日累積動能", f"{m_r5:+.2f}%", help="大盤近 5 個交易日之累積漲跌幅")
+            col_m3.metric("大盤 20 日波段動能", f"{m_r20:+.2f}%", help="大盤近 20 個交易日月線級別波段漲跌幅")
+            
+            # 大盤技術格局判斷
+            if m_close >= m_sma5 and m_sma5 >= m_sma20:
+                m_status = "🔥 多頭強勢發動 (站穩5MA/20MA)"
+                m_s_color = "#FF4D4F"
+            elif m_close >= m_sma20:
+                m_status = "🟢 守穩月線整理 (伺機攻堅)"
+                m_s_color = "#52C41A"
+            else:
+                m_status = "⚠️ 跌破月線震盪 (需嚴控持股水位)"
+                m_s_color = "#FAAD14"
+            col_m4.markdown(f"<div style='font-size:0.85rem; color:#888; margin-top:4px;'>大盤技術位階</div><div style='font-size:1.05rem; font-weight:bold; color:{m_s_color}; margin-top:2px;'>{m_status}</div>", unsafe_allow_html=True)
 
-        # 大盤短中長關鍵防守與壓力位階面板
-        diff_5ma = ((m_close - m_sma5) / m_sma5) * 100
-        diff_20ma = ((m_close - m_sma20) / m_sma20) * 100
-        diff_60ma = ((m_close - m_sma60) / m_sma60) * 100
+            # 大盤短中長關鍵防守與壓力位階面板 (在同一個框框內部，以優雅分隔線融合)
+            diff_5ma = ((m_close - m_sma5) / m_sma5) * 100
+            diff_20ma = ((m_close - m_sma20) / m_sma20) * 100
+            diff_60ma = ((m_close - m_sma60) / m_sma60) * 100
 
-        c_5_color = "#FF4D4F" if m_close >= m_sma5 else "#52C41A"
-        c_20_color = "#FF4D4F" if m_close >= m_sma20 else "#FAAD14"
-        c_60_color = "#FF4D4F" if m_close >= m_sma60 else "#FAAD14"
+            c_5_color = "#FF4D4F" if m_close >= m_sma5 else "#52C41A"
+            c_20_color = "#FF4D4F" if m_close >= m_sma20 else "#FAAD14"
+            c_60_color = "#FF4D4F" if m_close >= m_sma60 else "#FAAD14"
 
-        st.markdown(f"""
-        <div style="background: rgba(30, 41, 59, 0.45); border: 1px solid #334155; border-radius: 8px; padding: 10px 14px; margin-top: 8px; margin-bottom: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; font-size: 0.88rem;">
-            <div style="display:flex; align-items:center; gap:6px;">
-                <span style="color:#94A3B8;">📌 關鍵防線定位：</span>
+            st.markdown(f"""
+            <div style="border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 14px; padding-top: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; font-size: 0.88rem;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="color:#94A3B8; font-weight:600;">📌 關鍵防線定位：</span>
+                </div>
+                <div>
+                    <span style="color:#94A3B8;">上方短壓 (5MA)：</span>
+                    <span style="font-weight:bold; color:{c_5_color};">{m_sma5:,.2f}</span>
+                    <span style="font-size:0.75rem; color:#94A3B8;">({diff_5ma:+.2f}%)</span>
+                </div>
+                <div>
+                    <span style="color:#94A3B8;">短線防守 (20MA月線)：</span>
+                    <span style="font-weight:bold; color:{c_20_color};">{m_sma20:,.2f}</span>
+                    <span style="font-size:0.75rem; color:#94A3B8;">({diff_20ma:+.2f}%)</span>
+                </div>
+                <div>
+                    <span style="color:#94A3B8;">中長線生命線 (60MA季線)：</span>
+                    <span style="font-weight:bold; color:{c_60_color};">{m_sma60:,.2f}</span>
+                    <span style="font-size:0.75rem; color:#94A3B8;">({diff_60ma:+.2f}%)</span>
+                </div>
+                <div>
+                    <span style="color:#94A3B8;">波段型態前底：</span>
+                    <span style="font-weight:bold; color:#38BDF8;">45,398 點</span>
+                </div>
             </div>
-            <div>
-                <span style="color:#94A3B8;">上方短壓 (5MA)：</span>
-                <span style="font-weight:bold; color:{c_5_color};">{m_sma5:,.2f}</span>
-                <span style="font-size:0.75rem; color:#94A3B8;">({diff_5ma:+.2f}%)</span>
-            </div>
-            <div>
-                <span style="color:#94A3B8;">短線防守 (20MA月線)：</span>
-                <span style="font-weight:bold; color:{c_20_color};">{m_sma20:,.2f}</span>
-                <span style="font-size:0.75rem; color:#94A3B8;">({diff_20ma:+.2f}%)</span>
-            </div>
-            <div>
-                <span style="color:#94A3B8;">中長線生命線 (60MA季線)：</span>
-                <span style="font-weight:bold; color:{c_60_color};">{m_sma60:,.2f}</span>
-                <span style="font-size:0.75rem; color:#94A3B8;">({diff_60ma:+.2f}%)</span>
-            </div>
-            <div>
-                <span style="color:#94A3B8;">波段型態前底：</span>
-                <span style="font-weight:bold; color:#38BDF8;">45,398 點</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
     # 策略教學說明與三道濾網提示
     with st.expander("💡 助教操盤手札：滯後補漲戰法的勝率關鍵與三道防禦濾網", expanded=False):
