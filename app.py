@@ -125,7 +125,26 @@ st.markdown("""
         pointer-events: none !important; /* 使滑鼠穿透透明頂部標題列，不遮擋右上角捲軸與點擊 */
     }
 
-    /* 保障左上角側邊欄收合/展開控制按鈕 (不管收合或展開) 100% 絕對可見且可點擊 */
+    /* 側邊欄內部「<<<」收合按鈕：維持可見且優化質感，支援手機與大螢幕收合 */
+    [data-testid="stSidebarCollapseButton"],
+    section[data-testid="stSidebar"] button[aria-label="Close sidebar"],
+    section[data-testid="stSidebar"] button[aria-label="收合側邊欄"],
+    header [data-testid="stSidebarCollapseButton"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 0.85 !important;
+        color: #94A3B8 !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    [data-testid="stSidebarCollapseButton"]:hover,
+    section[data-testid="stSidebar"] button[aria-label="Close sidebar"]:hover {
+        opacity: 1 !important;
+        color: #38BDF8 !important;
+        transform: scale(1.08) !important;
+    }
+
+    /* 保障左上角原生側邊欄收合/展開控制按鈕 (收合時 100% 絕對可見且可點擊) */
     [data-testid="collapsedControl"],
     [data-testid="stSidebarCollapsedControl"],
     [data-testid*="SidebarCollapsedControl"],
@@ -141,12 +160,22 @@ st.markdown("""
         position: fixed !important;
         top: 12px !important;
         left: 12px !important;
-        background: #1E293B !important;
+        background: linear-gradient(135deg, #1E293B, #0F172A) !important;
         border: 2px solid #38BDF8 !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6) !important;
-        padding: 4px 8px !important;
+        border-radius: 20px !important;
+        box-shadow: 0 4px 16px rgba(56, 189, 248, 0.45) !important;
+        padding: 4px 12px !important;
         cursor: pointer !important;
+        align-items: center !important;
+        justify-content: center !important;
+        transition: all 0.2s ease !important;
+    }
+
+    [data-testid="collapsedControl"]:hover,
+    [data-testid="stSidebarCollapsedControl"]:hover {
+        transform: scale(1.06) !important;
+        box-shadow: 0 6px 22px rgba(56, 189, 248, 0.65) !important;
+        border-color: #60A5FA !important;
     }
 
     [data-testid="collapsedControl"] button,
@@ -171,25 +200,13 @@ st.markdown("""
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: auto !important;
-        width: 1.6rem !important;
-        height: 1.6rem !important;
+        width: 1.4rem !important;
+        height: 1.4rem !important;
         fill: #38BDF8 !important;
         color: #38BDF8 !important;
         position: static !important;
         left: auto !important;
         top: auto !important;
-    }
-
-    /* 徹底隱藏側邊欄內部的「<<<」收合按鈕，從源頭杜絕誤觸造成選單消失 */
-    [data-testid="stSidebarCollapseButton"],
-    section[data-testid="stSidebar"] button[aria-label="Close sidebar"],
-    section[data-testid="stSidebar"] button[aria-label="收合側邊欄"],
-    header [data-testid="stSidebarCollapseButton"] {
-        display: none !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-        width: 0 !important;
-        height: 0 !important;
     }
 
     /* 自訂全站精準高質感滾動條 (永久可見、防消失、防遮擋、易拖曳) */
@@ -410,66 +427,52 @@ function eradicateManageApp() {
 eradicateManageApp();
 setInterval(eradicateManageApp, 400);
 
-function ensureSidebarControls() {
-    try {
-        var pDoc = window.parent ? window.parent.document : document;
-        if (!pDoc) return;
-        var btn = pDoc.querySelector('[data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"], button[aria-label="Open sidebar"]');
-        if (btn) {
-            btn.style.setProperty('display', 'flex', 'important');
-            btn.style.setProperty('visibility', 'visible', 'important');
-            btn.style.setProperty('opacity', '1', 'important');
-            btn.style.setProperty('pointer-events', 'auto', 'important');
-            btn.style.setProperty('z-index', '999999', 'important');
-            var svgs = btn.querySelectorAll('svg');
-            svgs.forEach(function(s) {
-                s.style.setProperty('display', 'block', 'important');
-                s.style.setProperty('visibility', 'visible', 'important');
-                s.style.setProperty('opacity', '1', 'important');
-                s.style.setProperty('width', '1.6rem', 'important');
-                s.style.setProperty('height', '1.6rem', 'important');
-                s.style.setProperty('fill', '#38BDF8', 'important');
-                s.style.setProperty('color', '#38BDF8', 'important');
-            });
-        }
-    } catch(e) {}
-}
-ensureSidebarControls();
-setInterval(ensureSidebarControls, 300);
-
-function forceExpandSidebar() {
+function ensureFloatingMenuButton() {
     try {
         var pWin = window.parent || window;
-        if (pWin && pWin.localStorage) {
-            for (var k in pWin.localStorage) {
-                if (k.toLowerCase().includes('sidebar') || k.toLowerCase().includes('collapse')) {
-                    pWin.localStorage.removeItem(k);
-                }
-            }
-        }
-        
         var pDoc = (pWin && pWin.document) ? pWin.document : document;
-        if (!pDoc) return;
+        if (!pDoc || !pDoc.body) return;
         
         var sidebar = pDoc.querySelector('section[data-testid="stSidebar"]');
         var isCollapsed = !sidebar || sidebar.getAttribute('aria-expanded') === 'false' || (sidebar.offsetWidth < 50);
         
+        var existingBtn = pDoc.getElementById('custom-floating-menu-btn');
         if (isCollapsed) {
-            var openBtn = pDoc.querySelector('[data-testid="stSidebarCollapsedControl"] button') ||
-                          pDoc.querySelector('[data-testid="stSidebarCollapsedControl"]') ||
-                          pDoc.querySelector('button[aria-label="Open sidebar"]') ||
-                          pDoc.querySelector('button[aria-label="展開側邊欄"]') ||
-                          pDoc.querySelector('[data-testid="collapsedControl"] button') ||
-                          pDoc.querySelector('[data-testid="collapsedControl"]');
-            if (openBtn) {
-                openBtn.click();
+            if (!existingBtn) {
+                var btn = pDoc.createElement('div');
+                btn.id = 'custom-floating-menu-btn';
+                btn.innerHTML = '<span style="font-size:1.1rem;margin-right:5px;line-height:1;">☰</span><span style="font-size:0.86rem;letter-spacing:0.5px;">主選單 ❯</span>';
+                btn.style.cssText = 'position:fixed; top:12px; left:12px; z-index:9999999; background:linear-gradient(135deg, #1E293B, #0F172A); color:#38BDF8; border:2px solid #38BDF8; border-radius:24px; padding:6px 14px; font-weight:bold; box-shadow:0 4px 16px rgba(56,189,248,0.45); cursor:pointer; display:flex; align-items:center; user-select:none; transition:all 0.2s ease;';
+                btn.onmouseover = function() { btn.style.transform = 'scale(1.06)'; btn.style.boxShadow = '0 6px 24px rgba(56,189,248,0.7)'; };
+                btn.onmouseout = function() { btn.style.transform = 'scale(1)'; btn.style.boxShadow = '0 4px 16px rgba(56,189,248,0.45)'; };
+                btn.onclick = function(e) {
+                    e.stopPropagation();
+                    var openBtn = pDoc.querySelector('[data-testid="stSidebarCollapsedControl"] button') ||
+                                  pDoc.querySelector('[data-testid="stSidebarCollapsedControl"]') ||
+                                  pDoc.querySelector('button[aria-label="Open sidebar"]') ||
+                                  pDoc.querySelector('button[aria-label="展開側邊欄"]') ||
+                                  pDoc.querySelector('[data-testid="collapsedControl"] button') ||
+                                  pDoc.querySelector('[data-testid="collapsedControl"]');
+                    if (openBtn) {
+                        openBtn.click();
+                    } else if (sidebar) {
+                        sidebar.setAttribute('aria-expanded', 'true');
+                        sidebar.style.removeProperty('display');
+                    }
+                };
+                pDoc.body.appendChild(btn);
+            } else {
+                existingBtn.style.display = 'flex';
+            }
+        } else {
+            if (existingBtn) {
+                existingBtn.style.display = 'none';
             }
         }
     } catch(e) {}
 }
-forceExpandSidebar();
-var expandTimer = setInterval(forceExpandSidebar, 350);
-setTimeout(function() { clearInterval(expandTimer); }, 6000);
+ensureFloatingMenuButton();
+setInterval(ensureFloatingMenuButton, 250);
 </script>
 """, height=0, width=0)
 
