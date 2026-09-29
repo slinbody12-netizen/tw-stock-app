@@ -120,9 +120,7 @@ st.markdown("""
     #GithubIcon,
     header a[href*="github"],
     header a[href*="streamlit"],
-    header [data-testid="stToolbarActions"] button,
-    .stApp > div[style*="position: fixed"][style*="bottom:"],
-    .stApp div[style*="position: fixed; bottom:"] {
+    header [data-testid="stToolbarActions"] button {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
@@ -441,7 +439,6 @@ function eradicateManageApp() {
         
         function purgeFromDoc(doc) {
             if (!doc) return;
-            // 1. 選擇器清除
             targets.forEach(function(sel) {
                 try {
                     var els = doc.querySelectorAll(sel);
@@ -453,23 +450,6 @@ function eradicateManageApp() {
                     });
                 } catch(e) {}
             });
-            // 2. 文本內容主動查殺 (萬能防護：只要包含 Manage app 一律就地隱藏)
-            try {
-                doc.querySelectorAll("button, div, a, span, p").forEach(function(el) {
-                    if (el.textContent && el.textContent.toLowerCase().indexOf("manage app") !== -1) {
-                        var p = el;
-                        while (p && p.parentElement && p.parentElement !== doc.body && p.parentElement.children.length === 1) {
-                            p = p.parentElement;
-                        }
-                        if (p) {
-                            p.style.setProperty('display', 'none', 'important');
-                            p.style.setProperty('visibility', 'hidden', 'important');
-                            p.style.setProperty('opacity', '0', 'important');
-                            p.style.setProperty('pointer-events', 'none', 'important');
-                        }
-                    }
-                });
-            } catch(e) {}
         }
 
         // 清理當前頁面與父層容器
@@ -478,7 +458,7 @@ function eradicateManageApp() {
     } catch(e) {}
 }
 eradicateManageApp();
-setInterval(eradicateManageApp, 300);
+setInterval(eradicateManageApp, 1000);
 
 try {
     var pWin = window.parent || window;
