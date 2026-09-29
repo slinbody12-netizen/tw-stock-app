@@ -103,9 +103,10 @@ st.markdown("""
     div[data-testid="stToolbarActions"],
     header div[class*="actionElements"],
     #GithubIcon,
-    header a,
-    header button:not([data-testid*="ollapsedControl"]):not([data-testid*="Sidebar"]):not([aria-label*="sidebar"]):not([aria-label*="Sidebar"]),
-    header svg:not([data-testid*="ollapsedControl"] svg):not([data-testid*="Sidebar"] svg):not([aria-label*="sidebar"] svg) {
+    header a[href*="github"],
+    header a[href*="streamlit"],
+    header [data-testid="stToolbar"] button,
+    header [data-testid="stToolbarActions"] button {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
@@ -122,7 +123,6 @@ st.markdown("""
     header,
     header[data-testid="stHeader"] {
         background: transparent !important;
-        pointer-events: none !important; /* 使滑鼠穿透透明頂部標題列，不遮擋右上角捲軸與點擊 */
     }
 
     /* 側邊欄內部「<<<」收合按鈕：維持可見且優化質感，支援手機與大螢幕收合 */
@@ -447,18 +447,39 @@ function ensureFloatingMenuButton() {
                 btn.onmouseout = function() { btn.style.transform = 'scale(1)'; btn.style.boxShadow = '0 4px 16px rgba(56,189,248,0.45)'; };
                 btn.onclick = function(e) {
                     e.stopPropagation();
-                    var openBtn = pDoc.querySelector('[data-testid="stSidebarCollapsedControl"] button') ||
-                                  pDoc.querySelector('[data-testid="stSidebarCollapsedControl"]') ||
-                                  pDoc.querySelector('button[aria-label="Open sidebar"]') ||
-                                  pDoc.querySelector('button[aria-label="展開側邊欄"]') ||
-                                  pDoc.querySelector('[data-testid="collapsedControl"] button') ||
-                                  pDoc.querySelector('[data-testid="collapsedControl"]');
-                    if (openBtn) {
-                        openBtn.click();
-                    } else if (sidebar) {
-                        sidebar.setAttribute('aria-expanded', 'true');
-                        sidebar.style.removeProperty('display');
-                    }
+                    e.preventDefault();
+                    
+                    // 1. 發送原生快捷鍵 'c' 給頂層 window 與 document
+                    try {
+                        var kOpts = { key: 'c', code: 'KeyC', keyCode: 67, which: 67, bubbles: true, cancelable: true };
+                        pWin.dispatchEvent(new KeyboardEvent('keydown', kOpts));
+                        pDoc.dispatchEvent(new KeyboardEvent('keydown', kOpts));
+                    } catch(err) {}
+
+                    // 2. 點擊原生展開按鈕
+                    try {
+                        var openBtn = pDoc.querySelector('[data-testid="stSidebarCollapsedControl"] button') ||
+                                      pDoc.querySelector('[data-testid="stSidebarCollapsedControl"]') ||
+                                      pDoc.querySelector('button[aria-label="Open sidebar"]') ||
+                                      pDoc.querySelector('button[aria-label="展開側邊欄"]') ||
+                                      pDoc.querySelector('[data-testid="collapsedControl"] button') ||
+                                      pDoc.querySelector('[data-testid="collapsedControl"]');
+                        if (openBtn) {
+                            openBtn.click();
+                        }
+                    } catch(err) {}
+
+                    // 3. 兼容舊版與手機版：直接移除收合樣式
+                    try {
+                        if (sidebar) {
+                            sidebar.setAttribute('aria-expanded', 'true');
+                            sidebar.style.removeProperty('display');
+                            sidebar.style.setProperty('transform', 'none', 'important');
+                            sidebar.style.setProperty('margin-left', '0px', 'important');
+                            sidebar.style.setProperty('visibility', 'visible', 'important');
+                            sidebar.style.setProperty('opacity', '1', 'important');
+                        }
+                    } catch(err) {}
                 };
                 pDoc.body.appendChild(btn);
             } else {
