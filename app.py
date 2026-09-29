@@ -3284,7 +3284,7 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
 
     # 控制項設定
     st.markdown("---")
-    ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.2, 1, 1, 0.8])
+    ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4, ctrl_c5 = st.columns([1.1, 0.85, 0.85, 0.95, 0.75])
     with ctrl_c1:
         scan_mode = st.selectbox(
             "篩選目標策略",
@@ -3296,9 +3296,11 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
     with ctrl_c3:
         pool_choice = st.selectbox("監控股池", ["🔥 主流熱門與活躍股", "💎 精選波段觀察股", "📋 全部自選名冊"], index=0)
     with ctrl_c4:
+        safety_filter = st.selectbox("安全燈號篩選", ["全部評級", "🟢 僅安全首選", "🟢/🟡 排除嚴禁追高/淘汰"], index=0)
+    with ctrl_c5:
         st.write("")
         st.write("")
-        do_rescan = st.button("🔄 重新掃描雷達", use_container_width=True)
+        do_rescan = st.button("🔄 重新掃描", use_container_width=True)
 
     filter_mode_val = "lagging_only" if "強烈滯後" in scan_mode else ("all_sync" if "大盤高度同步" in scan_mode else "all")
 
@@ -3324,40 +3326,115 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
     else:
         sync_candidates = st.session_state[cache_key]
 
-    st.markdown(f"**掃描結果：共發現 `{len(sync_candidates)}` 檔符合波形同步與滯後補漲條件之標的**")
+    # 安全燈號次級篩選
+    if safety_filter == "🟢 僅安全首選":
+        display_candidates = [c for c in sync_candidates if "安全首選" in c.get('safety_rating', '')]
+    elif "排除" in safety_filter:
+        display_candidates = [c for c in sync_candidates if "嚴禁" not in c.get('safety_rating', '') and "淘汰" not in c.get('safety_rating', '')]
+    else:
+        display_candidates = sync_candidates
 
-    if not sync_candidates:
-        st.info("目前條件下暫無符合標的，您可以稍微調降「最低波形相似度」或切換為「全部同步候選名單」重新掃描。")
+    if len(display_candidates) != len(sync_candidates):
+        st.markdown(f"**掃描結果：符合燈號標的 `{len(display_candidates)}` 檔** (雷達庫存共 `{len(sync_candidates)}` 檔)")
+    else:
+        st.markdown(f"**掃描結果：共發現 `{len(display_candidates)}` 檔符合波形同步與滯後補漲條件之標的**")
+
+    if not display_candidates:
+        st.info("目前條件下暫無符合標的，您可以將「安全燈號篩選」切換為「全部評級」或調降「最低波形相似度」重新掃描。")
     else:
         # 分欄排版：左欄候選股列表與卡片 / 右欄大盤 vs 個股雙走勢及 K 線對照圖
         left_col, right_col = st.columns([1.1, 1.4])
         
         # 預設選中第一檔
-        if "selected_sync_stock" not in st.session_state or not any(s['code'] == st.session_state.selected_sync_stock for s in sync_candidates):
-            st.session_state.selected_sync_stock = sync_candidates[0]['code']
+        if "selected_sync_stock" not in st.session_state or not any(s['code'] == st.session_state.selected_sync_stock for s in display_candidates):
+            st.session_state.selected_sync_stock = display_candidates[0]['code']
 
         with left_col:
             st.subheader("📋 滯後補漲熱門候選清單")
-            for idx, c_item in enumerate(sync_candidates):
+            for idx, c_item in enumerate(display_candidates):
                 code = c_item['code']
                 name = c_item['name']
                 is_selected = (code == st.session_state.selected_sync_stock)
-                
+                is_up = c_item.get('is_up', True)
+                chg_val = c_item.get('change', 0.0)
+                chg_pct = c_item.get('change_pct', 0.0)
+
+                # 漲跌顏色與符號 (台股紅漲綠跌)
+                if chg_pct > 0:
+                    chg_color = "#FF4D4F"
+                    chg_text = f"▲ +{chg_val} (+{chg_pct}%)"
+                elif chg_pct < 0:
+                    chg_color = "#52C41A"
+                    chg_text = f"▼ {chg_val} ({chg_pct}%)"
+                else:
+                    chg_color = "#E0E6ED"
+                    chg_text = "0.0 (0.00%)"
+
+                # 安全評級燈號標籤
+                safety_rat = c_item.get('safety_rating', '🟢 安全首選')
+                if "安全首選" in safety_rat:
+                    safety_badge = "<span style='background:rgba(82, 196, 26, 0.18); border:1px solid #52C41A; color:#52C41A; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px; margin-right:4px;'>🟢 安全首選</span>"
+                elif "警訊" in safety_rat:
+                    safety_badge = "<span style='background:rgba(250, 173, 20, 0.18); border:1px solid #FAAD14; color:#FAAD14; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px; margin-right:4px;'>🟡 警訊注意</span>"
+                else:
+                    safety_badge = f"<span style='background:rgba(255, 77, 79, 0.18); border:1px solid #FF4D4F; color:#FF4D4F; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px; margin-right:4px;'>{safety_rat}</span>"
+
+                # 趨勢卡 (操盤線狀態：無敵鐵金剛 / 5MA走勢與站上)
+                if c_item.get('iron_man', False):
+                    trend_card_html = "<span style='background:linear-gradient(90deg, #D97706, #B45309); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.75rem; margin-right:4px; box-shadow:0 0 6px rgba(217,119,6,0.5);'>🏆 無敵鐵金剛</span>"
+                else:
+                    if c_item.get('is_5ma_rising', True):
+                        ma_up_html = "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>📈 5MA走升</span>"
+                    else:
+                        ma_up_html = "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>↘️ 5MA下彎</span>"
+                    if c_item.get('above_5ma', True):
+                        above_html = "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:4px;'>站上5MA</span>"
+                    else:
+                        above_html = "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:4px;'>破5MA</span>"
+                    trend_card_html = ma_up_html + above_html
+
+                # 動能辣椒 (收紅紅椒 / 收黑綠椒)
+                chili_cnt = c_item.get('chili_count', 1)
+                if is_up:
+                    chili_html = "<span style='font-size:0.85rem; margin-left:3px; vertical-align:middle;'>" + ("🌶️" * chili_cnt) + "</span>"
+                else:
+                    chili_html = "<span style='filter: hue-rotate(95deg) saturate(2); display:inline-block; font-size:0.85rem; margin-left:3px; vertical-align:middle;'>" + ("🌶️" * chili_cnt) + "</span>"
+
+                # 伏兵提示 (收黑但安全)
+                ambush_html = ""
+                if not is_up and "安全首選" in safety_rat:
+                    ambush_html = "<div style='background:rgba(5, 150, 105, 0.16); border-left:3px solid #10B981; border-radius:4px; padding:4px 8px; margin:5px 0; color:#A7F3D0; font-size:0.78rem; line-height:1.4;'>💎 <b>拉回量縮伏兵</b>：安全綠燈且多頭結構無虞，回測守穩等轉折紅K即是絕佳佈局點！</div>"
+
+                # 助教把關警訊提示
+                safety_reasons = c_item.get('safety_reasons', [])
+                warn_html = ""
+                if safety_reasons and ("警訊" in safety_rat or "嚴禁" in safety_rat or "淘汰" in safety_rat):
+                    warn_text = " | ".join(safety_reasons[:2])
+                    warn_html = f"<div style='font-size:0.75rem; color:#E0A82E; margin-top:3px;'>⚠️ <b>助教把關</b>：{warn_text}</div>"
+
                 # 醒目標示外框
                 border_style = "2px solid #13C2C2; background: #16202C;" if is_selected else "1px solid #2B3145; background: #181C28;"
                 
                 card_html = f"""
-                <div style='{border_style} border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;'>
+                <div style='{border_style} border-radius: 8px; padding: 11px 14px; margin-bottom: 8px;'>
                     <div style='display: flex; justify-content: space-between; align-items: center;'>
                         <div>
-                            <span style='font-size: 1.1rem; font-weight: bold; color: white;'>{name}</span>
-                            <span style='color: #8892B0; font-size: 0.88rem; margin-left: 5px;'>({code})</span>
+                            <span style='font-size: 1.12rem; font-weight: bold; color: white;'>{name}</span>
+                            <span style='color: #8892B0; font-size: 0.88rem; margin-left: 4px;'>({code})</span>
                             <span style='background: #1F2438; border: 1px solid {c_item['status_color']}; color: {c_item['status_color']}; font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; margin-left: 6px;'>{c_item['status_badge']}</span>
                         </div>
                         <div style='text-align: right;'>
                             <span style='font-size: 1.15rem; font-weight: bold; color: #FFF;'>{c_item['close']}</span> 元
+                            <span style='font-size: 0.8rem; color: {chg_color}; font-weight: bold; margin-left: 4px;'>{chg_text}</span>
                         </div>
                     </div>
+                    <div style='display: flex; align-items: center; flex-wrap: wrap; margin-top: 6px;'>
+                        {safety_badge}
+                        {trend_card_html}
+                        <span style='color: #94A3B8; font-size: 0.75rem; margin-left: 4px;'>動能：</span>{chili_html}
+                    </div>
+                    {ambush_html}
+                    {warn_html}
                     <div style='display: flex; justify-content: space-between; font-size: 0.82rem; color: #CBD5E1; margin-top: 6px;'>
                         <div>🌊 幾何相似度：<b style='color: #13C2C2;'>{c_item['shape_corr']}%</b> | 相關係數：<b>{c_item['corr_return']}%</b></div>
                         <div>⏳ 5日落後差距：<b style='color: #FF4D4F;'>+{c_item['lag_gap_5d']}%</b></div>
@@ -3385,7 +3462,7 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
         with right_col:
             # 取得當前選定個股資料
             curr_code = st.session_state.selected_sync_stock
-            curr_item = next((s for s in sync_candidates if s['code'] == curr_code), sync_candidates[0])
+            curr_item = next((s for s in display_candidates if s['code'] == curr_code), display_candidates[0])
             
             st.subheader(f"📊 【{curr_item['name']} ({curr_item['code']})】vs 加權指數走勢對照")
             
@@ -3407,15 +3484,45 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
                     st.warning("無法取得個股歷史 K 線數據。")
 
             # 實戰操作建議便條
+            curr_safety = curr_item.get('safety_rating', '🟢 安全首選')
+            curr_safety_color = "#52C41A" if "安全" in curr_safety else ("#FAAD14" if "警訊" in curr_safety else "#FF4D4F")
+            
+            if curr_item.get('iron_man', False):
+                trend_desc = "<b style='color:#F59E0B;'>🏆 無敵鐵金剛</b> (三線合一頂級波段戰法，大師勝率最高模式)"
+            else:
+                m_up_str = "📈 5MA走升" if curr_item.get('is_5ma_rising', True) else "↘️ 5MA下彎"
+                m_above_str = "站上5MA" if curr_item.get('above_5ma', True) else "跌破5MA"
+                trend_desc = f"<b>{m_up_str} · {m_above_str}</b> (5MA為短線極致操盤線)"
+
+            curr_is_up = curr_item.get('is_up', True)
+            curr_chili = ("🌶️" * curr_item.get('chili_count', 1)) if curr_is_up else ("🟢🌶️(量縮測線) " * curr_item.get('chili_count', 1))
+
+            entry_strategy_guide = ""
+            if "安全首選" in curr_safety and curr_is_up and curr_item.get('above_5ma', True):
+                entry_strategy_guide = "🌟 <b>【今日可買·強勢先鋒】</b>：安全綠燈且出量站穩 5MA，為今日第一時間跟隨大盤發動之補漲首選！尾盤 1:00~1:25 確認收紅即可依 SOP 進場。"
+            elif "安全首選" in curr_safety and not curr_is_up:
+                entry_strategy_guide = "💎 <b>【拉回量縮伏兵】</b>：安全綠燈且中多結構完好，今日收黑屬健康回測洗盤，<b>今日切勿急追</b>！先列入鎖股名單，等次日出現轉折紅 K 站回 5MA 尾盤再行出手！"
+            elif "警訊" in curr_safety:
+                reasons_sub = "；".join(curr_item.get('safety_reasons', ['上方有密集套牢賣壓或短線乖離']))
+                entry_strategy_guide = f"⚠️ <b>【警訊注意·暫緩追高】</b>：{reasons_sub}。宜耐心等待量縮回測 5MA/20MA 守穩再行評估。"
+            else:
+                entry_strategy_guide = "🛑 <b>【嚴禁追價·結構轉弱】</b>：線型已觸發防守警戒，暫不宜作為補漲標的介入，請另選安全綠燈標的。"
+
             st.markdown(
                 f"""
                 <div style='background: #141724; border-left: 4px solid #13C2C2; border-radius: 6px; padding: 12px 16px; margin-top: 10px; font-size: 0.88rem; line-height: 1.6; color: #E0E6ED;'>
-                    <div style='font-size: 0.95rem; font-weight: bold; color: #13C2C2; margin-bottom: 4px;'>🎯 助教實戰操盤指引【{curr_item['name']} ({curr_item['code']})】：</div>
+                    <div style='font-size: 0.95rem; font-weight: bold; color: #13C2C2; margin-bottom: 6px;'>🎯 助教實戰操盤指引【{curr_item['name']} ({curr_item['code']})】：</div>
+                    • <b>安全評級</b>：<span style='color:{curr_safety_color}; font-weight:bold;'>{curr_safety}</span><br>
+                    • <b>操盤線趨勢</b>：{trend_desc}<br>
+                    • <b>動能位階</b>：<b>{curr_chili}</b><br>
                     • <b>走勢同構度</b>：幾何波形相似度達 <b>{curr_item['shape_corr']}%</b>，高低轉折波與大盤同頻共振。<br>
-                    • <b>落後大盤差距</b>：近 5 個交易日大盤累計走勢比該股超前 <b>+{curr_item['lag_gap_5d']}%</b>，圖中金色上方與青色之間的陰影即為「<b>補漲缺口 (Lag Spread)</b>」！<br>
+                    • <b>落後大盤差距</b>：近 5 個交易日大盤累計走勢比該股超前 <b>+{curr_item['lag_gap_5d']}%</b>，金色與青色間的陰影即為「<b>補漲缺口 (Lag Spread)</b>」！<br>
                     • <b>補漲預期目標</b>：<b>{curr_item['catchup_target']} 元</b> (若追平大盤漲幅)。<br>
                     • <b>風控防守價位</b>：<b>{curr_item['stop_loss']} 元</b> (守月線或前低，預估下檔最大風險僅 <b>-{curr_item['risk_pct']}%</b>)。<br>
-                    • <b>進場策略</b>：若大盤持續維持在 5MA 之上，當個股盤中帶量站上 5MA ({curr_item['sma5']} 元) 即可逢低佈局，等待補漲噴出！
+                    • <b>實戰進場策略</b>：<br>
+                    <div style='background:rgba(255,255,255,0.04); border-radius:4px; padding:8px 10px; margin-top:4px;'>
+                        {entry_strategy_guide}
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True

@@ -21,6 +21,9 @@ from typing import List, Dict, Any, Tuple, Optional
 
 from core.data_fetcher import fetch_stock_kline
 from core.screener import load_stock_list
+from core.wave_engine import calculate_turning_points
+from core.trend_analyzer import analyze_trend
+from core.signal_detector import detect_signals
 
 _MKT_CACHE = {"df": None, "info": None, "timestamp": None}
 
@@ -156,11 +159,44 @@ def analyze_market_sync_single(
         1
     )
 
+    # 6. 進階安全檢核、趨勢操盤線與動能指標 (無敵鐵金剛 / 5MA走勢 / 安全燈號 / 動能辣椒)
+    last_r = df_stock.iloc[-1]
+    prev_r = df_stock.iloc[-2] if len(df_stock) > 1 else last_r
+
+    c_now = float(last_r['Close'])
+    c_prev = float(prev_r['Close'])
+    change = round(c_now - c_prev, 2)
+    change_pct = round((change / c_prev) * 100, 2) if c_prev != 0 else 0.0
+    is_up = change >= 0
+
+    cur_sma5 = float(last_r.get('SMA_5', sma5))
+    prev_sma5 = float(prev_r.get('SMA_5', cur_sma5))
+    is_5ma_rising = cur_sma5 >= prev_sma5
+    above_5ma = c_now >= cur_sma5
+
+    try:
+        points, _, _, _ = calculate_turning_points(df_stock, ma_period=5)
+        trend = analyze_trend(df_stock, points)
+        signals_dict, signals_list = detect_signals(df_stock, trend)
+        safety_rating = signals_dict.get('safety_rating', '🟢 安全首選')
+        safety_reasons = signals_dict.get('safety_reasons', [])
+        chili_count = signals_dict.get('chili_count', 1)
+        iron_man = bool(signals_dict.get('iron_man', False))
+    except Exception:
+        safety_rating = '🟢 安全首選' if is_struct_safe else '🟡 警訊注意'
+        safety_reasons = [] if is_struct_safe else ["結構偏弱未達安全標準"]
+        chili_count = 1
+        iron_man = False
+        signals_dict = {}
+
     return {
         "code": stock_info.get("code", ""),
         "name": stock_info.get("name", ""),
         "industry": stock_info.get("industry", ""),
         "close": last_c,
+        "change": change,
+        "change_pct": change_pct,
+        "is_up": is_up,
         "sma5": round(sma5, 2),
         "sma20": round(sma20, 2),
         "shape_corr": round(shape_corr * 100, 1),
@@ -180,14 +216,21 @@ def analyze_market_sync_single(
         "status_color": status_color,
         "priority": priority,
         "sync_score": sync_score,
-        "is_struct_safe": is_struct_safe
+        "is_struct_safe": is_struct_safe,
+        "safety_rating": safety_rating,
+        "safety_reasons": safety_reasons,
+        "chili_count": chili_count,
+        "is_5ma_rising": is_5ma_rising,
+        "above_5ma": above_5ma,
+        "iron_man": iron_man,
+        "signals_dict": signals_dict
     }
 
 def scan_market_sync_candidates(
     stock_list: Optional[List[Dict[str, Any]]] = None,
     filter_mode: str = "lagging_only", # 'lagging_only' / 'all_sync' / 'all'
     min_shape_corr: float = 65.0,
-    top_n: int = 20
+    top_n: int = 25
 ) -> List[Dict[str, Any]]:
     """
     掃描全市場或指定股池，比對與大盤同步之滯後補漲股
@@ -217,8 +260,16 @@ def scan_market_sync_candidates(
         else:
             candidates.append(res)
 
-    # 排序：強烈滯後優先，其次按綜合評分
-    candidates.sort(key=lambda x: (x["priority"], -x["sync_score"], -x["lag_gap_5d"]))
+    # 排序：策略優先級 -> 安全評級 (🟢安全首選最優先) -> 綜合評分 -> 滯後空間
+    def _sort_key(x):
+        p = x.get("priority", 5)
+        safety = x.get("safety_rating", "")
+        safety_rank = 0 if "安全首選" in safety else (1 if "警訊注意" in safety else 2)
+        score = x.get("sync_score", 0)
+        gap = x.get("lag_gap_5d", 0)
+        return (p, safety_rank, -score, -gap)
+
+    candidates.sort(key=_sort_key)
     return candidates[:top_n]
 
 def create_market_sync_comparison_figure(

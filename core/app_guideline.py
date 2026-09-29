@@ -459,6 +459,14 @@ def render_app_guideline():
                     • <b>大師最高心法</b>：大盤走弱時降持股多留現金；「跌市選股，漲市買股」，等大盤重新站回 5MA 第一天，名單裡的抗跌伏兵就是全市場最強的暴利提款機！
                 </div>
             </div>
+            <div style='background:#1E293B; border-radius:8px; padding:12px 14px; border:1px solid #334155;'>
+                <div style='font-weight:bold; color:#60A5FA; margin-bottom:4px;'>Q6：大盤滯後補漲股有漲有跌，如何用「安全燈號、趨勢卡、動能辣椒」挑出今日最佳標的？</div>
+                <div style='font-size:0.85rem; color:#CBD5E1; line-height:1.6;'>
+                    • <b>只看 🟢 安全首選</b>：App 已將雷達候選股與選股池完全統一，自動排查 14 大淘汰與 7 大禁忌，黃燈與紅燈一律跳過！<br>
+                    • <b>今日發動先鋒（立即可買）</b>：標記為 <b>🟢 安全首選 ＋ 📈 5MA走升·站上5MA (或 🏆無敵鐵金剛) ＋ 🌶️ 紅辣椒</b> 且今日收紅，尾盤 1:00~1:25 確認站穩即可進場！<br>
+                    • <b>拉回量縮伏兵（今日不追，先鎖股）</b>：標記為 <b>🟢 安全首選 ＋ 💎 拉回量縮伏兵 (綠辣椒)</b>，雖然今天收黑但中多線型完好，先列入明日首選，等次日出現轉折紅 K 站回 5MA 再進場伏擊！
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
