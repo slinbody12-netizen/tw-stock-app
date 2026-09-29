@@ -104,8 +104,8 @@ st.markdown("""
     header div[class*="actionElements"],
     #GithubIcon,
     header a,
-    header button:not([data-testid="collapsedControl"] button),
-    header svg {
+    header button:not([data-testid*="ollapsedControl"]):not([data-testid*="Sidebar"]):not([aria-label*="sidebar"]):not([aria-label*="Sidebar"]),
+    header svg:not([data-testid*="ollapsedControl"] svg):not([data-testid*="Sidebar"] svg):not([aria-label*="sidebar"] svg) {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
@@ -122,21 +122,62 @@ st.markdown("""
     header,
     header[data-testid="stHeader"] {
         background: transparent !important;
-        pointer-events: none !important; /* 核心修復：使滑鼠穿透透明頂部標題列，絕不遮擋右上角捲軸滑塊與點擊操作 */
+        pointer-events: none !important; /* 使滑鼠穿透透明頂部標題列，不遮擋右上角捲軸與點擊 */
     }
 
-    /* 保障左上角側邊欄收合/展開控制按鈕正常使用且可點擊 */
+    /* 保障左上角側邊欄收合/展開控制按鈕 (不管收合或展開) 100% 絕對可見且可點擊 */
     [data-testid="collapsedControl"],
-    [data-testid="collapsedControl"] button,
-    header [data-testid="collapsedControl"] {
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid*="SidebarCollapsedControl"],
+    [data-testid*="stSidebarCollapse"],
+    button[aria-label="Open sidebar"],
+    header [data-testid="collapsedControl"],
+    header [data-testid="stSidebarCollapsedControl"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: auto !important;
-        z-index: 99999 !important;
+        z-index: 999999 !important;
         position: fixed !important;
-        top: 10px !important;
-        left: 10px !important;
+        top: 12px !important;
+        left: 12px !important;
+        background: #1E293B !important;
+        border: 2px solid #38BDF8 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6) !important;
+        padding: 4px 8px !important;
+        cursor: pointer !important;
+    }
+
+    [data-testid="collapsedControl"] button,
+    [data-testid="stSidebarCollapsedControl"] button {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        background: transparent !important;
+        border: none !important;
+        cursor: pointer !important;
+    }
+
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebarCollapsedControl"] svg,
+    [data-testid*="SidebarCollapsedControl"] svg,
+    [data-testid*="stSidebarCollapse"] svg,
+    button[aria-label="Open sidebar"] svg,
+    header [data-testid="collapsedControl"] svg,
+    header [data-testid="stSidebarCollapsedControl"] svg {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        width: 1.6rem !important;
+        height: 1.6rem !important;
+        fill: #38BDF8 !important;
+        color: #38BDF8 !important;
+        position: static !important;
+        left: auto !important;
+        top: auto !important;
     }
 
     /* 自訂全站精準高質感滾動條 (永久可見、防消失、防遮擋、易拖曳) */
@@ -356,6 +397,33 @@ function eradicateManageApp() {
 }
 eradicateManageApp();
 setInterval(eradicateManageApp, 400);
+
+function ensureSidebarControls() {
+    try {
+        var pDoc = window.parent ? window.parent.document : document;
+        if (!pDoc) return;
+        var btn = pDoc.querySelector('[data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"], button[aria-label="Open sidebar"]');
+        if (btn) {
+            btn.style.setProperty('display', 'flex', 'important');
+            btn.style.setProperty('visibility', 'visible', 'important');
+            btn.style.setProperty('opacity', '1', 'important');
+            btn.style.setProperty('pointer-events', 'auto', 'important');
+            btn.style.setProperty('z-index', '999999', 'important');
+            var svgs = btn.querySelectorAll('svg');
+            svgs.forEach(function(s) {
+                s.style.setProperty('display', 'block', 'important');
+                s.style.setProperty('visibility', 'visible', 'important');
+                s.style.setProperty('opacity', '1', 'important');
+                s.style.setProperty('width', '1.6rem', 'important');
+                s.style.setProperty('height', '1.6rem', 'important');
+                s.style.setProperty('fill', '#38BDF8', 'important');
+                s.style.setProperty('color', '#38BDF8', 'important');
+            });
+        }
+    } catch(e) {}
+}
+ensureSidebarControls();
+setInterval(ensureSidebarControls, 300);
 </script>
 """, height=0, width=0)
 
