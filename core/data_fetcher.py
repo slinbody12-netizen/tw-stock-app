@@ -579,6 +579,7 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
 
     sma5_val = round(float(last_row.get('SMA_5', last_row['Close'])), 2)
     sma20_val = round(float(last_row.get('SMA_20', last_row['Close'])), 2)
+    sma60_val = round(float(last_row.get('SMA_60', last_row['Close'])), 2) if 'SMA_60' in df.columns else sma20_val
 
     # 計算 5 日與 20 日累積報酬率 (動能)
     idx_5 = max(0, len(df) - 6)
@@ -609,6 +610,7 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
         "volume_str": f"{int(last_row['Volume'] / 1000):,} 張" if ticker != "^TWII" else f"{int(last_row['Volume'] / 100000000)} 億",
         "sma5": sma5_val,
         "sma20": sma20_val,
+        "sma60": sma60_val,
         "return_5d": return_5d,
         "return_20d": return_20d,
         "is_realtime": bool(quote and quote.get('is_realtime')),
