@@ -3415,36 +3415,34 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
                 # 醒目標示外框
                 border_style = "2px solid #13C2C2; background: #16202C;" if is_selected else "1px solid #2B3145; background: #181C28;"
                 
-                card_html = f"""
-                <div style='{border_style} border-radius: 8px; padding: 11px 14px; margin-bottom: 8px;'>
-                    <div style='display: flex; justify-content: space-between; align-items: center;'>
-                        <div>
-                            <span style='font-size: 1.12rem; font-weight: bold; color: white;'>{name}</span>
-                            <span style='color: #8892B0; font-size: 0.88rem; margin-left: 4px;'>({code})</span>
-                            <span style='background: #1F2438; border: 1px solid {c_item['status_color']}; color: {c_item['status_color']}; font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; margin-left: 6px;'>{c_item['status_badge']}</span>
-                        </div>
-                        <div style='text-align: right;'>
-                            <span style='font-size: 1.15rem; font-weight: bold; color: #FFF;'>{c_item['close']}</span> 元
-                            <span style='font-size: 0.8rem; color: {chg_color}; font-weight: bold; margin-left: 4px;'>{chg_text}</span>
-                        </div>
-                    </div>
-                    <div style='display: flex; align-items: center; flex-wrap: wrap; margin-top: 6px;'>
-                        {safety_badge}
-                        {trend_card_html}
-                        <span style='color: #94A3B8; font-size: 0.75rem; margin-left: 4px;'>動能：</span>{chili_html}
-                    </div>
-                    {ambush_html}
-                    {warn_html}
-                    <div style='display: flex; justify-content: space-between; font-size: 0.82rem; color: #CBD5E1; margin-top: 6px;'>
-                        <div>🌊 幾何相似度：<b style='color: #13C2C2;'>{c_item['shape_corr']}%</b> | 相關係數：<b>{c_item['corr_return']}%</b></div>
-                        <div>⏳ 5日落後差距：<b style='color: #FF4D4F;'>+{c_item['lag_gap_5d']}%</b></div>
-                    </div>
-                    <div style='display: flex; justify-content: space-between; font-size: 0.8rem; color: #94A3B8; margin-top: 4px; border-top: 1px dashed #2B3145; padding-top: 4px;'>
-                        <div>🎯 補漲目標：<b style='color: #52C41A;'>{c_item['catchup_target']} 元</b> (依大盤等比)</div>
-                        <div>🛑 建議防守：<b style='color: #FF7875;'>{c_item['stop_loss']} 元</b> (風控 -{c_item['risk_pct']}%)</div>
-                    </div>
-                </div>
-                """
+                card_html = (
+                    f"<div style='{border_style} border-radius: 8px; padding: 11px 14px; margin-bottom: 8px;'>"
+                    f"<div style='display: flex; justify-content: space-between; align-items: center;'>"
+                    f"<div>"
+                    f"<span style='font-size: 1.12rem; font-weight: bold; color: white;'>{name}</span>"
+                    f"<span style='color: #8892B0; font-size: 0.88rem; margin-left: 4px;'>({code})</span>"
+                    f"<span style='background: #1F2438; border: 1px solid {c_item['status_color']}; color: {c_item['status_color']}; font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; margin-left: 6px;'>{c_item['status_badge']}</span>"
+                    f"</div>"
+                    f"<div style='text-align: right;'>"
+                    f"<span style='font-size: 1.15rem; font-weight: bold; color: #FFF;'>{c_item['close']}</span> 元 "
+                    f"<span style='font-size: 0.8rem; color: {chg_color}; font-weight: bold; margin-left: 4px;'>{chg_text}</span>"
+                    f"</div>"
+                    f"</div>"
+                    f"<div style='display: flex; align-items: center; flex-wrap: wrap; margin-top: 6px;'>"
+                    f"{safety_badge}{trend_card_html}<span style='color: #94A3B8; font-size: 0.75rem; margin-left: 4px;'>動能：</span>{chili_html}"
+                    f"</div>"
+                    f"{ambush_html}"
+                    f"{warn_html}"
+                    f"<div style='display: flex; justify-content: space-between; font-size: 0.82rem; color: #CBD5E1; margin-top: 6px;'>"
+                    f"<div>🌊 幾何相似度：<b style='color: #13C2C2;'>{c_item['shape_corr']}%</b> | 相關係數：<b>{c_item['corr_return']}%</b></div>"
+                    f"<div>⏳ 5日落後差距：<b style='color: #FF4D4F;'>+{c_item['lag_gap_5d']}%</b></div>"
+                    f"</div>"
+                    f"<div style='display: flex; justify-content: space-between; font-size: 0.8rem; color: #94A3B8; margin-top: 4px; border-top: 1px dashed #2B3145; padding-top: 4px;'>"
+                    f"<div>🎯 補漲目標：<b style='color: #52C41A;'>{c_item['catchup_target']} 元</b> (依大盤等比)</div>"
+                    f"<div>🛑 建議防守：<b style='color: #FF7875;'>{c_item['stop_loss']} 元</b> (風控 -{c_item['risk_pct']}%)</div>"
+                    f"</div>"
+                    f"</div>"
+                )
                 st.markdown(card_html, unsafe_allow_html=True)
                 
                 b_c1, b_c2 = st.columns([1, 1])
@@ -3508,25 +3506,21 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
             else:
                 entry_strategy_guide = "🛑 <b>【嚴禁追價·結構轉弱】</b>：線型已觸發防守警戒，暫不宜作為補漲標的介入，請另選安全綠燈標的。"
 
-            st.markdown(
-                f"""
-                <div style='background: #141724; border-left: 4px solid #13C2C2; border-radius: 6px; padding: 12px 16px; margin-top: 10px; font-size: 0.88rem; line-height: 1.6; color: #E0E6ED;'>
-                    <div style='font-size: 0.95rem; font-weight: bold; color: #13C2C2; margin-bottom: 6px;'>🎯 助教實戰操盤指引【{curr_item['name']} ({curr_item['code']})】：</div>
-                    • <b>安全評級</b>：<span style='color:{curr_safety_color}; font-weight:bold;'>{curr_safety}</span><br>
-                    • <b>操盤線趨勢</b>：{trend_desc}<br>
-                    • <b>動能位階</b>：<b>{curr_chili}</b><br>
-                    • <b>走勢同構度</b>：幾何波形相似度達 <b>{curr_item['shape_corr']}%</b>，高低轉折波與大盤同頻共振。<br>
-                    • <b>落後大盤差距</b>：近 5 個交易日大盤累計走勢比該股超前 <b>+{curr_item['lag_gap_5d']}%</b>，金色與青色間的陰影即為「<b>補漲缺口 (Lag Spread)</b>」！<br>
-                    • <b>補漲預期目標</b>：<b>{curr_item['catchup_target']} 元</b> (若追平大盤漲幅)。<br>
-                    • <b>風控防守價位</b>：<b>{curr_item['stop_loss']} 元</b> (守月線或前低，預估下檔最大風險僅 <b>-{curr_item['risk_pct']}%</b>)。<br>
-                    • <b>實戰進場策略</b>：<br>
-                    <div style='background:rgba(255,255,255,0.04); border-radius:4px; padding:8px 10px; margin-top:4px;'>
-                        {entry_strategy_guide}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
+            guide_html = (
+                f"<div style='background: #141724; border-left: 4px solid #13C2C2; border-radius: 6px; padding: 12px 16px; margin-top: 10px; font-size: 0.88rem; line-height: 1.6; color: #E0E6ED;'>"
+                f"<div style='font-size: 0.95rem; font-weight: bold; color: #13C2C2; margin-bottom: 6px;'>🎯 助教實戰操盤指引【{curr_item['name']} ({curr_item['code']})】：</div>"
+                f"• <b>安全評級</b>：<span style='color:{curr_safety_color}; font-weight:bold;'>{curr_safety}</span><br>"
+                f"• <b>操盤線趨勢</b>：{trend_desc}<br>"
+                f"• <b>動能位階</b>：<b>{curr_chili}</b><br>"
+                f"• <b>走勢同構度</b>：幾何波形相似度達 <b>{curr_item['shape_corr']}%</b>，高低轉折波與大盤同頻共振。<br>"
+                f"• <b>落後大盤差距</b>：近 5 個交易日大盤累計走勢比該股超前 <b>+{curr_item['lag_gap_5d']}%</b>，金色與青色間的陰影即為「<b>補漲缺口 (Lag Spread)</b>」！<br>"
+                f"• <b>補漲預期目標</b>：<b>{curr_item['catchup_target']} 元</b> (若追平大盤漲幅)。<br>"
+                f"• <b>風控防守價位</b>：<b>{curr_item['stop_loss']} 元</b> (守月線或前低，預估下檔最大風險僅 <b>-{curr_item['risk_pct']}%</b>)。<br>"
+                f"• <b>實戰進場策略</b>：<br>"
+                f"<div style='background:rgba(255,255,255,0.04); border-radius:4px; padding:8px 10px; margin-top:4px;'>{entry_strategy_guide}</div>"
+                f"</div>"
             )
+            st.markdown(guide_html, unsafe_allow_html=True)
 
 # ----------------------------------------------------
 # 功能分頁 3：晚間盤後功課 · 鎖股名冊監控 (Watchlist Stages)
