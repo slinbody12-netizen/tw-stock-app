@@ -417,3 +417,449 @@ def create_market_sync_comparison_figure(
     )
     fig.update_xaxes(rangeslider_visible=False)
     return fig
+
+
+# ==============================================================================
+# 族群龍頭外溢·看大哥買小弟量化比對模組 (Sector Leader Spillover & Laggard Catch-Up)
+# ==============================================================================
+
+SECTOR_FLEETS = [
+    {
+        "id": "plastics",
+        "name": "塑膠石化與集團艦隊",
+        "icon": "🛢️",
+        "leader_anchor": "1303",  # 南亞
+        "members": [
+            {"code": "1303", "name": "南亞"},
+            {"code": "1301", "name": "台塑"},
+            {"code": "1309", "name": "台達化"},
+            {"code": "1312", "name": "國喬"},
+            {"code": "1709", "name": "和益"},
+            {"code": "4714", "name": "永捷"}
+        ]
+    },
+    {
+        "id": "ai_server",
+        "name": "AI 伺服器與代工艦隊",
+        "icon": "🖥️",
+        "leader_anchor": "2382",  # 廣達
+        "members": [
+            {"code": "2382", "name": "廣達"},
+            {"code": "6669", "name": "緯穎"},
+            {"code": "3231", "name": "緯創"},
+            {"code": "2357", "name": "華碩"},
+            {"code": "2317", "name": "鴻海"},
+            {"code": "7711", "name": "永擎"}
+        ]
+    },
+    {
+        "id": "thermal",
+        "name": "AI 散熱模組艦隊",
+        "icon": "❄️",
+        "leader_anchor": "3017",  # 奇鋐
+        "members": [
+            {"code": "3017", "name": "奇鋐"},
+            {"code": "3324", "name": "雙鴻"},
+            {"code": "2421", "name": "建準"},
+            {"code": "3338", "name": "泰碩"},
+            {"code": "3483", "name": "力致"}
+        ]
+    },
+    {
+        "id": "shipping",
+        "name": "航運同盟 (貨櫃與散裝)",
+        "icon": "🚢",
+        "leader_anchor": "2603",  # 長榮
+        "members": [
+            {"code": "2603", "name": "長榮"},
+            {"code": "2609", "name": "陽明"},
+            {"code": "2615", "name": "萬海"},
+            {"code": "2612", "name": "中航"},
+            {"code": "2605", "name": "新興"},
+            {"code": "2606", "name": "裕民"},
+            {"code": "2637", "name": "慧洋-KY"}
+        ]
+    },
+    {
+        "id": "heavy_electric",
+        "name": "重電與綠能電機艦隊",
+        "icon": "⚡",
+        "leader_anchor": "1609",  # 大亞
+        "members": [
+            {"code": "1609", "name": "大亞"},
+            {"code": "1528", "name": "恩德"},
+            {"code": "3628", "name": "盈正"},
+            {"code": "1519", "name": "華城"},
+            {"code": "1513", "name": "中興電"},
+            {"code": "1503", "name": "士電"}
+        ]
+    },
+    {
+        "id": "cpo_optical",
+        "name": "光通訊與 CPO 艦隊",
+        "icon": "💡",
+        "leader_anchor": "6426",  # 統新
+        "members": [
+            {"code": "6426", "name": "統新"},
+            {"code": "6530", "name": "創威"},
+            {"code": "3234", "name": "光環"},
+            {"code": "7717", "name": "聚德光電-KY"}
+        ]
+    },
+    {
+        "id": "semiconductor",
+        "name": "半導體代工與封測艦隊",
+        "icon": "🔬",
+        "leader_anchor": "2330",  # 台積電
+        "members": [
+            {"code": "2330", "name": "台積電"},
+            {"code": "2303", "name": "聯電"},
+            {"code": "5347", "name": "世界"},
+            {"code": "3711", "name": "日月光投控"},
+            {"code": "2449", "name": "京元電子"},
+            {"code": "2338", "name": "光罩"}
+        ]
+    },
+    {
+        "id": "ic_memory",
+        "name": "IC 設計與記憶體艦隊",
+        "icon": "💾",
+        "leader_anchor": "3006",  # 晶豪科
+        "members": [
+            {"code": "3006", "name": "晶豪科"},
+            {"code": "2454", "name": "聯發科"},
+            {"code": "2408", "name": "南亞科"},
+            {"code": "2344", "name": "華邦電"},
+            {"code": "2363", "name": "矽統"},
+            {"code": "3034", "name": "聯詠"}
+        ]
+    },
+    {
+        "id": "finance",
+        "name": "金控與銀行權值艦隊",
+        "icon": "🏦",
+        "leader_anchor": "2881",  # 富邦金
+        "members": [
+            {"code": "2881", "name": "富邦金"},
+            {"code": "2882", "name": "國泰金"},
+            {"code": "2885", "name": "元大金"},
+            {"code": "2891", "name": "中信金"},
+            {"code": "2884", "name": "玉山金"},
+            {"code": "2880", "name": "華南金"},
+            {"code": "2883", "name": "凱基金"},
+            {"code": "2890", "name": "永豐金"},
+            {"code": "2892", "name": "第一金"},
+            {"code": "2887", "name": "台新金"},
+            {"code": "2801", "name": "彰銀"}
+        ]
+    }
+]
+
+def scan_sector_spillover_candidates(
+    fleets: Optional[List[Dict[str, Any]]] = None,
+    min_corr: float = 60.0,
+    force_refresh: bool = False
+) -> List[Dict[str, Any]]:
+    """
+    掃描全市場核心族群艦隊，動態計算領頭大哥與接棒小弟的動能剪刀差與技術安全位階
+    """
+    if fleets is None:
+        fleets = SECTOR_FLEETS
+
+    # 盤中預先並行載入所有族群個股即時快取
+    all_members = []
+    for f in fleets:
+        all_members.extend(f.get('members', []))
+    try:
+        batch_fetch_realtime_quotes(all_members)
+    except Exception:
+        pass
+
+    results = []
+    for fleet in fleets:
+        f_id = fleet['id']
+        f_name = fleet['name']
+        f_icon = fleet['icon']
+        anchor = fleet.get('leader_anchor', '')
+        members = fleet['members']
+
+        member_data = {}
+        for m in members:
+            code = m['code']
+            df, _ = fetch_stock_kline(code, period="6mo", force_refresh=force_refresh)
+            if df is not None and len(df) >= 20:
+                last_c = float(df['Close'].iloc[-1])
+                prev_c = float(df['Close'].iloc[-2]) if len(df) >= 2 else last_c
+                chg = round(last_c - prev_c, 2)
+                chg_pct = round((chg / prev_c) * 100, 2) if prev_c > 0 else 0.0
+
+                idx_5 = max(0, len(df) - 6)
+                c_5d_ago = float(df['Close'].iloc[idx_5])
+                pct_5d = round(((last_c - c_5d_ago) / c_5d_ago) * 100, 2) if c_5d_ago > 0 else 0.0
+
+                member_data[code] = {
+                    "code": code,
+                    "name": m['name'],
+                    "df": df,
+                    "close": last_c,
+                    "change": chg,
+                    "change_pct": chg_pct,
+                    "pct_5d": pct_5d
+                }
+
+        if len(member_data) < 2:
+            continue
+
+        # 判定領頭大哥 (Leader)：優先考量今日漲幅顯著 (>1.0%) 且 5 日動能最強者，若皆微幅波動則以指定 anchor 優先
+        sorted_by_today = sorted(member_data.values(), key=lambda x: (x['change_pct'], x['pct_5d']), reverse=True)
+        top_today = sorted_by_today[0]
+
+        if top_today['change_pct'] >= 1.0 or anchor not in member_data:
+            leader = top_today
+        else:
+            leader = member_data[anchor]
+
+        leader_code = leader['code']
+        leader_df = leader['df']
+
+        followers = []
+        for code, m_info in member_data.items():
+            if code == leader_code:
+                continue
+
+            f_df = m_info['df']
+            # 動能剪刀差：大哥5日動能 - 小弟5日動能
+            spillover_gap = round(leader['pct_5d'] - m_info['pct_5d'], 2)
+
+            if spillover_gap < 1.0:
+                continue
+
+            # 計算與大哥的幾何走勢相關度 (最近 40 根 K 棒)
+            merged = pd.merge(
+                f_df[['Date', 'Close']],
+                leader_df[['Date', 'Close']],
+                on='Date',
+                suffixes=('_fol', '_ldr')
+            ).dropna().tail(40)
+
+            if len(merged) < 15:
+                continue
+
+            corr_with_ldr = float(merged['Close_fol'].corr(merged['Close_ldr']))
+            corr_with_ldr = 0.0 if np.isnan(corr_with_ldr) else round(corr_with_ldr * 100, 1)
+
+            if corr_with_ldr < min_corr:
+                continue
+
+            last_c = m_info['close']
+            sma5 = float(f_df['Close'].rolling(5).mean().iloc[-1])
+            sma20 = float(f_df['Close'].rolling(20).mean().iloc[-1])
+            low_20 = float(f_df['Low'].tail(20).min())
+
+            is_struct_safe = (last_c >= sma20 * 0.965) and (last_c >= low_20 * 1.01)
+
+            try:
+                points, _, _, _ = calculate_turning_points(f_df, ma_period=5)
+                trend = analyze_trend(f_df, points)
+                signals_dict, _ = detect_signals(f_df, trend)
+                safety_rating = signals_dict.get('safety_rating', '🟢 安全首選')
+                safety_reasons = signals_dict.get('safety_reasons', [])
+                chili_cnt = signals_dict.get('chili_count', 1)
+                iron_man = bool(signals_dict.get('iron_man', False))
+            except Exception:
+                safety_rating = '🟢 安全首選' if is_struct_safe else '🟡 警訊注意'
+                safety_reasons = [] if is_struct_safe else ["結構偏弱未達安全標準"]
+                chili_cnt = 1
+                iron_man = False
+                signals_dict = {}
+
+            cur_sma5 = float(f_df['Close'].rolling(5).mean().iloc[-1])
+            prev_sma5 = float(f_df['Close'].rolling(5).mean().iloc[-2]) if len(f_df) > 1 else cur_sma5
+            is_5ma_rising = cur_sma5 >= prev_sma5
+            above_5ma = last_c >= cur_sma5
+
+            catchup_target = round(last_c * (1 + spillover_gap / 100), 2)
+            stop_loss = round(max(low_20, last_c * 0.95), 2)
+            if stop_loss >= last_c:
+                stop_loss = round(last_c * 0.95, 2)
+            risk_pct = round(((last_c - stop_loss) / last_c) * 100, 1)
+
+            followers.append({
+                "code": code,
+                "name": m_info['name'],
+                "close": last_c,
+                "change": m_info['change'],
+                "change_pct": m_info['change_pct'],
+                "pct_5d": m_info['pct_5d'],
+                "spillover_gap": spillover_gap,
+                "corr_with_leader": corr_with_ldr,
+                "sma5": round(sma5, 2),
+                "sma20": round(sma20, 2),
+                "catchup_target": catchup_target,
+                "stop_loss": stop_loss,
+                "risk_pct": risk_pct,
+                "is_struct_safe": is_struct_safe,
+                "safety_rating": safety_rating,
+                "safety_reasons": safety_reasons,
+                "chili_count": chili_cnt,
+                "is_5ma_rising": is_5ma_rising,
+                "above_5ma": above_5ma,
+                "iron_man": iron_man,
+                "signals_dict": signals_dict
+            })
+
+        if followers:
+            followers.sort(key=lambda x: (
+                0 if "安全首選" in x['safety_rating'] else (1 if "警訊" in x['safety_rating'] else 2),
+                -x['spillover_gap']
+            ))
+
+            fleet_score = (leader['change_pct'] * 10) + (10 if "安全首選" in followers[0]['safety_rating'] else 0)
+
+            results.append({
+                "fleet_id": f_id,
+                "fleet_name": f_name,
+                "fleet_icon": f_icon,
+                "leader": {
+                    "code": leader['code'],
+                    "name": leader['name'],
+                    "close": leader['close'],
+                    "change": leader['change'],
+                    "change_pct": leader['change_pct'],
+                    "pct_5d": leader['pct_5d'],
+                    "is_active": leader['change_pct'] >= 1.0 or leader['pct_5d'] >= 2.0
+                },
+                "followers": followers,
+                "fleet_score": fleet_score
+            })
+
+    results.sort(key=lambda x: x['fleet_score'], reverse=True)
+    return results
+
+def create_pair_sync_comparison_figure(
+    df_follower: pd.DataFrame,
+    df_leader: pd.DataFrame,
+    follower_name: str,
+    follower_code: str,
+    leader_name: str,
+    leader_code: str,
+    follower_data: Dict[str, Any],
+    lookback_bars: int = 50
+) -> Optional[go.Figure]:
+    """
+    建立【小弟 vs 大哥】歸一化相對走勢與補漲剪刀差對照圖表
+    """
+    if df_follower is None or df_leader is None or len(df_follower) < 20 or len(df_leader) < 20:
+        return None
+
+    merged = pd.merge(
+        df_follower[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']],
+        df_leader[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']],
+        on='Date',
+        suffixes=('_fol', '_ldr')
+    ).sort_values('Date').dropna().reset_index(drop=True)
+
+    if len(merged) < 15:
+        return None
+
+    sub = merged.tail(lookback_bars).copy().reset_index(drop=True)
+
+    # 歸一化累計漲跌幅 (%)
+    f_base = sub['Close_fol'].iloc[0]
+    l_base = sub['Close_ldr'].iloc[0]
+
+    sub['Follower_Pct'] = ((sub['Close_fol'] - f_base) / f_base) * 100
+    sub['Leader_Pct'] = ((sub['Close_ldr'] - l_base) / l_base) * 100
+
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.06,
+        row_heights=[0.58, 0.42],
+        subplot_titles=(
+            f"📈 累積走勢對照 (👑 大哥: {leader_name} vs 🎯 小弟: {follower_name}) · 剪刀差 {follower_data.get('spillover_gap', 0):+}%",
+            f"📊 {follower_name} ({follower_code}) 日 K 線與防守均線"
+        )
+    )
+
+    # Row 1: 大哥曲線 (珊瑚紅) vs 小弟曲線 (青藍)
+    fig.add_trace(go.Scatter(
+        x=sub['Date'], y=sub['Leader_Pct'],
+        name=f"👑 大哥 {leader_name} ({leader_code})",
+        line=dict(color="#FF6B6B", width=2.8),
+        hovertemplate=f"大哥 {leader_name}: " + "%{y:+.2f}%<extra></extra>"
+    ), row=1, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=sub['Date'], y=sub['Follower_Pct'],
+        name=f"🎯 小弟 {follower_name} ({follower_code})",
+        line=dict(color="#13C2C2", width=2.8),
+        hovertemplate=f"小弟 {follower_name}: " + "%{y:+.2f}%<extra></extra>"
+    ), row=1, col=1)
+
+    # 填充剪刀差區間
+    fig.add_trace(go.Scatter(
+        x=sub['Date'], y=sub['Leader_Pct'],
+        fill=None, mode='lines', line=dict(color='rgba(0,0,0,0)'),
+        showlegend=False, hoverinfo='skip'
+    ), row=1, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=sub['Date'], y=sub['Follower_Pct'],
+        fill='tonexty', mode='lines',
+        fillcolor='rgba(19, 194, 194, 0.15)',
+        line=dict(color='rgba(0,0,0,0)'),
+        name="外溢補漲剪刀差空間",
+        hoverinfo='skip'
+    ), row=1, col=1)
+
+    # Row 2: 小弟 K 線與均線
+    sub['SMA_5'] = sub['Close_fol'].rolling(5).mean()
+    sub['SMA_20'] = sub['Close_fol'].rolling(20).mean()
+
+    fig.add_trace(go.Candlestick(
+        x=sub['Date'],
+        open=sub['Open_fol'], high=sub['High_fol'],
+        low=sub['Low_fol'], close=sub['Close_fol'],
+        name=f"{follower_name} K線",
+        increasing_line_color='#FF4D4F', increasing_fillcolor='#FF4D4F',
+        decreasing_line_color='#2F9E44', decreasing_fillcolor='#2F9E44',
+        showlegend=False
+    ), row=2, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=sub['Date'], y=sub['SMA_5'],
+        name="5MA 操盤線", line=dict(color="#1890FF", width=1.5)
+    ), row=2, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=sub['Date'], y=sub['SMA_20'],
+        name="20MA 月線", line=dict(color="#E0A82E", width=1.5)
+    ), row=2, col=1)
+
+    # 補漲目標價與防守價虛線
+    target_val = follower_data.get('catchup_target')
+    stop_val = follower_data.get('stop_loss')
+    if target_val:
+        fig.add_hline(
+            y=target_val, line_dash="dash", line_color="#52C41A", line_width=1.2,
+            annotation_text=f"補漲目標: {target_val}", annotation_position="top right",
+            annotation_font_color="#52C41A", row=2, col=1
+        )
+    if stop_val:
+        fig.add_hline(
+            y=stop_val, line_dash="dash", line_color="#FF4D4F", line_width=1.2,
+            annotation_text=f"防守停損: {stop_val}", annotation_position="bottom right",
+            annotation_font_color="#FF4D4F", row=2, col=1
+        )
+
+    fig.update_layout(
+        height=680,
+        margin=dict(l=15, r=75, t=40, b=15),
+        template="plotly_dark",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01),
+        hovermode="x unified"
+    )
+    fig.update_xaxes(rangeslider_visible=False)
+    return fig
+
