@@ -410,14 +410,7 @@ function eradicateManageApp() {
             'div[data-testid*="ManageApp"]',
             'div[class*="viewerBadge"]',
             'div[class*="FloatingActionButton"]',
-            'iframe[title="streamlit_cloud_badge"]',
-            '[data-testid="stToolbarActions"]',
-            'header [data-testid="stToolbarActions"]',
-            'div[data-testid="stToolbarActions"]',
-            'header div[class*="actionElements"]',
-            '#GithubIcon',
-            'header a[href*="github"]',
-            'header a[href*="streamlit"]'
+            'iframe[title="streamlit_cloud_badge"]'
         ];
         
         function purgeFromDoc(doc) {
@@ -430,29 +423,27 @@ function eradicateManageApp() {
                         el.style.setProperty('visibility', 'hidden', 'important');
                         el.style.setProperty('opacity', '0', 'important');
                         el.style.setProperty('pointer-events', 'none', 'important');
-                        try { el.remove(); } catch(e) {}
                     });
                 } catch(e) {}
             });
         }
 
-        // 清理當前頁面
+        // 清理當前頁面與父層容器
         purgeFromDoc(document);
-
-        // 穿透父層與頂層框架
         try { if (window.parent && window.parent.document) purgeFromDoc(window.parent.document); } catch(e) {}
-        try { if (window.top && window.top.document) purgeFromDoc(window.top.document); } catch(e) {}
     } catch(e) {}
 }
 eradicateManageApp();
-setInterval(eradicateManageApp, 400);
+setInterval(eradicateManageApp, 500);
 
 try {
     var pWin = window.parent || window;
     var pDoc = (pWin && pWin.document) ? pWin.document : document;
     if (pDoc) {
         var old = pDoc.getElementById('custom-floating-menu-btn');
-        if (old) old.remove();
+        if (old) {
+            old.style.display = 'none';
+        }
     }
 } catch(e) {}
 </script>
