@@ -408,11 +408,25 @@ def create_market_sync_comparison_figure(
         name="20MA 月線", line=dict(color="#E0A82E", width=1.5)
     ), row=2, col=1)
 
+    # 調整標題位置與字體，避免與圖表邊界擠壓
+    if len(fig.layout.annotations) > 0:
+        fig.layout.annotations[0].update(y=1.05, font=dict(size=13, color="#E2E8F0"))
+    if len(fig.layout.annotations) > 1:
+        fig.layout.annotations[1].update(font=dict(size=13, color="#E2E8F0"))
+
     fig.update_layout(
         height=680,
-        margin=dict(l=15, r=75, t=40, b=15),
+        margin=dict(l=20, r=75, t=55, b=65),
         template="plotly_dark",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.09,
+            xanchor="center",
+            x=0.5,
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(size=12, color="#94A3B8")
+        ),
         hovermode="x unified"
     )
     fig.update_xaxes(rangeslider_visible=False)
@@ -790,8 +804,8 @@ def create_pair_sync_comparison_figure(
     fig = make_subplots(
         rows=2, cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.06,
-        row_heights=[0.58, 0.42],
+        vertical_spacing=0.08,
+        row_heights=[0.56, 0.44],
         subplot_titles=(
             f"📈 累積走勢對照 (👑 大哥: {leader_name} vs 🎯 小弟: {follower_name}) · 剪刀差 {follower_data.get('spillover_gap', 0):+}%",
             f"📊 {follower_name} ({follower_code}) 日 K 線與防守均線"
@@ -869,11 +883,25 @@ def create_pair_sync_comparison_figure(
             annotation_font_color="#FF4D4F", row=2, col=1
         )
 
+    # 調整標題位置與字體，向上抬升避免與圖表邊界擠壓
+    if len(fig.layout.annotations) > 0:
+        fig.layout.annotations[0].update(y=1.05, font=dict(size=13, color="#E2E8F0"))
+    if len(fig.layout.annotations) > 1:
+        fig.layout.annotations[1].update(font=dict(size=13, color="#E2E8F0"))
+
     fig.update_layout(
         height=680,
-        margin=dict(l=15, r=75, t=40, b=15),
+        margin=dict(l=20, r=75, t=55, b=65),
         template="plotly_dark",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.09,
+            xanchor="center",
+            x=0.5,
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(size=12, color="#94A3B8")
+        ),
         hovermode="x unified"
     )
     fig.update_xaxes(rangeslider_visible=False)
