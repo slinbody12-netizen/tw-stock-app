@@ -2825,29 +2825,39 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             with st.expander(f"📸 上傳/貼上【{info['name']} ({info['code']})】券商截圖 · AI 助教原圖畫線批改", expanded=False):
                 st.caption("💡 支援在您的券商看盤截圖原圖上，自動繪製老朱專業操盤線：前高壓力線、關鍵支撐線、趨勢軌道與買點叮嚀標籤！可直接點擊貼上按鈕或選擇圖檔。")
                 from core.chart_annotator import process_chart_upload
-                from streamlit_paste_button import paste_image_button
+                try:
+                    from streamlit_paste_button import paste_image_button
+                except Exception:
+                    paste_image_button = None
 
-                c_tup1, c_tup2 = st.columns([1.2, 1])
-                with c_tup1:
+                active_tab_img = None
+                if paste_image_button is not None:
+                    c_tup1, c_tup2 = st.columns([1.2, 1])
+                    with c_tup1:
+                        tab_uploaded = st.file_uploader(
+                            "📁 選擇圖檔上傳：",
+                            type=["png", "jpg", "jpeg", "webp"],
+                            key=f"tab_chart_uploader_{query}"
+                        )
+                    with c_tup2:
+                        st.markdown("<div style='margin-top:28px;'></div>", unsafe_allow_html=True)
+                        tab_paste = paste_image_button(
+                            "📋 點此貼上剪貼簿截圖 (Ctrl+V)",
+                            background_color="#2563EB",
+                            hover_background_color="#1D4ED8",
+                            key=f"tab_paste_{query}"
+                        )
+                    if tab_paste and tab_paste.image_data is not None:
+                        active_tab_img = tab_paste.image_data
+                        st.success("✅ 已成功讀取剪貼簿截圖！")
+                    elif tab_uploaded is not None:
+                        active_tab_img = tab_uploaded
+                else:
                     tab_uploaded = st.file_uploader(
                         "📁 選擇圖檔上傳：",
                         type=["png", "jpg", "jpeg", "webp"],
                         key=f"tab_chart_uploader_{query}"
                     )
-                with c_tup2:
-                    st.markdown("<div style='margin-top:28px;'></div>", unsafe_allow_html=True)
-                    tab_paste = paste_image_button(
-                        "📋 點此貼上剪貼簿截圖 (Ctrl+V)",
-                        background_color="#2563EB",
-                        hover_background_color="#1D4ED8",
-                        key=f"tab_paste_{query}"
-                    )
-
-                active_tab_img = None
-                if tab_paste and tab_paste.image_data is not None:
-                    active_tab_img = tab_paste.image_data
-                    st.success("✅ 已成功讀取剪貼簿截圖！")
-                elif tab_uploaded is not None:
                     active_tab_img = tab_uploaded
 
                 tab_user_q = st.text_input(
@@ -5513,29 +5523,41 @@ elif "AI" in menu or "助教" in menu:
         active_main_img = None
         if "截圖" in ask_mode or "📸" in ask_mode:
             st.info("💡 **全券商看盤截圖支援**：您可直接點擊下方『📋 點此貼上剪貼簿截圖』直接讀取 Ctrl+V 截圖，或透過檔案選取器上傳圖檔（支援 PNG, JPG, JPEG, WEBP）！")
-            from streamlit_paste_button import paste_image_button
+            try:
+                from streamlit_paste_button import paste_image_button
+            except Exception:
+                paste_image_button = None
 
-            c_cup1, c_cup2 = st.columns([1.2, 1])
-            with c_cup1:
+            if paste_image_button is not None:
+                c_cup1, c_cup2 = st.columns([1.2, 1])
+                with c_cup1:
+                    uploaded_chart = st.file_uploader(
+                        "📁 選擇檔案上傳 K 線截圖：",
+                        type=["png", "jpg", "jpeg", "webp"],
+                        key="ai_chart_uploader",
+                        help="支援各券商看盤軟體截圖"
+                    )
+                with c_cup2:
+                    st.markdown("<div style='margin-top:28px;'></div>", unsafe_allow_html=True)
+                    main_paste = paste_image_button(
+                        "📋 點此貼上剪貼簿截圖 (Ctrl+V)",
+                        background_color="#2563EB",
+                        hover_background_color="#1D4ED8",
+                        key="main_paste_btn"
+                    )
+
+                if main_paste and main_paste.image_data is not None:
+                    active_main_img = main_paste.image_data
+                    st.success("✅ 已成功讀取剪貼簿截圖！")
+                elif uploaded_chart is not None:
+                    active_main_img = uploaded_chart
+            else:
                 uploaded_chart = st.file_uploader(
                     "📁 選擇檔案上傳 K 線截圖：",
                     type=["png", "jpg", "jpeg", "webp"],
                     key="ai_chart_uploader",
                     help="支援各券商看盤軟體截圖"
                 )
-            with c_cup2:
-                st.markdown("<div style='margin-top:28px;'></div>", unsafe_allow_html=True)
-                main_paste = paste_image_button(
-                    "📋 點此貼上剪貼簿截圖 (Ctrl+V)",
-                    background_color="#2563EB",
-                    hover_background_color="#1D4ED8",
-                    key="main_paste_btn"
-                )
-
-            if main_paste and main_paste.image_data is not None:
-                active_main_img = main_paste.image_data
-                st.success("✅ 已成功讀取剪貼簿截圖！")
-            elif uploaded_chart is not None:
                 active_main_img = uploaded_chart
 
             c_sc1, c_sc2 = st.columns([1, 1.2])

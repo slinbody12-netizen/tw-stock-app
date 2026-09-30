@@ -4,3 +4,5 @@ numpy>=1.24.0
 plotly>=5.18.0
 yfinance>=0.2.30
 requests>=2.31.0
+pillow>=10.0.0
+streamlit-paste-button>=0.1.2
