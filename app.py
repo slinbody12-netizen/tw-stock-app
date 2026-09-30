@@ -2821,6 +2821,49 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 col_d_m4.metric("連漲天數", f"{diag['up_days']} 天", "⚠️ 追高風險" if diag['up_days'] >= 3 else "安全區間")
 
             st.markdown("---")
+            # 2.5 📸 上傳券商截圖 · AI 助教原圖畫線批改
+            with st.expander(f"📸 上傳/貼上【{info['name']} ({info['code']})】券商截圖 · AI 助教原圖畫線批改", expanded=False):
+                st.caption("💡 支援在您的券商看盤截圖原圖上，自動繪製老朱專業操盤線：前高壓力線、關鍵支撐線、趨勢軌道與買點叮嚀標籤！可直接將圖片拖曳或按鍵盤 **Ctrl + V** 貼上。")
+                from core.chart_annotator import process_chart_upload
+                tab_uploaded = st.file_uploader(
+                    "選擇檔案或點擊後直接按 Ctrl+V 貼上截圖：",
+                    type=["png", "jpg", "jpeg", "webp"],
+                    key=f"tab_chart_uploader_{query}"
+                )
+                tab_user_q = st.text_input(
+                    "提問或操作疑問 (可選)：",
+                    placeholder="例如：今天站上 5MA 可以進場嗎？壓力在哪？",
+                    key=f"tab_chart_q_{query}"
+                )
+                if st.button("🎨 開始原圖畫線批改 & 審查", key=f"tab_chart_btn_{query}", type="primary", use_container_width=True):
+                    if tab_uploaded is not None:
+                        with st.spinner("🧑‍🏫 AI 助教正在您的原圖上畫線標註與深入審查..."):
+                            tres = process_chart_upload(tab_uploaded, user_query=tab_user_q, stock_code=info['code'])
+                            st.session_state[f"tab_annotated_{query}"] = tres
+                    else:
+                        st.warning("⚠️ 請先上傳或按 Ctrl+V 貼上 K 線截圖！")
+
+                if f"tab_annotated_{query}" in st.session_state and st.session_state[f"tab_annotated_{query}"]:
+                    tres = st.session_state[f"tab_annotated_{query}"]
+                    t_c1, t_c2 = st.columns(2)
+                    with t_c1:
+                        st.markdown("##### 📷 原始截圖")
+                        st.image(tres['original_image'], use_container_width=True)
+                    with t_c2:
+                        st.markdown("##### 🎨 助教原圖批改標註")
+                        st.image(tres['annotated_image'], use_container_width=True)
+                        st.download_button(
+                            "💾 下載助教標註圖 (PNG 高清)",
+                            data=tres['annotated_bytes'],
+                            file_name=f"老朱技術分析_助教批改_{info['code']}.png",
+                            mime="image/png",
+                            key=f"dl_tab_{query}",
+                            use_container_width=True
+                        )
+                    st.markdown("---")
+                    st.markdown(tres['markdown_report'])
+
+            st.markdown("---")
             # 3. AI 助教即時互動問答 (Inline Q&A)
             st.markdown("#### 💬 向 AI 助教即時請教（個股疑難、操作策略、技術面觀念）")
             
@@ -5397,10 +5440,14 @@ elif "AI" in menu or "助教" in menu:
     st.markdown("---")
     col_q1, col_q2 = st.columns([1.5, 1])
     with col_q1:
-        st.subheader("💬 向助教提問")
+        st.subheader("💬 向助教提問 / 貼圖批改")
         ask_mode = st.radio(
-            "請選擇提問方式：",
-            ["✏️ 自行輸入問題 (自由提問 / 觀念諮詢 / 個股診斷)", "💡 常見疑難快速發問 (經典範例一鍵解答)"],
+            "請選擇提問與審查方式：",
+            [
+                "✏️ 自行輸入問題 (自由提問 / 觀念諮詢 / 個股診斷)",
+                "📸 截圖上傳批改 (上傳/貼上K線圖，助教原圖畫線批改 & 深度診斷)",
+                "💡 常見疑難快速發問 (經典範例一鍵解答)"
+            ],
             horizontal=True,
             key="qa_ask_mode"
         )
@@ -5439,7 +5486,36 @@ elif "AI" in menu or "助教" in menu:
             "均線扣抵原理是什麼？如何預判未來均線助漲或助跌？"
         ]
 
-        if "自行輸入" in ask_mode:
+        uploaded_chart = None
+        chart_code_input = ""
+        chart_user_q = ""
+
+        if "截圖" in ask_mode or "📸" in ask_mode:
+            st.info("💡 **全券商看盤截圖支援**：請將看盤軟體 (三竹、國泰、元大、富邦、TradingView等) 的 K 線截圖拖曳至下方，或**直接在頁面上按鍵盤 Ctrl + V 貼上截圖**！")
+            uploaded_chart = st.file_uploader(
+                "📁 拖曳上傳或 Ctrl+V 貼上 K 線截圖：",
+                type=["png", "jpg", "jpeg", "webp"],
+                key="ai_chart_uploader",
+                help="支援各券商看盤軟體截圖，亦可直接複製圖片後在此 Ctrl+V 貼上"
+            )
+            c_sc1, c_sc2 = st.columns([1, 1.2])
+            with c_sc1:
+                chart_code_input = st.text_input(
+                    "🎯 關聯股票代號或名稱 (可選)：",
+                    value=cur_code,
+                    placeholder="例如 1301、2330、台塑，留空則自動判斷",
+                    key="chart_stock_input"
+                )
+            with c_sc2:
+                chart_user_q = st.text_input(
+                    "💬 您的疑問或操作想法 (可選)：",
+                    value="",
+                    placeholder="例如：剛過昨高可以進場嗎？壓力在哪？",
+                    key="chart_user_query"
+                )
+            target_q = chart_user_q if chart_user_q.strip() else f"請診斷 {chart_code_input} 的 K 線型態與進場條件"
+            btn_text = "🎨 開始助教原圖畫線批改 & 深度診斷"
+        elif "自行輸入" in ask_mode:
             target_q = st.text_area(
                 "請在下方輸入您的問題：",
                 value=st.session_state.get('custom_qa_text', ''),
@@ -5457,7 +5533,8 @@ elif "AI" in menu or "助教" in menu:
             btn_text = "💡 查看助教解答"
 
         # 智慧動態偵測：提問中是否包含個股（如 強茂 2481 / 2851 / 聯發科 等）
-        active_code, has_explicit_stock = extract_target_symbol(target_q, default_code=cur_code)
+        eff_code = chart_code_input if ("截圖" in ask_mode and chart_code_input.strip()) else cur_code
+        active_code, has_explicit_stock = extract_target_symbol(target_q, default_code=eff_code)
         
         # 智慧偵測提問中是否有指定日期 (例如 9/14, 8/26, 昨天 等)
         extracted_date = None
@@ -5486,7 +5563,21 @@ elif "AI" in menu or "助教" in menu:
                 st.rerun()
 
     with col_q2:
-        if has_explicit_stock and active_stock_context:
+        if "截圖" in ask_mode or "📸" in ask_mode:
+            st.subheader("🎨 助教視覺線審批改標準")
+            st.markdown("""
+            <div class="metric-box" style="text-align:left; background:#161922; border:1px solid #38BDF8; padding:16px; border-radius:8px;">
+                <h4 style="margin:0 0 10px 0; color:#38BDF8;">★ 批改標註四大核心要項</h4>
+                <div style="font-size:0.88rem; color:#CBD5E1; line-height:1.8;">
+                    🔴 <b>關鍵壓力頸線 (前高/箱頂)</b>：精準畫出上方解套賣壓與突破警戒線。<br>
+                    🟢 <b>關鍵支撐防守線 (前低/箱底)</b>：明確標註拉回防守線與破線停損點。<br>
+                    🔵 <b>上升趨勢軌道 (切線)</b>：檢定底底高、頭頭高之攻擊路徑。<br>
+                    🎯 <b>買點/觀望錨定標籤</b>：依「回後買上漲 8 大條件」嚴格批核。<br>
+                    ★ <b>助教實戰合格章</b>：附帶高清晰 PNG 圖檔下載供覆盤留存。
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        elif has_explicit_stock and active_stock_context:
             title_prefix = f"⏳ 歷史覆盤基準日：{active_stock_context['date']}" if active_stock_context['is_replay'] else f"📌 提問個股即時行情：{active_stock_context['name']} ({active_stock_context['code']})"
             st.subheader(title_prefix)
             chg_color = '#FF4D4F' if active_stock_context['change'] >= 0 else '#52C41A'
@@ -5521,11 +5612,51 @@ elif "AI" in menu or "助教" in menu:
             </div>
             """, unsafe_allow_html=True)
 
-    if ask_btn:
-        if not target_q.strip():
-            st.warning("⚠️ 請先輸入您的問題後再點擊詢問助教！")
-        else:
-            with st.spinner("助教正在翻閱技術分析講義並深入分析中..."):
-                reply = answer_question(target_q, active_stock_context, as_of_date=extracted_date or selected_replay_date_str)
-                st.markdown("### 📝 助教解答回覆：")
-                st.markdown(reply)
+    if "截圖" in ask_mode or "📸" in ask_mode:
+        if ask_btn:
+            if uploaded_chart is None:
+                st.warning("⚠️ 請先上傳或按 Ctrl+V 貼上您的 K 線截圖！")
+            else:
+                from core.chart_annotator import process_chart_upload
+                with st.spinner("🧑‍🏫 AI 助教正在您的原圖上畫線標註與深入審查..."):
+                    res = process_chart_upload(
+                        uploaded_chart,
+                        user_query=chart_user_q,
+                        stock_code=chart_code_input,
+                        as_of_date=selected_replay_date_str
+                    )
+                    st.session_state['last_chart_annotation'] = res
+
+        if 'last_chart_annotation' in st.session_state and st.session_state['last_chart_annotation']:
+            res = st.session_state['last_chart_annotation']
+            st.markdown("---")
+            st.markdown("### 🎨 【AI 助教實戰批改 · 原圖畫線與對照成果】")
+            
+            col_img1, col_img2 = st.columns(2)
+            with col_img1:
+                st.markdown("##### 📷 您上傳的原始截圖")
+                st.image(res['original_image'], use_container_width=True)
+            with col_img2:
+                st.markdown("##### 🎨 AI 實戰操盤助教批改標註圖")
+                st.image(res['annotated_image'], use_container_width=True)
+                st.download_button(
+                    label="💾 下載助教批改標註圖 (PNG 高清)",
+                    data=res['annotated_bytes'],
+                    file_name=f"老朱技術分析_助教批改_{res.get('stock_code', 'K線圖')}.png",
+                    mime="image/png",
+                    use_container_width=True,
+                    key="dl_main_chart_annotated"
+                )
+            
+            st.markdown("---")
+            st.markdown("### 📝 【技術分析實戰助教 · 深度審查與後續應對劇本】")
+            st.markdown(res['markdown_report'])
+    else:
+        if ask_btn:
+            if not target_q.strip():
+                st.warning("⚠️ 請先輸入您的問題後再點擊詢問助教！")
+            else:
+                with st.spinner("助教正在翻閱技術分析講義並深入分析中..."):
+                    reply = answer_question(target_q, active_stock_context, as_of_date=extracted_date or selected_replay_date_str)
+                    st.markdown("### 📝 助教解答回覆：")
+                    st.markdown(reply)
