@@ -480,8 +480,11 @@ SYSTEM_PIN = os.getenv("SYSTEM_PIN", "8888")
 COPILOT_SECRET_PIN = get_master_pin()
 
 def check_password():
-    """驗證存取密碼，確保私密安全訪問（全面支援 8888 訪客、最高指揮官專屬金鑰、VIP 專屬金鑰統一驗證）"""
+    """驗證存取密碼，確保私密安全訪問（全面支援 8888 訪客、最高指揮官專屬金鑰、VIP 專屬金鑰統一驗證，支援休眠與刷新免重複登入）"""
     if st.session_state.get("authenticated", False):
+        # 保持 URL 中的 PIN 參數，防止電腦休眠或按 r 刷新時丟失登入態
+        if "current_pin" in st.session_state and not st.query_params.get("pin"):
+            st.query_params["pin"] = st.session_state["current_pin"]
         return True
 
     # 只要處於首頁大門口解鎖畫面，立即徹底清理任何殘留特務狀態，確保資安零洩漏
@@ -498,6 +501,8 @@ def check_password():
             st.session_state["is_guest_8888"] = True
             st.session_state["copilot_authenticated"] = False
             st.session_state.pop("copilot_user", None)
+            st.session_state["current_pin"] = clean_url_pin
+            st.query_params["pin"] = clean_url_pin
             if "copilot_pin" in st.query_params:
                 del st.query_params["copilot_pin"]
             return True
@@ -508,6 +513,8 @@ def check_password():
                 st.session_state["is_guest_8888"] = False
                 st.session_state["copilot_authenticated"] = True
                 st.session_state["copilot_user"] = vip_info
+                st.session_state["current_pin"] = clean_url_pin
+                st.query_params["pin"] = clean_url_pin
                 st.session_state["target_nav_menu"] = "🤖 實戰秘密特務 (操盤副駕駛)"
                 return True
 
@@ -529,6 +536,7 @@ def check_password():
                 placeholder="請輸入密碼或特務金鑰",
                 help="訪客預設密碼為 8888；若持有最高指揮官專屬金鑰或 VIP 金鑰可直接在此輸入登入"
             )
+            remember_me = st.checkbox("保持登入狀態 (休眠喚醒或按 r 刷新不跳出)", value=True)
             submitted = st.form_submit_button("🔐 解鎖進入系統", use_container_width=True)
             if submitted:
                 clean_input = str(pin_input).strip()
@@ -538,6 +546,9 @@ def check_password():
                     st.session_state["is_guest_8888"] = True
                     st.session_state["copilot_authenticated"] = False
                     st.session_state.pop("copilot_user", None)
+                    if remember_me:
+                        st.session_state["current_pin"] = clean_input
+                        st.query_params["pin"] = clean_input
                     if "copilot_pin" in st.query_params:
                         del st.query_params["copilot_pin"]
                     st.rerun()
@@ -549,6 +560,9 @@ def check_password():
                         st.session_state["copilot_authenticated"] = True
                         st.session_state["copilot_user"] = vip_info
                         st.session_state["target_nav_menu"] = "🤖 實戰秘密特務 (操盤副駕駛)"
+                        if remember_me:
+                            st.session_state["current_pin"] = clean_input
+                            st.query_params["pin"] = clean_input
                         st.rerun()
                     else:
                         st.error("❌ 密碼錯誤，請重新輸入！")
@@ -3359,10 +3373,13 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
             col_m1, col_m2, col_m3, col_m4 = st.columns(4)
             m_close = info_mkt.get("close", 0.0)
             m_chg = info_mkt.get("change_pct", 0.0)
+            m_diff = info_mkt.get("change", 0.0)
             m_r5 = info_mkt.get("return_5d", 0.0)
             m_r20 = info_mkt.get("return_20d", 0.0)
             
             # 雙重防護：若 info_mkt 內未計算，直接由 df_mkt 現場計算
+            if m_diff == 0.0 and len(df_mkt) >= 2:
+                m_diff = round(float(df_mkt['Close'].iloc[-1]) - float(df_mkt['Close'].iloc[-2]), 2)
             if m_r5 == 0.0 and len(df_mkt) >= 6:
                 p_now = float(df_mkt['Close'].iloc[-1])
                 p_5 = float(df_mkt['Close'].iloc[-6])
@@ -3377,7 +3394,8 @@ elif "大盤同步" in menu or "滯後補漲" in menu:
             m_sma60 = info_mkt.get("sma60", 0.0) or float(df_mkt['SMA_60'].iloc[-1] if 'SMA_60' in df_mkt.columns else m_sma20)
 
             m_time_str = f" ({info_mkt.get('quote_time')})" if info_mkt.get('quote_time') else ""
-            col_m1.metric(f"加權指數 (^TWII){m_time_str}", f"{m_close:,.2f}", f"{m_chg:+.2f}%", delta_color="inverse")
+            delta_str = f"{m_diff:+,.2f} 點 ({m_chg:+.2f}%)"
+            col_m1.metric(f"加權指數 (^TWII){m_time_str}", f"{m_close:,.2f}", delta_str, delta_color="inverse")
             col_m2.metric("大盤 5 日累積動能", f"{m_r5:+.2f}%", help="大盤近 5 個交易日之累積漲跌幅")
             col_m3.metric("大盤 20 日波段動能", f"{m_r20:+.2f}%", help="大盤近 20 個交易日月線級別波段漲跌幅")
             
