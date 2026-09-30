@@ -2823,25 +2823,45 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             st.markdown("---")
             # 2.5 📸 上傳券商截圖 · AI 助教原圖畫線批改
             with st.expander(f"📸 上傳/貼上【{info['name']} ({info['code']})】券商截圖 · AI 助教原圖畫線批改", expanded=False):
-                st.caption("💡 支援在您的券商看盤截圖原圖上，自動繪製老朱專業操盤線：前高壓力線、關鍵支撐線、趨勢軌道與買點叮嚀標籤！可直接將圖片拖曳或按鍵盤 **Ctrl + V** 貼上。")
+                st.caption("💡 支援在您的券商看盤截圖原圖上，自動繪製老朱專業操盤線：前高壓力線、關鍵支撐線、趨勢軌道與買點叮嚀標籤！可直接點擊貼上按鈕或選擇圖檔。")
                 from core.chart_annotator import process_chart_upload
-                tab_uploaded = st.file_uploader(
-                    "選擇檔案或點擊後直接按 Ctrl+V 貼上截圖：",
-                    type=["png", "jpg", "jpeg", "webp"],
-                    key=f"tab_chart_uploader_{query}"
-                )
+                from streamlit_paste_button import paste_image_button
+
+                c_tup1, c_tup2 = st.columns([1.2, 1])
+                with c_tup1:
+                    tab_uploaded = st.file_uploader(
+                        "📁 選擇圖檔上傳：",
+                        type=["png", "jpg", "jpeg", "webp"],
+                        key=f"tab_chart_uploader_{query}"
+                    )
+                with c_tup2:
+                    st.markdown("<div style='margin-top:28px;'></div>", unsafe_allow_html=True)
+                    tab_paste = paste_image_button(
+                        "📋 點此貼上剪貼簿截圖 (Ctrl+V)",
+                        background_color="#2563EB",
+                        hover_background_color="#1D4ED8",
+                        key=f"tab_paste_{query}"
+                    )
+
+                active_tab_img = None
+                if tab_paste and tab_paste.image_data is not None:
+                    active_tab_img = tab_paste.image_data
+                    st.success("✅ 已成功讀取剪貼簿截圖！")
+                elif tab_uploaded is not None:
+                    active_tab_img = tab_uploaded
+
                 tab_user_q = st.text_input(
                     "提問或操作疑問 (可選)：",
-                    placeholder="例如：今天站上 5MA 可以進場嗎？壓力在哪？",
+                    placeholder="例如：現在算是過壓後的k線橫盤整理嗎？",
                     key=f"tab_chart_q_{query}"
                 )
                 if st.button("🎨 開始原圖畫線批改 & 審查", key=f"tab_chart_btn_{query}", type="primary", use_container_width=True):
-                    if tab_uploaded is not None:
+                    if active_tab_img is not None:
                         with st.spinner("🧑‍🏫 AI 助教正在您的原圖上畫線標註與深入審查..."):
-                            tres = process_chart_upload(tab_uploaded, user_query=tab_user_q, stock_code=info['code'])
+                            tres = process_chart_upload(active_tab_img, user_query=tab_user_q, stock_code=info['code'])
                             st.session_state[f"tab_annotated_{query}"] = tres
                     else:
-                        st.warning("⚠️ 請先上傳或按 Ctrl+V 貼上 K 線截圖！")
+                        st.warning("⚠️ 請先上傳檔案或點擊『📋 點此貼上剪貼簿截圖』按鈕！")
 
                 if f"tab_annotated_{query}" in st.session_state and st.session_state[f"tab_annotated_{query}"]:
                     tres = st.session_state[f"tab_annotated_{query}"]
@@ -5490,30 +5510,50 @@ elif "AI" in menu or "助教" in menu:
         chart_code_input = ""
         chart_user_q = ""
 
+        active_main_img = None
         if "截圖" in ask_mode or "📸" in ask_mode:
-            st.info("💡 **全券商看盤截圖支援**：請將看盤軟體 (三竹、國泰、元大、富邦、TradingView等) 的 K 線截圖拖曳至下方，或**直接在頁面上按鍵盤 Ctrl + V 貼上截圖**！")
-            uploaded_chart = st.file_uploader(
-                "📁 拖曳上傳或 Ctrl+V 貼上 K 線截圖：",
-                type=["png", "jpg", "jpeg", "webp"],
-                key="ai_chart_uploader",
-                help="支援各券商看盤軟體截圖，亦可直接複製圖片後在此 Ctrl+V 貼上"
-            )
+            st.info("💡 **全券商看盤截圖支援**：您可直接點擊下方『📋 點此貼上剪貼簿截圖』直接讀取 Ctrl+V 截圖，或透過檔案選取器上傳圖檔（支援 PNG, JPG, JPEG, WEBP）！")
+            from streamlit_paste_button import paste_image_button
+
+            c_cup1, c_cup2 = st.columns([1.2, 1])
+            with c_cup1:
+                uploaded_chart = st.file_uploader(
+                    "📁 選擇檔案上傳 K 線截圖：",
+                    type=["png", "jpg", "jpeg", "webp"],
+                    key="ai_chart_uploader",
+                    help="支援各券商看盤軟體截圖"
+                )
+            with c_cup2:
+                st.markdown("<div style='margin-top:28px;'></div>", unsafe_allow_html=True)
+                main_paste = paste_image_button(
+                    "📋 點此貼上剪貼簿截圖 (Ctrl+V)",
+                    background_color="#2563EB",
+                    hover_background_color="#1D4ED8",
+                    key="main_paste_btn"
+                )
+
+            if main_paste and main_paste.image_data is not None:
+                active_main_img = main_paste.image_data
+                st.success("✅ 已成功讀取剪貼簿截圖！")
+            elif uploaded_chart is not None:
+                active_main_img = uploaded_chart
+
             c_sc1, c_sc2 = st.columns([1, 1.2])
             with c_sc1:
                 chart_code_input = st.text_input(
                     "🎯 關聯股票代號或名稱 (可選)：",
-                    value=cur_code,
-                    placeholder="例如 1301、2330、台塑，留空則自動判斷",
+                    value="",
+                    placeholder="留空將由 AI 助教自動識別截圖中的個股！",
                     key="chart_stock_input"
                 )
             with c_sc2:
                 chart_user_q = st.text_input(
                     "💬 您的疑問或操作想法 (可選)：",
                     value="",
-                    placeholder="例如：剛過昨高可以進場嗎？壓力在哪？",
+                    placeholder="例如：現在算是過壓後的k線橫盤整理嗎？",
                     key="chart_user_query"
                 )
-            target_q = chart_user_q if chart_user_q.strip() else f"請診斷 {chart_code_input} 的 K 線型態與進場條件"
+            target_q = chart_user_q if chart_user_q.strip() else f"請診斷 K 線型態與進場條件"
             btn_text = "🎨 開始助教原圖畫線批改 & 深度診斷"
         elif "自行輸入" in ask_mode:
             target_q = st.text_area(
@@ -5614,13 +5654,13 @@ elif "AI" in menu or "助教" in menu:
 
     if "截圖" in ask_mode or "📸" in ask_mode:
         if ask_btn:
-            if uploaded_chart is None:
-                st.warning("⚠️ 請先上傳或按 Ctrl+V 貼上您的 K 線截圖！")
+            if active_main_img is None:
+                st.warning("⚠️ 請先上傳檔案或點擊『📋 點此貼上剪貼簿截圖』！")
             else:
                 from core.chart_annotator import process_chart_upload
-                with st.spinner("🧑‍🏫 AI 助教正在您的原圖上畫線標註與深入審查..."):
+                with st.spinner("🧑‍🏫 AI 助教正在辨識圖中代號、校準價位並進行原圖畫線審查..."):
                     res = process_chart_upload(
-                        uploaded_chart,
+                        active_main_img,
                         user_query=chart_user_q,
                         stock_code=chart_code_input,
                         as_of_date=selected_replay_date_str
@@ -5629,6 +5669,8 @@ elif "AI" in menu or "助教" in menu:
 
         if 'last_chart_annotation' in st.session_state and st.session_state['last_chart_annotation']:
             res = st.session_state['last_chart_annotation']
+            if res.get('stock_code'):
+                st.success(f"✅ AI 助教已自動識別標的：【{res.get('stock_name', '')} ({res['stock_code']})】")
             st.markdown("---")
             st.markdown("### 🎨 【AI 助教實戰批改 · 原圖畫線與對照成果】")
             
@@ -5647,6 +5689,18 @@ elif "AI" in menu or "助教" in menu:
                     use_container_width=True,
                     key="dl_main_chart_annotated"
                 )
+
+            # 若有識別出個股，提供官方高精度互動式 K 線主圖檢視
+            if res.get('stock_code'):
+                with st.expander(f"📊 查看【{res.get('stock_name', '')} ({res['stock_code']})】官方互動式 K 線主圖 (轉折點 / 均線 / 成交量)", expanded=True):
+                    try:
+                        df_k, info_k = fetch_stock_kline(res['stock_code'], period="6mo")
+                        if df_k is not None and not df_k.empty:
+                            from core.chart_drawer import render_kline_chart
+                            fig_k = render_kline_chart(df_k, info_k, title=f"{info_k.get('name', '')} ({res['stock_code']}) 實戰 K 線波段走勢")
+                            st.plotly_chart(fig_k, use_container_width=True)
+                    except Exception:
+                        pass
             
             st.markdown("---")
             st.markdown("### 📝 【技術分析實戰助教 · 深度審查與後續應對劇本】")
