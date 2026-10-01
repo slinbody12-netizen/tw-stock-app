@@ -1323,8 +1323,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
     st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
+    do_force = st.session_state.pop("force_live_refresh", False)
     with st.spinner(f"正在分析 {query} ..."):
-        df, info = fetch_stock_kline(query, period="1y")
+        df, info = fetch_stock_kline(query, period="1y", force_refresh=do_force)
+
+    if do_force and info.get('is_realtime'):
+        st.toast(f"✅ 已成功同步證交所最新撮合行情 ({info.get('quote_time', '')})！現價: {info.get('close')} 元", icon="📡")
 
     if df.empty or "error" in info:
         st.error(f"❌ 無法讀取股票數據: {info.get('error', '未知錯誤')}，請確認代碼或名稱是否正確。")
@@ -1463,7 +1467,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                         st.rerun()
 
             with c_quick_t3:
-                pass
+                if st.button("🔄 立即刷新最新行情 (證交所連線)", key=f"btn_live_refresh_{query}", use_container_width=True, help="強制向台灣證券交易所/櫃買中心連線，更新當前最新成交價與時間戳記"):
+                    st.session_state["force_live_refresh"] = True
+                    st.rerun()
+        else:
+            if st.button("🔄 立即刷新最新行情 (證交所連線)", key=f"btn_live_refresh_guest_{query}", use_container_width=False, help="強制向台灣證券交易所/櫃買中心連線，更新當前最新成交價與時間戳記"):
+                st.session_state["force_live_refresh"] = True
+                st.rerun()
 
         # 📱 手機優先：4 大模組化分頁切換 (一頁只專注一件事，告別無限滾動)
         tab_tech, tab_kline, tab_chips, tab_ai = st.tabs([
