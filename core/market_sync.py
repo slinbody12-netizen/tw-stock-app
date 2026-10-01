@@ -549,6 +549,19 @@ SECTOR_FLEETS = [
         ]
     },
     {
+        "id": "passive_components",
+        "name": "被動元件與電阻艦隊",
+        "icon": "🔋",
+        "leader_anchor": "3624",  # 光頡
+        "members": [
+            {"code": "3624", "name": "光頡"},
+            {"code": "6834", "name": "天二科技"},
+            {"code": "6224", "name": "聚鼎"},
+            {"code": "2327", "name": "國巨"},
+            {"code": "2492", "name": "華新科"}
+        ]
+    },
+    {
         "id": "finance",
         "name": "金控與銀行權值艦隊",
         "icon": "🏦",
