@@ -1611,7 +1611,16 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         peak_idx = df.iloc[-15:]['High'].idxmax()
         peak_h = float(df.loc[peak_idx, 'High'])
         recent_h_max = float(df.iloc[-4:]['High'].max())
-        if peak_h > recent_h_max * 1.015 and df.index.get_loc(peak_idx) < len(df) - 3:
+
+        # 嚴謹檢核：波段高點確實曾爆大量，且出現頭頭低滯漲
+        peak_vol = float(df.loc[peak_idx, 'Volume'])
+        vma20_peak = float(df.get('Vol_MA20', df['Volume']).loc[peak_idx])
+        is_peak_heavy_vol = peak_vol >= vma20_peak * 1.35
+        is_lower_high = (peak_h > recent_h_max * 1.015) and (df.index.get_loc(peak_idx) < len(df) - 3)
+
+        # 依朱老師心法：高檔爆量頭頭低，且收盤摜破 5MA 操盤線時，短線多單才停利！
+        # 若股價依然守穩 5MA 之上，則屬於多頭守線續抱，絕不可自相矛盾判定立即停利
+        if is_peak_heavy_vol and is_lower_high and (c < sma5):
             rev4_short_triggered = True
             if c < box_low_recent * 1.001:  # 收盤跌破近期盤整低點
                 rev4_long_triggered = True
@@ -1619,9 +1628,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
                 reversal_alerts.append(f"🚨【高檔反轉·破盤整空頭確認】收盤跌破盤整低點 {box_low_recent:.2f} 元 (空頭確認·長線多單全數停利清倉)")
                 signals.append(f"🚨 跌破高檔盤整低點 {box_low_recent:.2f} 元 (空頭確認·長線多單全數停利清倉)")
             else:
-                rev4_desc = f"多頭高檔出現爆大量「頭頭低」盤整，短線多單依心法立即停利出場！長線多單嚴密防守盤整下緣支撐 ({box_low_recent:.2f}元)！"
-                reversal_alerts.append(f"⚠️【高檔反轉·頭頭低盤整】短線多單立即停利出場！長線多單守盤整低點 {box_low_recent:.2f} 元！")
-                signals.append("⚠️ 高檔爆量頭頭低盤整 (短線多單停利·長線守盤整箱底)")
+                rev4_desc = f"多頭高檔出現爆大量「頭頭低」盤整且摜破 5MA，短線多單依心法立即停利出場！長線多單嚴密防守盤整下緣支撐 ({box_low_recent:.2f}元)！"
+                reversal_alerts.append(f"⚠️【高檔反轉·頭頭低破5均】跌破 5MA 操盤線，短線多單停利出場！長線多單守盤整低點 {box_low_recent:.2f} 元！")
+                signals.append("⚠️ 高檔爆量頭頭低破5均 (短線多單停利·長線守盤整箱底)")
 
     # 綜合 CH9 實戰停利導航核心字典
     signals_dict['ch9_take_profit'] = {
@@ -1687,7 +1696,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         sop_name = "SOP 1: 守進場低點/5MA·果斷停損"
         sop_action = f"波段回檔尚未超過 10% 警戒線，做多以進場 K 線低點 (或 5MA {sma5:.2f}元) 為停損點，收盤跌破立刻執行停損，絕不可拖成大套牢！"
         mindset_advice = "【散戶第 1 大錯誤：當虧損很小時不願賠錢出場】失敗的進場在第一時間都有讓你小賠出場的機會；被情緒左右不願認賠，容易拖延成重度套牢！每日跌幅逾 5% 立即列為警示股準備出場。"
-        if is_caution_5pct:
+        if is_caution_5pct and is_bear:
             signals.append("⚠️ 自高點回檔已達 5% (觸發警示股防守機制·準備賣出停損)")
     elif 10.0 <= drawdown_pct < 20.0:
         trap_level = "中度套牢 (10%~20%)"
@@ -1695,7 +1704,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         sop_name = "SOP 2: 反彈遇壓不漲·斷然認賠出場"
         sop_action = f"波段回檔已達 10%~20% 中度套牢區！股票反彈遇均線壓力 (如 20MA {sma20:.2f}元 / 5MA {sma5:.2f}元) 或前高壓力不漲時，斷然認賠出場！"
         mindset_advice = "【散戶第 2 大錯誤：嚴禁向下攤平買進降低成本】向下攤平是在加碼正在下跌的股票！求解套反而卡死更多資金在空頭股。必須趁反彈遇阻時果斷減碼認賠，轉移資金。"
-        signals.append(f"🟡 自高點回檔達 {drawdown_pct:.1f}% (進入中度套牢區·反彈遇壓斷然認賠出場)")
+        if is_bear:
+            signals.append(f"🟡 自高點回檔達 {drawdown_pct:.1f}% (進入中度套牢區·反彈遇壓斷然認賠出場)")
     else:  # drawdown_pct >= 20.0
         if is_bottoming and not sma20_down:
             trap_level = "重度套牢 (>20%) 打底蓄勢中"
@@ -1703,14 +1713,16 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             sop_name = "SOP 5: 大量止跌打底·等反轉多頭再加碼"
             sop_action = "低檔已出現爆大量止跌或初步打底型態，切勿盲目急躁加碼！必須耐心等待打底完成、多頭趨勢確立（底底高、站上揚升 20MA）時再順勢加碼解套！"
             mindset_advice = "底部打底需要時間消化籌碼，打底未完成前嚴禁急著向下攤平，等確認走出第二隻腳轉折多頭才能出手。"
-            signals.append(f"🟣 自高點回檔重挫 {drawdown_pct:.1f}% 但低檔爆量打底 (耐心等打底完成·多頭確立再加碼)")
+            if is_bear:
+                signals.append(f"🟣 自高點回檔重挫 {drawdown_pct:.1f}% 但低檔爆量打底 (耐心等打底完成·多頭確立再加碼)")
         else:
             trap_level = "重度套牢 (>20%) 空頭進行中"
             sop_step = 3
             sop_name = "SOP 3 & 4: 反彈賣出反手做空賺價差解套 / 換股操作"
             sop_action = f"波段重挫已逾 20% 且空頭趨勢進行中！反彈遇下彎 20MA ({sma20:.2f}元) 賣出後【反手做空賺價差解套】（直到出現底底高停止放空回補）；或賣出後【換股操作】其他多頭強勢股獲利解套！"
             mindset_advice = "【認清被套牢的三大後果】短期 3~5 年不一定能解套 (如大立光 6075 套牢 8 年)、公司經營不善恐下市血本無歸、資金失去流動性。反彈遇下彎月線賣出並反手放空，以空方獲利彌補虧損！"
-            signals.append(f"🚨 自高點回檔重挫 {drawdown_pct:.1f}% (重度套牢空頭進行中·反彈賣出反手做空或換股解套)")
+            if is_bear:
+                signals.append(f"🚨 自高點回檔重挫 {drawdown_pct:.1f}% (重度套牢空頭進行中·反彈賣出反手做空或換股解套)")
 
     # 組合反手做空賺價差解套指引
     short_hedge_guide = {
