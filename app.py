@@ -55,7 +55,7 @@ from core.market_sync import (
 )
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
-from core.signal_detector import detect_signals
+from core.signal_detector import detect_signals, categorize_signals
 from core.screener import scan_stocks, load_speedy_chips, get_all_analyzed_stocks
 from core.sector_radar import calculate_sector_heat_rankings, get_stock_sector_info, get_sector_heat_rankings
 from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query, diagnose_stock_deeply, get_daily_market_briefing
@@ -1061,6 +1061,91 @@ def compute_ta_indicators(df_in):
     d['RSI_6'] = 100 - (100 / (1 + (ema_up6 / (ema_down6 + 1e-8))))
     return d
 
+def render_strategy_signals_dashboard(signals_list: list, signals_dict: dict, trend: dict, info: dict):
+    """
+    將個股命中的技術策略以結構化分類徽章與儀表板呈現，取代密密麻麻的一長串文字牆
+    """
+    if not signals_list:
+        return
+
+    cats = categorize_signals(signals_list)
+    total_signals = len(signals_list)
+
+    # 提煉核心一句話定性 (Executive Summary)
+    if signals_dict.get('box_range_breakout', False):
+        lead_verdict = "🔥【箱型大突破】放量一棒過頂噴發，主力強勢表態！"
+    elif signals_dict.get('iron_man', False):
+        lead_verdict = "🏆【無敵鐵金剛】三線合一頂級波段戰法啟動！"
+    elif signals_dict.get('main_wave_2nd', False):
+        lead_verdict = "🚀【主升段第二波】洗盤結束放量過高，主升發動！"
+    elif signals_dict.get('pullback_buy', False):
+        lead_verdict = "🎯【回後買上漲】拉回測線有守，轉折紅K發動！"
+    elif signals_dict.get('golden_cross_5_20', False):
+        lead_verdict = "✨【雙線黃金交叉】5MA 穿過 20MA，均線多頭翻揚！"
+    elif signals_dict.get('bottom_breakout', False):
+        lead_verdict = "🌱【底部起漲】低檔整理首度放量突破均線！"
+    elif any(k in ["頭低底低", "死亡交叉", "頂部起跌", "低檔起跌"] for k in [x.split(' (')[0] for x in signals_list]):
+        lead_verdict = "⚠️【空方弱勢破線】短線偏弱整理，嚴格執行防守停損！"
+    else:
+        lead_verdict = f"🚀 多方技術指標共振，共命中 {total_signals} 項策略條件！"
+
+    # 組合分類 Badge HTML
+    rows_html = ""
+    cat_order = ['pattern', 'ma', 'volume_timing', 'exit_risk', 'bearish']
+    for ck in cat_order:
+        cdata = cats.get(ck)
+        if not cdata or not cdata['items']:
+            continue
+        badges_spans = ""
+        for item in cdata['items']:
+            desc_attr = item['desc'].replace('"', '&quot;') if item['desc'] else item['title']
+            badges_spans += (
+                f"<span style='background:{cdata['bg']}; border:1px solid {cdata['border']}; color:{cdata['color']}; "
+                f"padding:3px 9px; border-radius:6px; font-size:0.83rem; font-weight:600; display:inline-block; margin:2px 3px;' "
+                f"title='{desc_attr}'>"
+                f"{item['title']}"
+                f"</span>"
+            )
+        rows_html += (
+            f"<div style='margin-top: 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;'>"
+            f"<span style='font-size: 0.84rem; font-weight: bold; color: {cdata['color']}; min-width: 95px; display: inline-block;'>"
+            f"{cdata['title']} ({len(cdata['items'])}):</span>"
+            f"<div style='display: inline-flex; flex-wrap: wrap; gap: 4px; flex: 1;'>"
+            f"{badges_spans}"
+            f"</div>"
+            f"</div>"
+        )
+
+    dashboard_html = (
+        f"<div style='background: linear-gradient(135deg, #181B26 0%, #1E2235 100%); "
+        f"border: 1px solid #2F354D; border-radius: 10px; padding: 12px 16px; margin: 8px 0 12px 0; "
+        f"box-shadow: 0 4px 12px rgba(0,0,0,0.2);'>"
+        f"<div style='display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; border-bottom: 1px solid #2B3045; padding-bottom: 8px;'>"
+        f"<div>"
+        f"<span style='font-size: 1.02rem; font-weight: bold; color: #FFFFFF;'>🎯 今日命中策略分類儀表板</span> "
+        f"<span style='background: #2563EB; color: #FFFFFF; font-size: 0.78rem; font-weight: bold; padding: 2px 8px; border-radius: 10px; margin-left: 6px;'>共達標 {total_signals} 項</span>"
+        f"</div>"
+        f"<div style='font-size: 0.88rem; font-weight: bold; color: #38BDF8;'>"
+        f"{lead_verdict}"
+        f"</div>"
+        f"</div>"
+        f"{rows_html}"
+        f"</div>"
+    )
+
+    st.markdown(dashboard_html, unsafe_allow_html=True)
+
+    # 折疊式詳細心法解析 (不佔版面，想研讀可隨時點開)
+    with st.expander(f"📖 展開查看全部 {total_signals} 項達標策略定義與實戰心法", expanded=False):
+        for ck in cat_order:
+            cdata = cats.get(ck)
+            if not cdata or not cdata['items']:
+                continue
+            st.markdown(f"**{cdata['title']}**")
+            for item in cdata['items']:
+                desc_text = f"：{item['desc']}" if item['desc'] else ""
+                st.markdown(f"- **{item['title']}**{desc_text}")
+
 def get_market_condition():
     """
     動態研判台股大盤 (加權指數) 走勢與建議持股水位 (實戰量化心法)
@@ -1530,7 +1615,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 for alert in trend['alerts']:
                     st.warning(alert)
             if signals_list:
-                st.success(" | ".join(signals_list))
+                render_strategy_signals_dashboard(signals_list, signals_dict, trend, info)
 
             # 轉折控制列
             col_t_ctrl1, col_t_ctrl2, col_t_ctrl3, col_t_ctrl4 = st.columns([1.6, 1.8, 2.4, 1.4])

@@ -705,11 +705,12 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("底部起漲 (低檔放量突破均線)")
 
     # ----------------------------------------------------
-    # 策略 E：高檔起漲 (強勢多頭高檔休息後再發動)
+    # 策略 E：高檔起漲 (強勢多頭高檔休息後再發動，非低檔底部起漲)
     # ----------------------------------------------------
-    if c >= sma60 and sma5 > sma20 and change_pct >= 1.5 and is_red and (c >= df.iloc[-10:-1]['High'].max() * 0.99) and is_5ma_rising:
+    if not signals_dict.get('bottom_breakout', False) and c >= sma60 and sma5 > sma20 and change_pct >= 1.5 and is_red and (c >= df.iloc[-10:-1]['High'].max() * 0.99) and is_5ma_rising:
         signals_dict['high_breakout'] = True
         signals.append("高檔起漲 (多頭高檔突破再創高)")
+
 
     # ----------------------------------------------------
     # 策略 F：均線糾結突破 (四線高度糾結放量突破起漲第一根)
@@ -1825,3 +1826,43 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     signals_dict['safety_reasons'] = safety_reasons
 
     return signals_dict, signals
+
+
+def categorize_signals(signals_list: list) -> dict:
+    """
+    將偵測到的技術分析訊號分類為 5 大實戰維度，避免資訊轟炸與文字牆
+    """
+    def _categorize(title: str) -> str:
+        t_l = title.lower()
+        if any(k in t_l for k in ['頭低', '死亡交叉', '下彎', '彈後', '起跌', '放空', '弱勢', '跌破', '並列紅k']):
+            return 'bearish'
+        if any(k in t_l for k in ['停利', '警戒', '背離', '誘多', '重挫', '防出貨']):
+            return 'exit_risk'
+        if any(k in t_l for k in ['爆量', '攻擊量', '盤中強勢', '一點鐘', '換手', '止跌量']):
+            return 'volume_timing'
+        if any(k in t_l for k in ['黃金交叉', '無敵鐵金剛', '回後準', '第二波', '起漲', '長抱', '糾結突破']):
+            return 'ma'
+        if any(k in t_l for k in ['箱型', 'abc', '黑k', '紅k', '軌道', '底', '缺口', '橫盤']):
+            return 'pattern'
+        return 'ma'
+
+    categories = {
+        'pattern': {'title': '🧱 型態突破', 'color': '#60A5FA', 'bg': '#1E293B', 'border': '#3B82F6', 'items': []},
+        'ma': {'title': '📈 均線動能', 'color': '#34D399', 'bg': '#064E3B', 'border': '#10B981', 'items': []},
+        'volume_timing': {'title': '⚡ 量能時機', 'color': '#FBBF24', 'bg': '#451A03', 'border': '#F59E0B', 'items': []},
+        'exit_risk': {'title': '🛡️ 停利防守', 'color': '#C084FC', 'bg': '#2E1065', 'border': '#8B5CF6', 'items': []},
+        'bearish': {'title': '📉 空方警戒', 'color': '#F87171', 'bg': '#450A0A', 'border': '#EF4444', 'items': []}
+    }
+
+    for s in signals_list:
+        if ' (' in s and s.endswith(')'):
+            t = s.split(' (')[0].strip()
+            d = s.split(' (')[1][:-1].strip()
+        else:
+            t = s.strip()
+            d = ''
+        c_key = _categorize(t)
+        categories[c_key]['items'].append({'title': t, 'desc': d, 'raw': s})
+
+    return categories
+
