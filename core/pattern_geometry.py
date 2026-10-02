@@ -80,7 +80,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
             price_c = price_a * 0.98
 
         y_tangent_today = price_a + slope * (n - 1 - idx_a)
-        is_breaking = (c_today >= y_tangent_today * 0.995 or c_today >= price_c) and (c_today >= sma5_today) and (slope < 0)
+        is_breaking = (c_today >= y_tangent_today * 0.995 or c_today >= price_c) and (c_today >= sma5_today) and (slope < 0) and (c_today >= o_today)
 
         prev_slice = df.iloc[max(0, idx_a - 15):idx_a]
         wave1_low = float(prev_slice['Low'].min()) if len(prev_slice) > 0 else price_b
@@ -260,7 +260,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
         neckline_round = round(max(y1, y3), 2)
         depth_round = round(neckline_round - y2, 2)
         target_round = round(neckline_round + depth_round, 2)
-        is_break_round = (c_today >= neckline_round * 0.995) and (c_today >= sma5_today)
+        is_break_round = (c_today >= neckline_round * 0.995) and (c_today >= sma5_today) and (c_today >= o_today)
 
         if is_break_round:
             round_status = "🔥 放量過頸線起漲"
@@ -313,15 +313,33 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
         y_lower_today = t1_p + ch_slope * (n - 1 - t1_idx)
         y_upper_today = y_lower_today + channel_height
 
-        is_break_ch = (c_today >= y_upper_today * 0.995) and (c_today >= sma5_today)
+        is_red_k = (c_today >= o_today)
+        is_touch_upper = (c_today >= y_upper_today * 0.995)
+        is_break_ch = is_touch_upper and (c_today >= sma5_today) and is_red_k
         if ch_slope >= 0:
-            ch_name = "🚀 突破上升軌道線"
-            ch_status = "衝破上軌加速噴出" if is_break_ch else "通道內推升"
-            ch_desc = f"多頭沿上升通道推升 (下軌支撐約 {y_lower_today:.2f} 元，上軌反壓約 {y_upper_today:.2f} 元)。" + ("今日放量大紅K衝破上升軌道線上緣！多頭轉強加速噴出主升段。" if is_break_ch else "目前在上升軌道內震盪墊高，回踩下軌守穩為良性買點。")
+            ch_name = "🚀 突破上升軌道線" if is_break_ch else "📈 上升軌道線"
+            if is_break_ch:
+                ch_status = "衝破上軌加速噴出"
+                ch_action = "今日放量大紅K衝破上升軌道線上緣！多頭轉強加速噴出主升段。"
+            elif is_touch_upper and not is_red_k:
+                ch_status = "觸頂開高走低收黑"
+                ch_action = "今日盤中雖一度衝過上升軌道線上緣，但終場開高走低收黑K(綠K)遭逢獲利了結賣壓，需防高檔假突破或震盪拉回。"
+            else:
+                ch_status = "通道內推升"
+                ch_action = "目前在上升軌道內震盪墊高，回踩下軌守穩為良性買點。"
+            ch_desc = f"多頭沿上升通道推升 (下軌支撐約 {y_lower_today:.2f} 元，上軌反壓約 {y_upper_today:.2f} 元)。{ch_action}"
         else:
-            ch_name = "📉 下降軌道線"
-            ch_status = "衝破上軌扭轉空頭" if is_break_ch else "通道內尋底跌勢中"
-            ch_desc = f"股價沿下降通道整理 (上軌壓力約 {y_upper_today:.2f} 元，下軌支撐約 {y_lower_today:.2f} 元)。" + ("今日強勢衝破下降軌道線上緣！空頭趨勢扭轉反轉走多。" if is_break_ch else "目前沿下降通道修正，需放量衝破上軌始能扭轉跌勢。")
+            ch_name = "🚀 突破下降軌道線" if is_break_ch else "📉 下降軌道線"
+            if is_break_ch:
+                ch_status = "衝破上軌扭轉空頭"
+                ch_action = "今日強勢收紅衝破下降軌道線上緣！空頭趨勢扭轉反轉走多。"
+            elif is_touch_upper and not is_red_k:
+                ch_status = "衝高收黑留上影"
+                ch_action = "今日盤中雖試圖衝破下降軌道上緣，但終場開高走低收黑，反轉尚未確認，需待帶量長紅實體站穩。"
+            else:
+                ch_status = "通道內尋底跌勢中"
+                ch_action = "目前沿下降通道修正，需放量衝破上軌始能扭轉跌勢。"
+            ch_desc = f"股價沿下降通道整理 (上軌壓力約 {y_upper_today:.2f} 元，下軌支撐約 {y_lower_today:.2f} 元)。{ch_action}"
 
         channel_pat = {
             "id": "ascending_channel",
