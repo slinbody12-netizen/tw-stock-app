@@ -32,18 +32,179 @@ def load_stock_list():
 
 _STOCK_LIST = load_stock_list()
 
-def search_stocks(query: str):
+# 常見異體字、簡體字、日文新字體與台股習慣用字正規化對照表
+CHAR_NORM_MAP = {
+    '鐡': '鐵', '臺': '台', '豊': '豐', '恒': '恆', '証': '證',
+    '峯': '峰', '羣': '群', '鷄': '雞', '宝': '寶', '国': '國',
+    '华': '華', '创': '創', '电': '電', '联': '聯', '阳': '陽',
+    '达': '達', '广': '廣', '发': '發', '钛': '鈦', '钰': '鈺',
+    '钜': '鉅', '铖': '鋮', '桦': '樺', '强': '強', '温': '溫',
+    '黄': '黃', '线': '線', '缆': '纜', '纸': '紙', '纺': '紡',
+    '织': '織', '润': '潤', '胜': '勝', '声': '聲', '银': '銀',
+    '车': '車', '轮': '輪', '药': '藥', '医': '醫', '运': '運',
+    '钢': '鋼', '机': '機', '飞': '飛', '软': '軟', '体': '體',
+    '硕': '碩', '伟': '偉', '凯': '凱', '业': '業', '实': '實',
+    '际': '際', '优': '優', '讯': '訊', '视': '視', '环': '環',
+    '圆': '圓', '龙': '龍', '荣': '榮', '兴': '興', '诚': '誠',
+    '铭': '銘', '顺': '順', '硅': '矽', '纬': '緯', '颖': '穎'
+}
+
+def normalize_stock_name(text: str) -> str:
     """
-    依股票代號、中文名稱或產業搜尋股票
+    正規化股票名稱與查詢字串：全形轉半形、異體字與俗體字標準化
     """
-    if not query:
-        return _STOCK_LIST[:20]
-    q = query.strip().upper()
-    matches = []
-    for s in _STOCK_LIST:
-        if q in s['code'] or q in s['name'] or q in s.get('industry', ''):
-            matches.append(s)
-    return matches
+    if not text:
+        return ""
+    res = []
+    for ch in str(text).strip():
+        code = ord(ch)
+        if code == 0x3000:
+            ch = ' '
+        elif 0xFF01 <= code <= 0xFF5E:
+            ch = chr(code - 0xFEE0)
+        ch = CHAR_NORM_MAP.get(ch, ch)
+        res.append(ch)
+    return ''.join(res)
+
+# 常見公司簡稱、全名、俗稱別名與代號對照表
+STOCK_ALIASES = {
+    '東鋼': '2006',
+    '東和鋼': '2006',
+    '東和鋼鐵': '2006',
+    '中鋼': '2002',
+    '中國鋼鐵': '2002',
+    '台積': '2330',
+    '台積電': '2330',
+    '台灣積體電路': '2330',
+    '台積公司': '2330',
+    '聯電': '2303',
+    '聯華電子': '2303',
+    '聯發': '2454',
+    '聯發科': '2454',
+    '聯發科技': '2454',
+    '鴻海': '2317',
+    '鴻海精密': '2317',
+    '大立光': '3008',
+    '大立光電': '3008',
+    '長榮': '2603',
+    '長榮海運': '2603',
+    '長榮航': '2618',
+    '長榮航空': '2618',
+    '華航': '2610',
+    '中華航空': '2610',
+    '陽明': '2609',
+    '陽明海運': '2609',
+    '萬海': '2615',
+    '萬海航運': '2615',
+    '富邦金': '2881',
+    '富邦金控': '2881',
+    '國泰金': '2882',
+    '國泰金控': '2882',
+    '中信金': '2891',
+    '中信金控': '2891',
+    '兆豐金': '2886',
+    '兆豐金控': '2886',
+    '玉山金': '2884',
+    '玉山金控': '2884',
+    '華南金': '2880',
+    '華南金控': '2880',
+    '第一金': '2892',
+    '第一金控': '2892',
+    '元大金': '2885',
+    '元大金控': '2885',
+    '台新金': '2887',
+    '台新金控': '2887',
+    '永豐金': '2890',
+    '永豐金控': '2890',
+    '合庫金': '5880',
+    '合庫金控': '5880',
+    '開發金': '2883',
+    '凱基金': '2883',
+    '凱基金控': '2883',
+    '台達電': '2308',
+    '台達電子': '2308',
+    '廣達': '2382',
+    '廣達電腦': '2382',
+    '華碩': '2357',
+    '華碩電腦': '2357',
+    '緯創': '3231',
+    '緯創資通': '3231',
+    '光寶科': '2301',
+    '光寶科技': '2301',
+    '研華': '2395',
+    '研華科技': '2395',
+    '技嘉': '2376',
+    '技嘉科技': '2376',
+    '微星': '2377',
+    '微星科技': '2377',
+    '仁寶': '2324',
+    '仁寶電腦': '2324',
+    '英業達': '2356',
+    '英業達科技': '2356',
+    '和碩': '4938',
+    '和碩聯合': '4938',
+    '宏碁': '2353',
+    '宏碁電腦': '2353',
+    '友達': '2409',
+    '友達光電': '2409',
+    '群創': '3481',
+    '群創光電': '3481',
+    '高鐵': '2633',
+    '台灣高鐵': '2633',
+    '統一超': '2912',
+    '統一超商': '2912',
+    '7-11': '2912',
+    '711': '2912',
+    '全家': '5903',
+    '全家便利': '5903',
+    '裕隆': '2201',
+    '裕隆汽車': '2201',
+    '和泰車': '2207',
+    '和泰汽車': '2207',
+    '中華電': '2412',
+    '中華電信': '2412',
+    '台灣大': '3045',
+    '台灣大哥大': '3045',
+    '遠傳': '4904',
+    '遠傳電信': '4904',
+    '力積電': '6770',
+    '旺宏': '2337',
+    '旺宏電子': '2337',
+    '南亞科': '2408',
+    '南亞科技': '2408',
+    '世界': '5347',
+    '世界先進': '5347',
+    '穩懋': '3105',
+    '穩懋半導體': '3105',
+    '欣興': '3037',
+    '欣興電子': '3037',
+    '景碩': '3189',
+    '景碩科技': '3189',
+    '健鼎': '3044',
+    '健鼎科技': '3044',
+    '金像電': '2368',
+    '金像電子': '2368',
+    '台光電': '2383',
+    '台光電子': '2383',
+    '聯茂': '6213',
+    '聯茂電子': '6213',
+    '智邦': '2345',
+    '智邦科技': '2345',
+    '日月光': '3711',
+    '日月光投控': '3711',
+    '良得': '2462',
+    '良得電': '2462',
+    '良得電子': '2462',
+    '良維': '6290',
+    '良維科技': '6290',
+    '晟銘電': '3013',
+    '晟銘電子': '3013',
+    '川湖': '2059',
+    '川湖科技': '2059',
+    '神達': '3706',
+    '神達電腦': '3706',
+    '神達投控': '3706'
+}
 
 FULL_STOCK_MAP_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'tw_full_stock_map.json')
 _FULL_STOCK_MAP = None
@@ -61,31 +222,146 @@ def load_full_stock_map():
             pass
     return {}
 
+def search_stocks(query: str):
+    """
+    依股票代號、中文名稱、別名或產業搜尋股票，支援異體字自動正規化與全市場字典擴展
+    """
+    if not query:
+        return _STOCK_LIST[:20]
+    clean_q = query.strip()
+    norm_q = normalize_stock_name(clean_q).upper()
+    full_map = load_full_stock_map()
+
+    matches = []
+    seen = set()
+
+    # 1. 優先檢查別名庫 (如「東鋼」-> 2006、「高鐵」-> 2633)
+    alias_code = STOCK_ALIASES.get(normalize_stock_name(clean_q))
+    if alias_code:
+        for s in _STOCK_LIST:
+            if s['code'] == alias_code:
+                matches.append(s)
+                seen.add(s['code'])
+                break
+        if alias_code not in seen and alias_code in full_map:
+            it = full_map[alias_code]
+            matches.append({'code': alias_code, 'name': it.get('name', alias_code), 'market': it.get('market', 'TW'), 'industry': '台股標的'})
+            seen.add(alias_code)
+
+    # 2. 精選 186 檔清單檢索 (包含代號、正規化名稱、產業)
+    for s in _STOCK_LIST:
+        if s['code'] in seen:
+            continue
+        c = s['code'].upper()
+        n = normalize_stock_name(s['name']).upper()
+        ind = normalize_stock_name(s.get('industry', '')).upper()
+        if norm_q in c or norm_q in n or norm_q in ind:
+            matches.append(s)
+            seen.add(s['code'])
+
+    # 3. 若精選清單結果較少 (<10)，自動從全市場 2350 檔字典補充
+    if len(matches) < 10:
+        for code_k, it in full_map.items():
+            if code_k in seen:
+                continue
+            n = normalize_stock_name(it.get('name', '')).upper()
+            if norm_q in code_k.upper() or norm_q in n:
+                matches.append({'code': code_k, 'name': it.get('name', code_k), 'market': it.get('market', 'TW'), 'industry': '台股標的'})
+                seen.add(code_k)
+                if len(matches) >= 20:
+                    break
+
+    return matches
+
 def resolve_ticker(query: str):
     """
-    解析使用者輸入（代碼或名稱），回傳 (ticker, code, name, market, industry)
+    解析使用者輸入（代碼、中文名稱、俗稱或別名），
+    自動容錯正規化 (例如 鐡->鐵、臺->台、東鋼->東和鋼鐵)，
+    回傳 (ticker, code, name, market, industry, has_futures, has_cb)
     """
     q = query.strip()
-    if q == "大盤" or q == "加權指數" or q == "^TWII":
+    norm_q = normalize_stock_name(q)
+
+    if norm_q in ["大盤", "加權指數", "^TWII", "加權"]:
         return "^TWII", "^TWII", "加權指數", "INDEX", "大盤指數", True, False
 
-    # 先在精選 186 檔清單中查找
     stock_list = load_stock_list()
+    full_map = load_full_stock_map()
+
+    # 0. 檢查別名庫 (精準代碼映射，如 東鋼/東和鋼鐡 -> 2006, 台積 -> 2330)
+    if norm_q in STOCK_ALIASES:
+        target_c = STOCK_ALIASES[norm_q]
+        for s in stock_list:
+            if s['code'] == target_c:
+                market = s.get('market', 'TW')
+                return f"{s['code']}.{market}", s['code'], s['name'], market, s.get('industry', ''), s.get('has_futures', False), s.get('has_cb', False)
+        if target_c in full_map:
+            item = full_map[target_c]
+            mkt = item.get('market', 'TW')
+            return f"{target_c}.{mkt}", target_c, item.get('name', target_c), mkt, "台股標的", False, False
+
+    # 1. 在精選 186 檔清單中查找 (支援字元正規化)
     for s in stock_list:
-        if q == s['code'] or q == s['name']:
+        if norm_q == s['code'] or norm_q == normalize_stock_name(s['name']):
             market = s.get('market', 'TW')
             ticker = f"{s['code']}.{market}"
             return ticker, s['code'], s['name'], market, s.get('industry', ''), s.get('has_futures', False), s.get('has_cb', False)
 
-    # 在全市場 2350 檔完整代碼字典中查找
-    full_map = load_full_stock_map()
-    if q in full_map:
-        item = full_map[q]
+    # 2. 在全市場 2350 檔完整代碼字典中查找 (代碼完全吻合 或 正規化名稱完全吻合)
+    if norm_q in full_map:
+        item = full_map[norm_q]
         mkt = item.get('market', 'TW')
-        return f"{q}.{mkt}", q, item.get('name', q), mkt, "台股標的", False, False
+        return f"{norm_q}.{mkt}", norm_q, item.get('name', norm_q), mkt, "台股標的", False, False
 
     for code_k, item in full_map.items():
-        if q == item.get('name'):
+        if norm_q == normalize_stock_name(item.get('name', '')):
+            mkt = item.get('market', 'TW')
+            return f"{code_k}.{mkt}", code_k, item.get('name', code_k), mkt, "台股標的", False, False
+
+    # 3. 雙向模糊匹配：針對前綴、簡稱、全稱容錯 (長度 >= 2)
+    if len(norm_q) >= 2:
+        # 3A. 前向匹配 (query 是名稱的前綴或子字串，如 '台積' -> '台積電')
+        candidates_forward = []
+        for s in stock_list:
+            sn_norm = normalize_stock_name(s['name'])
+            if sn_norm.startswith(norm_q):
+                candidates_forward.append((1, len(sn_norm), s))
+            elif norm_q in sn_norm:
+                candidates_forward.append((2, len(sn_norm), s))
+        if candidates_forward:
+            candidates_forward.sort(key=lambda x: (x[0], x[1]))
+            s = candidates_forward[0][2]
+            market = s.get('market', 'TW')
+            return f"{s['code']}.{market}", s['code'], s['name'], market, s.get('industry', ''), s.get('has_futures', False), s.get('has_cb', False)
+
+        # 3B. 反向匹配 (名稱是 query 的子字串，如 '陽明海運' -> '陽明'，'大立光電' -> '大立光')
+        candidates_backward = []
+        for s in stock_list:
+            sn_norm = normalize_stock_name(s['name'])
+            if sn_norm in norm_q:
+                candidates_backward.append((-len(sn_norm), s))
+        if candidates_backward:
+            candidates_backward.sort(key=lambda x: x[0])
+            s = candidates_backward[0][1]
+            market = s.get('market', 'TW')
+            return f"{s['code']}.{market}", s['code'], s['name'], market, s.get('industry', ''), s.get('has_futures', False), s.get('has_cb', False)
+
+        # 3C. 在全市場 full_map 中匹配反向與前向
+        full_candidates = []
+        for code_k, item in full_map.items():
+            name_norm = normalize_stock_name(item.get('name', ''))
+            if not name_norm or len(name_norm) < 2:
+                continue
+            if name_norm in norm_q:
+                full_candidates.append((1, -len(name_norm), code_k, item))
+            elif name_norm.startswith(norm_q):
+                full_candidates.append((2, len(name_norm), code_k, item))
+            elif norm_q in name_norm:
+                full_candidates.append((3, len(name_norm), code_k, item))
+        if full_candidates:
+            full_candidates.sort(key=lambda x: (x[0], x[1]))
+            best = full_candidates[0]
+            code_k, item = best[2], best[3]
             mkt = item.get('market', 'TW')
             return f"{code_k}.{mkt}", code_k, item.get('name', code_k), mkt, "台股標的", False, False
 

@@ -13,7 +13,7 @@ import json
 import re
 import pandas as pd
 import numpy as np
-from core.data_fetcher import fetch_stock_kline, load_stock_list, load_full_stock_map
+from core.data_fetcher import fetch_stock_kline, load_stock_list, load_full_stock_map, normalize_stock_name, STOCK_ALIASES
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
@@ -693,7 +693,7 @@ COURSE_KNOWLEDGE = {
 
 def extract_target_symbol(query: str, default_code: str = "2330"):
     """
-    從問題文字中自動抽取股票代號或名稱
+    從問題文字中自動抽取股票代號或名稱，支援異體字與別名 (例如 東和鋼鐡/東鋼 -> 2006)
     回傳 (code, has_explicit_stock)
     """
     code_matches = re.findall(r'\b\d{4}\b', query)
@@ -701,17 +701,30 @@ def extract_target_symbol(query: str, default_code: str = "2330"):
         code_matches = re.findall(r'\d{4}', query)
     if code_matches:
         return code_matches[0], True
-    
+
+    norm_q = normalize_stock_name(query)
+
+    # 1. 優先檢查別名庫 (長度由長到短，避免部分短詞誤判)
+    sorted_aliases = sorted(STOCK_ALIASES.items(), key=lambda x: len(x[0]), reverse=True)
+    for alias, code in sorted_aliases:
+        if alias in norm_q:
+            return code, True
+
+    # 2. 精選 186 檔清單
     all_stocks = load_stock_list()
     for s in all_stocks:
-        if s['name'] in query:
+        sn_norm = normalize_stock_name(s['name'])
+        if sn_norm in norm_q:
             return s['code'], True
 
+    # 3. 全市場 2350 檔字典
     full_map = load_full_stock_map()
     for code_k, item in full_map.items():
         name_k = item.get('name', '')
-        if name_k and len(name_k) >= 2 and name_k in query:
-            return code_k, True
+        if name_k and len(name_k) >= 2:
+            name_norm = normalize_stock_name(name_k)
+            if name_norm in norm_q:
+                return code_k, True
 
     # 只有明確使用代名詞指稱當前畫面上個股時，才判定為針對當前股票診斷
     context_keywords = ["這檔", "該股", "這支", "手中持股", "這檔股票", "目前這檔", "當前個股", "這檔目前"]
