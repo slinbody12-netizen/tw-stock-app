@@ -27,9 +27,9 @@ import core.screener
 import core.sector_radar
 import core.ai_assistant
 import core.copilot
-import core.data_fetcher
 import core.tracker
 import core.market_sync
+import core.pattern_geometry
 
 # 強制重載 core 模組，確保 Streamlit Cloud 部署即時同步最新簽名與函式
 importlib.reload(core.data_fetcher)
@@ -42,6 +42,7 @@ importlib.reload(core.ai_assistant)
 importlib.reload(core.copilot)
 importlib.reload(core.tracker)
 importlib.reload(core.market_sync)
+importlib.reload(core.pattern_geometry)
 
 from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, load_stock_list
 from core.market_sync import (
