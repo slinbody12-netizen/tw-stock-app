@@ -399,11 +399,18 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
     return result
 
 
+def _same_date(d1, d2) -> bool:
+    try:
+        return str(pd.to_datetime(d1).date()) == str(pd.to_datetime(d2).date())
+    except Exception:
+        return False
+
+
 def _resolve_annotation_offset(fig: go.Figure, pt_date, default_ay: int, default_ax: int = 0):
     """
     智慧避讓碰撞演算法：
     檢查圖表中是否已存在同日期(x)與同方向(ay)的關鍵標註（例如「⚓ 最低底」或「🏆 最高頭」）。
-    若存在碰撞，則自動橫向錯開 (ax = -115)，避免文字重疊遮擋，同時讓雙箭頭各自清晰指向轉折點。
+    若存在碰撞，微調垂直高度避開，絕不橫向拉出跨越數根K線的混淆長箭頭，確保箭頭永遠直觀俐落。
     """
     final_ax = default_ax
     final_ay = default_ay
@@ -429,8 +436,8 @@ def _resolve_annotation_offset(fig: go.Figure, pt_date, default_ay: int, default
             continue
 
     if is_colliding:
-        final_ax = -115
-        final_ay = default_ay
+        # 上下垂直錯開避讓，避免橫向拉出跨越數根K線的混淆長箭頭
+        final_ay = default_ay - 22 if default_ay < 0 else default_ay + 22
 
     return final_ax, final_ay
 
@@ -466,26 +473,84 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     showlegend=True
                 ), row=1, col=1)
 
-            for pt_key, pt_col, ay_val in [("a_point", "#38BDF8", -28), ("b_point", "#38BDF8", 28), ("c_point", "#38BDF8", -28)]:
-                pt = active.get(pt_key)
-                if pt:
-                    use_ax, use_ay = _resolve_annotation_offset(fig, pt["date"], ay_val)
-                    fig.add_annotation(
-                        x=pt["date"], y=pt["price"], xref="x", yref="y",
-                        text=f" {pt['label']}: {pt['price']} ",
-                        showarrow=True, arrowhead=2, ax=use_ax, ay=use_ay,
-                        bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
-                        font=dict(color="white", size=10, family="Arial Black")
-                    )
+            existing_annos = list(fig.layout.annotations or [])
 
+            # 1. Ⓐ 起修頂 (檢查是否與 最高頭 重疊)
+            pt_a = active.get("a_point")
+            coincide_hp = False
+            if pt_a:
+                for a in existing_annos:
+                    if hasattr(a, 'text') and a.text and "最高頭" in a.text and hasattr(a, 'x') and _same_date(a.x, pt_a["date"]):
+                        coincide_hp = True
+                        a.text = f" 🏆 最高頭 {pt_a['price']:.2f} · Ⓐ起修頂 "
+                        a.arrowcolor = "#EF4444"
+                        a.arrowwidth = 2.2
+                        a.arrowsize = 1.2
+                        break
+
+            # 2. Ⓑ 回檔底 (檢查是否與 最低底 重疊)
+            pt_b = active.get("b_point")
+            coincide_lt = False
+            if pt_b:
+                for a in existing_annos:
+                    if hasattr(a, 'text') and a.text and "最低底" in a.text and hasattr(a, 'x') and _same_date(a.x, pt_b["date"]):
+                        coincide_lt = True
+                        a.text = f" ⚓ 最低底 {pt_b['price']:.2f} · Ⓑ回檔底 "
+                        a.arrowcolor = "#22C55E"
+                        a.arrowwidth = 2.2
+                        a.arrowhead = 2
+                        a.arrowsize = 1.2
+                        a.bordercolor = "#4ADE80"
+                        a.borderwidth = 1.5
+                        break
+
+            # 更新可能已被修改的現有標註
+            fig.layout.annotations = tuple(existing_annos)
+
+            # 獨立標註 Ⓐ 起修頂：向上抬高 ay=-52，避開 K 線頂部，亮青藍箭頭直指高點
+            if pt_a and not coincide_hp:
+                fig.add_annotation(
+                    x=pt_a["date"], y=pt_a["price"], xref="x", yref="y",
+                    text=f" Ⓐ 起修頂 {pt_a['price']} ",
+                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
+                    ax=0, ay=-52,
+                    bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
+                    font=dict(color="white", size=10, family="Arial Black")
+                )
+
+            # 獨立標註 Ⓑ 回檔底 (若未與最低底重合)
+            if pt_b and not coincide_lt:
+                fig.add_annotation(
+                    x=pt_b["date"], y=pt_b["price"], xref="x", yref="y",
+                    text=f" Ⓑ 回檔底 {pt_b['price']} ",
+                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
+                    ax=0, ay=36,
+                    bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
+                    font=dict(color="white", size=10, family="Arial Black")
+                )
+
+            # 3. Ⓒ 次高點：微幅左上偏移 (ax=-25, ay=-42)，徹底避免與右側突破買點撞車
+            pt_c = active.get("c_point")
+            if pt_c:
+                fig.add_annotation(
+                    x=pt_c["date"], y=pt_c["price"], xref="x", yref="y",
+                    text=f" Ⓒ 次高 {pt_c['price']} ",
+                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
+                    ax=-25, ay=-42,
+                    bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
+                    font=dict(color="white", size=10, family="Arial Black")
+                )
+
+            # 4. 🔥 突破切線買點：右上方開闊處 (ax=38, ay=-38)
             bk = active.get("breakout_point")
             if bk:
                 fig.add_annotation(
                     x=bk["date"], y=bk["price"], xref="x", yref="y",
-                    text=f" {bk['label']} ({bk['price']}) ",
-                    showarrow=True, arrowhead=3, ax=45, ay=-42,
-                    bgcolor="#EF4444", bordercolor="white", borderwidth=1.5,
-                    font=dict(color="white", size=11, family="Arial Black")
+                    text=f" 🔥 突破切線 {bk['price']} ",
+                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
+                    ax=38, ay=-38,
+                    bgcolor="#DC2626", bordercolor="white", borderwidth=1.2,
+                    font=dict(color="white", size=10, family="Arial Black")
                 )
 
             tgt_d = active.get("target_d")
@@ -520,17 +585,80 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     showlegend=True
                 ), row=1, col=1)
 
-            for pt_key, ay_val in [("a_point", 28), ("b_point", -28), ("c_point", 28)]:
-                pt = active.get(pt_key)
-                if pt:
-                    use_ax, use_ay = _resolve_annotation_offset(fig, pt["date"], ay_val)
-                    fig.add_annotation(
-                        x=pt["date"], y=pt["price"], xref="x", yref="y",
-                        text=f" {pt['label']}: {pt['price']} ",
-                        showarrow=True, arrowhead=2, ax=use_ax, ay=use_ay,
-                        bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
-                        font=dict(color="white", size=10, family="Arial Black")
-                    )
+            existing_annos = list(fig.layout.annotations or [])
+
+            # 1. Ⓐ 主跌底 (檢查是否與 最低底 重疊)
+            pt_a = active.get("a_point")
+            coincide_lt = False
+            if pt_a:
+                for a in existing_annos:
+                    if hasattr(a, 'text') and a.text and "最低底" in a.text and hasattr(a, 'x') and _same_date(a.x, pt_a["date"]):
+                        coincide_lt = True
+                        a.text = f" ⚓ 最低底 {pt_a['price']:.2f} · Ⓐ主跌底 "
+                        a.arrowcolor = "#22C55E"
+                        a.arrowwidth = 2.2
+                        a.arrowhead = 2
+                        a.arrowsize = 1.2
+                        a.bordercolor = "#4ADE80"
+                        a.borderwidth = 1.5
+                        break
+
+            # 2. Ⓑ 反彈頂 (檢查是否與 最高頭 重疊)
+            pt_b = active.get("b_point")
+            coincide_hp = False
+            if pt_b:
+                for a in existing_annos:
+                    if hasattr(a, 'text') and a.text and "最高頭" in a.text and hasattr(a, 'x') and _same_date(a.x, pt_b["date"]):
+                        coincide_hp = True
+                        a.text = f" 🏆 最高頭 {pt_b['price']:.2f} · Ⓑ反彈頂 "
+                        a.arrowcolor = "#EF4444"
+                        a.arrowwidth = 2.2
+                        a.arrowsize = 1.2
+                        break
+
+            fig.layout.annotations = tuple(existing_annos)
+
+            if pt_a and not coincide_lt:
+                fig.add_annotation(
+                    x=pt_a["date"], y=pt_a["price"], xref="x", yref="y",
+                    text=f" Ⓐ 主跌底 {pt_a['price']} ",
+                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#F97316",
+                    ax=0, ay=36,
+                    bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
+                    font=dict(color="white", size=10, family="Arial Black")
+                )
+
+            if pt_b and not coincide_hp:
+                fig.add_annotation(
+                    x=pt_b["date"], y=pt_b["price"], xref="x", yref="y",
+                    text=f" Ⓑ 反彈頂 {pt_b['price']} ",
+                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#F97316",
+                    ax=0, ay=-52,
+                    bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
+                    font=dict(color="white", size=10, family="Arial Black")
+                )
+
+            pt_c = active.get("c_point")
+            if pt_c:
+                fig.add_annotation(
+                    x=pt_c["date"], y=pt_c["price"], xref="x", yref="y",
+                    text=f" Ⓒ 次低 {pt_c['price']} ",
+                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#F97316",
+                    ax=-25, ay=42,
+                    bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
+                    font=dict(color="white", size=10, family="Arial Black")
+                )
+
+            bk = active.get("breakout_point")
+            if bk:
+                fig.add_annotation(
+                    x=bk["date"], y=bk["price"], xref="x", yref="y",
+                    text=f" ⚡ 跌破切線 {bk['price']} ",
+                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
+                    ax=38, ay=38,
+                    bgcolor="#991B1B", bordercolor="white", borderwidth=1.2,
+                    font=dict(color="white", size=10, family="Arial Black")
+                )
 
             tgt_d = active.get("target_d")
             if tgt_d and t_line:

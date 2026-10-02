@@ -1784,9 +1784,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             annos1, shapes1 = [], []
             if t1_hp:
-                annos1.append(dict(x=t1_hp['date'], y=t1_hp['price'], xref="x", yref="y", text=f" 🏆 最高頭 {t1_hp['price']:.2f} ({t1_hp['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, ax=0, ay=-34, bgcolor="#B91C1C", bordercolor="white", borderwidth=1.2, font=dict(color="white", size=10)))
+                annos1.append(dict(x=t1_hp['date'], y=t1_hp['price'], xref="x", yref="y", text=f" 🏆 最高頭 {t1_hp['price']:.2f} ({t1_hp['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=2.0, arrowcolor="#EF4444", ax=0, ay=-38, bgcolor="#B91C1C", bordercolor="white", borderwidth=1.2, font=dict(color="white", size=10, family="Arial Black")))
             if t1_lt:
-                annos1.append(dict(x=t1_lt['date'], y=t1_lt['price'], xref="x", yref="y", text=f" ⚓ 最低底 {t1_lt['price']:.2f} ({t1_lt['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, ax=0, ay=34, bgcolor="#15803D", bordercolor="white", borderwidth=1.2, font=dict(color="white", size=10)))
+                annos1.append(dict(x=t1_lt['date'], y=t1_lt['price'], xref="x", yref="y", text=f" ⚓ 最低底 {t1_lt['price']:.2f} ({t1_lt['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=2.2, arrowcolor="#22C55E", ax=0, ay=36, bgcolor="#15803D", bordercolor="#4ADE80", borderwidth=1.5, font=dict(color="white", size=10, family="Arial Black")))
 
             x_min, x_max = df['Date'].iloc[0], df['Date'].iloc[-1]
             if show_res and trend.get('resistance'):
