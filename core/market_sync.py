@@ -597,8 +597,9 @@ def scan_sector_spillover_candidates(
     all_members = []
     for f in fleets:
         all_members.extend(f.get('members', []))
+    rt_quotes = {}
     try:
-        batch_fetch_realtime_quotes(all_members)
+        rt_quotes = batch_fetch_realtime_quotes(all_members)
     except Exception:
         pass
 
@@ -613,7 +614,7 @@ def scan_sector_spillover_candidates(
         member_data = {}
         for m in members:
             code = m['code']
-            df, _ = fetch_stock_kline(code, period="6mo", force_refresh=force_refresh)
+            df, _ = fetch_stock_kline(code, period="6mo", force_refresh=force_refresh, realtime_quote=rt_quotes.get(code))
             if df is not None and len(df) >= 20:
                 last_c = float(df['Close'].iloc[-1])
                 prev_c = float(df['Close'].iloc[-2]) if len(df) >= 2 else last_c

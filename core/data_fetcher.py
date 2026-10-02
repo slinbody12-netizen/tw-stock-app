@@ -427,22 +427,16 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
 
                         last_cached_dt = pd.to_datetime(loaded['Date'].iloc[-1]).date()
                         tw_now = get_tw_now()
-                        today_dt = tw_now.date()
-                        is_weekday = today_dt.weekday() < 5
-                        market_started = (tw_now.hour > 9) or (tw_now.hour == 9 and tw_now.minute >= 0)
-
-                        # 若今天為平日且已過 09:00 開盤，但快取的最後一筆日K停留在今天之前，視為過期不可直接採用！
-                        if is_weekday and market_started and last_cached_dt < today_dt:
-                            continue
-
-                        # 1. 若該快取檔在近 6 小時內剛寫入/更新過，且日期完整，直接載入
-                        mtime = os.path.getmtime(cf)
-                        if (time.time() - mtime) < 21600:
-                            df = loaded
-                            break
-
-                        # 2. 檢核最後一根 K 棒是否在 4 天內 (涵蓋週四/週五/週末連假)
                         days_diff = (today_dt - last_cached_dt).days
+                        market_closed = (tw_now.hour > 14) or (tw_now.hour == 14 and tw_now.minute >= 30)
+
+                        # 盤後時間 (14:30後)：若最後一筆仍是今天之前，且快取未在近1小時內更新過，才需從 Yahoo 重新拉取已收盤日K
+                        if is_weekday and market_closed and last_cached_dt < today_dt:
+                            mtime = os.path.getmtime(cf)
+                            if (time.time() - mtime) > 3600:
+                                continue
+
+                        # 盤中時段 (09:00~14:30) 或近4天內快取：歷史日K直接載入，盤中最新K棒由下方即時行情拼接引擎無縫補齊
                         if days_diff <= 4:
                             df = loaded
                             break
