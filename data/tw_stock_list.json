@@ -57,7 +57,7 @@
   },
   {
     "code": "1587",
-    "name": "宣得",
+    "name": "吉茂",
     "market": "TW",
     "industry": "電子零組件",
     "has_futures": false,
@@ -593,7 +593,7 @@
   },
   {
     "code": "2887",
-    "name": "台新金",
+    "name": "台新新光金",
     "market": "TW",
     "industry": "金控",
     "has_futures": true,
@@ -749,7 +749,7 @@
   },
   {
     "code": "3219",
-    "name": "信紘科",
+    "name": "倚強科",
     "market": "TWO",
     "industry": "廠務設備",
     "has_futures": false,
@@ -799,7 +799,7 @@
   },
   {
     "code": "3363",
-    "name": "上緯投控",
+    "name": "上詮",
     "market": "TWO",
     "industry": "綠能材料",
     "has_futures": false,
@@ -889,7 +889,7 @@
   },
   {
     "code": "3653",
-    "name": "雙鴻",
+    "name": "健策",
     "market": "TW",
     "industry": "散熱模組",
     "has_futures": true,
@@ -1043,7 +1043,7 @@
   },
   {
     "code": "5314",
-    "name": "世紀",
+    "name": "世紀*",
     "market": "TWO",
     "industry": "應用生技"
   },
@@ -1159,7 +1159,7 @@
   },
   {
     "code": "6218",
-    "name": "泰詠",
+    "name": "豪勉",
     "market": "TWO",
     "industry": "網通設備",
     "has_futures": false,
@@ -1175,7 +1175,7 @@
   },
   {
     "code": "6226",
-    "name": "元展",
+    "name": "光鼎",
     "market": "TW",
     "industry": "電子零組件",
     "has_futures": false,
@@ -1211,7 +1211,7 @@
   },
   {
     "code": "6290",
-    "name": "良得",
+    "name": "良維",
     "market": "TWO",
     "industry": "電子零組件",
     "has_futures": false,
@@ -1267,7 +1267,7 @@
   },
   {
     "code": "6532",
-    "name": "聯穎",
+    "name": "瑞耘",
     "market": "TWO",
     "industry": "電子零組件",
     "has_futures": false,
@@ -1283,7 +1283,7 @@
   },
   {
     "code": "6588",
-    "name": "菱光科技",
+    "name": "東典光電",
     "market": "TWO",
     "industry": "影像感測",
     "has_futures": false,
@@ -1369,7 +1369,7 @@
   },
   {
     "code": "7717",
-    "name": "聚德光電-KY",
+    "name": "萊德光電-KY",
     "market": "TWO",
     "industry": "光通訊元件",
     "has_futures": false,
@@ -1377,7 +1377,7 @@
   },
   {
     "code": "7772",
-    "name": "撼訊",
+    "name": "耀穎",
     "market": "TWO",
     "industry": "影像視訊元件",
     "has_futures": false,

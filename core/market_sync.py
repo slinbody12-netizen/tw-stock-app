@@ -517,7 +517,7 @@ SECTOR_FLEETS = [
             {"code": "6426", "name": "統新"},
             {"code": "6530", "name": "創威"},
             {"code": "3234", "name": "光環"},
-            {"code": "7717", "name": "聚德光電-KY"}
+            {"code": "7717", "name": "萊德光電-KY"}
         ]
     },
     {
