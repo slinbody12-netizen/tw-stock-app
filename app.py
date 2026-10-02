@@ -1708,7 +1708,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     y_maxs.append(act_tgt)
 
             curr_ymin, curr_ymax = min(y_mins), max(y_maxs)
-            y_pad = (curr_ymax - curr_ymin) * 0.075
+            y_pad = (curr_ymax - curr_ymin) * 0.085
             auto_y = [curr_ymin - y_pad, curr_ymax + y_pad]
 
             fig1 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.75, 0.25])

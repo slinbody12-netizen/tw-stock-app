@@ -399,6 +399,42 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
     return result
 
 
+def _resolve_annotation_offset(fig: go.Figure, pt_date, default_ay: int, default_ax: int = 0):
+    """
+    智慧避讓碰撞演算法：
+    檢查圖表中是否已存在同日期(x)與同方向(ay)的關鍵標註（例如「⚓ 最低底」或「🏆 最高頭」）。
+    若存在碰撞，則自動橫向錯開 (ax = -115)，避免文字重疊遮擋，同時讓雙箭頭各自清晰指向轉折點。
+    """
+    final_ax = default_ax
+    final_ay = default_ay
+
+    pt_dt_str = str(pd.to_datetime(pt_date).date())
+    existing_annos = list(fig.layout.annotations or [])
+
+    is_colliding = False
+    for a in existing_annos:
+        if not hasattr(a, 'x') or a.x is None:
+            continue
+        try:
+            a_dt_str = str(pd.to_datetime(a.x).date())
+            if a_dt_str == pt_dt_str:
+                a_ay = getattr(a, 'ay', 0) or 0
+                a_ax = getattr(a, 'ax', 0) or 0
+                # 若垂直位移方向一致 (同在下方 ay>0 或同在上方 ay<0) 且水平重疊
+                if (default_ay > 0 and a_ay > 0) or (default_ay < 0 and a_ay < 0):
+                    if abs(a_ax - default_ax) < 80 and abs(a_ay - default_ay) < 40:
+                        is_colliding = True
+                        break
+        except Exception:
+            continue
+
+    if is_colliding:
+        final_ax = -115
+        final_ay = default_ay
+
+    return final_ax, final_ay
+
+
 def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any], df: pd.DataFrame) -> go.Figure:
     """
     將計算出的型態幾何線段、頸線、箱體、弧線與目標價標籤直接繪製於 Plotly 主圖 (Row 1)
@@ -433,10 +469,11 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
             for pt_key, pt_col, ay_val in [("a_point", "#38BDF8", -28), ("b_point", "#38BDF8", 28), ("c_point", "#38BDF8", -28)]:
                 pt = active.get(pt_key)
                 if pt:
+                    use_ax, use_ay = _resolve_annotation_offset(fig, pt["date"], ay_val)
                     fig.add_annotation(
                         x=pt["date"], y=pt["price"], xref="x", yref="y",
                         text=f" {pt['label']}: {pt['price']} ",
-                        showarrow=True, arrowhead=2, ax=0, ay=ay_val,
+                        showarrow=True, arrowhead=2, ax=use_ax, ay=use_ay,
                         bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
                         font=dict(color="white", size=10, family="Arial Black")
                     )
@@ -446,7 +483,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                 fig.add_annotation(
                     x=bk["date"], y=bk["price"], xref="x", yref="y",
                     text=f" {bk['label']} ({bk['price']}) ",
-                    showarrow=True, arrowhead=3, ax=0, ay=-45,
+                    showarrow=True, arrowhead=3, ax=45, ay=-42,
                     bgcolor="#EF4444", bordercolor="white", borderwidth=1.5,
                     font=dict(color="white", size=11, family="Arial Black")
                 )
@@ -486,10 +523,11 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
             for pt_key, ay_val in [("a_point", 28), ("b_point", -28), ("c_point", 28)]:
                 pt = active.get(pt_key)
                 if pt:
+                    use_ax, use_ay = _resolve_annotation_offset(fig, pt["date"], ay_val)
                     fig.add_annotation(
                         x=pt["date"], y=pt["price"], xref="x", yref="y",
                         text=f" {pt['label']}: {pt['price']} ",
-                        showarrow=True, arrowhead=2, ax=0, ay=ay_val,
+                        showarrow=True, arrowhead=2, ax=use_ax, ay=use_ay,
                         bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
                         font=dict(color="white", size=10, family="Arial Black")
                     )
