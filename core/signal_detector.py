@@ -1494,15 +1494,19 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     box_high_val = float(df.iloc[-20:]['High'].max()) if len(df) >= 20 else float(df['High'].max())
     res_box_top = round(box_high_val, 2) if is_consolidation and box_high_val > c * 1.005 else None
 
-    # (5) 大量向下跳空缺口壓力
+    # (5) 大量向下跳空缺口壓力 (整合 gap_detector 精準抓取未回補空方真空帶)
     res_down_gap = None
-    if len(df) >= 30:
-        for idx in range(len(df)-1, max(0, len(df)-40), -1):
-            cur_h = float(df['High'].iloc[idx])
-            prv_l = float(df['Low'].iloc[idx-1])
-            if prv_l > cur_h * 1.005 and prv_l > c * 1.005:  # 向下缺口未完全回補且高於目前股價
-                res_down_gap = round(prv_l, 2)
-                break
+    res_down_gap_label = "向下跳空缺口壓力"
+    nearest_bearish_g = None
+    try:
+        from core.gap_detector import detect_unfilled_gaps
+        gaps_info = detect_unfilled_gaps(df, lookback_bars=120)
+        nearest_bearish_g = gaps_info.get("nearest_overhead_gap")
+        if nearest_bearish_g:
+            res_down_gap = nearest_bearish_g['rem_bottom']
+            res_down_gap_label = f"空方缺口反壓 ({nearest_bearish_g['rem_bottom']:.1f}~{nearest_bearish_g['rem_top']:.1f}元)"
+    except Exception:
+        pass
 
     # (6) 大量下跌黑K壓力
     res_heavy_black = unresolved_blacks[-1]['high'] if unresolved_blacks else None
@@ -1513,7 +1517,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if res_prior_high: candidate_pressures.append(("波段前高壓力", res_prior_high))
     if res_desc_line: candidate_pressures.append(("下降切線/形態壓力", res_desc_line))
     if res_box_top: candidate_pressures.append(("盤整區頸線壓力", res_box_top))
-    if res_down_gap: candidate_pressures.append(("向下跳空缺口壓力", res_down_gap))
+    if res_down_gap: candidate_pressures.append((res_down_gap_label, res_down_gap))
     if res_heavy_black: candidate_pressures.append(("爆量黑K重壓", res_heavy_black))
 
     candidate_pressures = [p for p in candidate_pressures if p[1] > c * 1.003]
@@ -1810,6 +1814,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if is_false_breakout_dump:
         safety_reasons.append("【致命警訊·假突破誘多】突破長紅3天內長黑灌破最低點，主力誘多出貨必跑！")
 
+    if nearest_bearish_g and 0 <= nearest_bearish_g.get('distance_pct', 99) <= 3.0:
+        safety_reasons.append(f"上方緊臨重大空方跳空缺口反壓 ({nearest_bearish_g['rem_bottom']}~{nearest_bearish_g['rem_top']} 元，距現價僅 +{nearest_bearish_g['distance_pct']:.1f}%)，套牢賣壓沉重嚴防逢高摜回")
+
     # 加入 14 大淘汰檢核項目 (前2項代表性警示)
     if elim_info['is_eliminated']:
         for r in elim_info['reasons'][:2]:
@@ -1818,7 +1825,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     if is_false_breakout_dump or signals_dict.get('ma20_death_break', False) or elim_info['eliminated_count'] >= 2 or up_days >= 4 or bias20 >= 12.0:
         signals_dict['safety_rating'] = "🔴 命中淘汰" if elim_info['is_eliminated'] else "🔴 嚴禁追高"
-    elif elim_info['is_eliminated'] or is_multi_bagger or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red):
+    elif elim_info['is_eliminated'] or is_multi_bagger or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red) or (nearest_bearish_g and 0 <= nearest_bearish_g.get('distance_pct', 99) <= 3.0):
         signals_dict['safety_rating'] = "🟡 警訊注意"
     else:
         signals_dict['safety_rating'] = "🟢 安全首選"

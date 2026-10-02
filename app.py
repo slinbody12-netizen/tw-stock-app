@@ -30,6 +30,7 @@ import core.copilot
 import core.tracker
 import core.market_sync
 import core.pattern_geometry
+import core.gap_detector
 
 # 強制重載 core 模組，確保 Streamlit Cloud 部署即時同步最新簽名與函式
 importlib.reload(core.data_fetcher)
@@ -43,8 +44,10 @@ importlib.reload(core.copilot)
 importlib.reload(core.tracker)
 importlib.reload(core.market_sync)
 importlib.reload(core.pattern_geometry)
+importlib.reload(core.gap_detector)
 
 from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, load_stock_list
+from core.gap_detector import detect_unfilled_gaps, apply_gaps_to_figure
 from core.market_sync import (
     get_market_benchmark,
     analyze_market_sync_single,
@@ -1638,12 +1641,15 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             t1_points, t1_lines, t1_hp, t1_lt = calculate_turning_points(df, ma_period=5, filter_mode=t1_filter_mode)
             trend = analyze_trend(df, t1_points)
 
+            # 跳空缺口偵測 (未回補支撐/壓力缺口)
+            gaps_data = detect_unfilled_gaps(df)
+
             # AI 型態幾何作圖 (ABC切線 / 一字底 / 圓弧底 / 軌道線) 計算
             from core.pattern_geometry import detect_pattern_geometries, apply_pattern_geometry_to_figure
             pattern_geo = detect_pattern_geometries(df, signals_dict)
 
             st.markdown("<div class='checkbox-panel'>", unsafe_allow_html=True)
-            r1_c1, r1_c2, r1_c3, r1_c4, r1_c5, r1_c6, r1_c7, r1_c8 = st.columns(8)
+            r1_c1, r1_c2, r1_c3, r1_c4, r1_c5, r1_c6, r1_c7, r1_c8, r1_c9 = st.columns(9)
             show_5ma = r1_c1.checkbox("5MA 操盤線", value=True, key=f"t1_5ma_{query}")
             show_20ma = r1_c2.checkbox("20MA 趨勢線", value=True, key=f"t1_20ma_{query}")
             show_wave = r1_c3.checkbox("轉折波折線", value=True, key=f"t1_wave_{query}")
@@ -1652,6 +1658,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             show_sup = r1_c6.checkbox("支撐線 (橘)", value=True, key=f"t1_sup_{query}")
             show_target = r1_c7.checkbox("目標價 (金黃)", value=has_broken_res, key=f"t1_tgt_{query}")
             show_stop = r1_c8.checkbox("🛑 停損/移動停利線", value=True, key=f"t1_stop_{query}")
+            show_gap = r1_c9.checkbox("🕳️ 缺口色帶", value=True, key=f"t1_gap_{query}")
 
             # 第二行：AI 型態幾何作圖專屬控制列
             r2_c1, r2_c2 = st.columns([3.2, 3.8])
@@ -1668,6 +1675,11 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             if show_geometry and pattern_geo.get("summary_text"):
                 st.info(f"💡 **AI 型態幾何診斷**：{pattern_geo['summary_text']}")
+
+            if gaps_data.get("is_approaching_overhead_gap"):
+                st.warning(gaps_data["warning_message"])
+            elif gaps_data.get("summary_desc") and gaps_data["summary_desc"] != "近期無重大未補跳空缺口":
+                st.caption(f"🕳️ **未補缺口監控**：{gaps_data['summary_desc']}")
 
             # 🧭 均線即時方向與位階狀態儀錶盤 (5MA/10MA/20MA/60MA 翻揚助漲 vs 下彎助跌)
             from core.kline_cheat_sheet import render_ma_direction_dashboard
@@ -1707,6 +1719,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 act_tgt = pattern_geo['active_pattern'].get('target_d')
                 if act_tgt and act_tgt <= max(y_maxs) * 1.35:
                     y_maxs.append(act_tgt)
+            if show_gap and gaps_data.get('nearest_overhead_gap'):
+                og_top = gaps_data['nearest_overhead_gap']['rem_top']
+                if og_top <= max(y_maxs) * 1.25:
+                    y_maxs.append(og_top)
 
             curr_ymin, curr_ymax = min(y_mins), max(y_maxs)
             y_pad = (curr_ymax - curr_ymin) * 0.085
@@ -1834,6 +1850,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             )
             fig1.update_xaxes(rangeslider_visible=False, range=init_x)
             fig1.update_yaxes(range=auto_y, row=1, col=1)
+
+            if show_gap:
+                fig1 = apply_gaps_to_figure(fig1, gaps_data, df)
 
             if show_geometry:
                 fig1 = apply_pattern_geometry_to_figure(fig1, pattern_geo, df)

@@ -1901,6 +1901,16 @@ def diagnose_stock_deeply(code: str, query: str = "", as_of_date: str = None, *a
     if space_to_res > 0 and space_to_res < 3.0:
         cons.append(f"距離上方前波高點壓力 ({res:.2f} 元) 空間僅剩 {space_to_res:.1f}%，上方肉少骨頭多，風險報酬比不划算")
 
+    # 檢查上方未回補空方跳空缺口反壓 (如 5536 跳空跌停缺口)
+    try:
+        from core.gap_detector import detect_unfilled_gaps
+        gaps_ai = detect_unfilled_gaps(df, lookback_bars=120)
+        og_ai = gaps_ai.get("nearest_overhead_gap")
+        if og_ai and 0 <= og_ai.get('distance_pct', 99) <= 3.0:
+            cons.append(f"上方緊鄰 {og_ai['date_str']} 重大空方跳空缺口反壓 ({og_ai['rem_bottom']:.2f}~{og_ai['rem_top']:.2f} 元，距現價僅 +{og_ai['distance_pct']:.1f}%)，真空套牢賣壓極沉重，嚴防逢高受阻假突破！")
+    except Exception:
+        pass
+
     if sma20 < sma60 and c < sma60:
         cons.append("季線 (60MA) 仍位於上方呈下彎壓制，屬於中長線反彈格局而非主升段")
 

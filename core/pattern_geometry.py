@@ -313,14 +313,30 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
         y_lower_today = t1_p + ch_slope * (n - 1 - t1_idx)
         y_upper_today = y_lower_today + channel_height
 
+        # 檢驗上方是否緊鄰未回補重大空方跳空缺口 (嚴防訊號衝突)
+        has_overhead_gap = False
+        near_gap = None
+        try:
+            from core.gap_detector import detect_unfilled_gaps
+            gaps_geo = detect_unfilled_gaps(df, lookback_bars=120)
+            near_gap = gaps_geo.get("nearest_overhead_gap")
+            has_overhead_gap = bool(near_gap and 0 <= near_gap.get('distance_pct', 99) <= 3.0)
+        except Exception:
+            pass
+
         is_red_k = (c_today >= o_today)
         is_touch_upper = (c_today >= y_upper_today * 0.995)
-        is_break_ch = is_touch_upper and (c_today >= sma5_today) and is_red_k
+        # 若上方緊鄰重大空方缺口反壓，不得視為有效多頭加速突破
+        is_break_ch = is_touch_upper and (c_today >= sma5_today) and is_red_k and (not has_overhead_gap)
+
         if ch_slope >= 0:
             ch_name = "🚀 突破上升軌道線" if is_break_ch else "📈 上升軌道線"
             if is_break_ch:
                 ch_status = "衝破上軌加速噴出"
                 ch_action = "今日放量大紅K衝破上升軌道線上緣！多頭轉強加速噴出主升段。"
+            elif has_overhead_gap:
+                ch_status = "逼近重大缺口反壓"
+                ch_action = f"今日股價雖觸及上升軌道上緣，但上方緊鄰 {near_gap['date_str']} 重大空方跳空缺口反壓 ({near_gap['rem_bottom']:.2f}元，差距僅 +{near_gap['distance_pct']:.1f}%)！上方套牢解套賣壓沉重，嚴防逢高受阻假突破！"
             elif is_touch_upper and not is_red_k:
                 ch_status = "觸頂開高走低收黑"
                 ch_action = "今日盤中雖一度衝過上升軌道線上緣，但終場開高走低收黑K(綠K)遭逢獲利了結賣壓，需防高檔假突破或震盪拉回。"
@@ -333,6 +349,9 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
             if is_break_ch:
                 ch_status = "衝破上軌扭轉空頭"
                 ch_action = "今日強勢收紅衝破下降軌道線上緣！空頭趨勢扭轉反轉走多。"
+            elif has_overhead_gap:
+                ch_status = "逼近重大缺口反壓"
+                ch_action = f"今日股價雖衝出下降軌道，但上方緊鄰 {near_gap['date_str']} 重大空方跳空缺口反壓 ({near_gap['rem_bottom']:.2f}元)！反彈面臨套牢牆，需待帶量完全封閉缺口始能確立反轉。"
             elif is_touch_upper and not is_red_k:
                 ch_status = "衝高收黑留上影"
                 ch_action = "今日盤中雖試圖衝破下降軌道上緣，但終場開高走低收黑，反轉尚未確認，需待帶量長紅實體站穩。"
