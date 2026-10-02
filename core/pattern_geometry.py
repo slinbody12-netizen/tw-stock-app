@@ -529,26 +529,26 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 3. Ⓒ 次高點：往左上方偏移 (ax=-46, ay=-42)，完全避開右側「頭」圓圈與相鄰 K 線
+            # 3. Ⓒ 次高點：完全置於該日 K 線正上方 (ax=0, ay=-52)，青藍箭頭純垂直直直朝下指向該根 K 棒，絕不傾斜橫跨
             pt_c = active.get("c_point")
             if pt_c:
                 fig.add_annotation(
                     x=pt_c["date"], y=pt_c["price"], xref="x", yref="y",
                     text=f" Ⓒ 次高 {pt_c['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
-                    ax=-46, ay=-42,
+                    ax=0, ay=-52,
                     bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 4. 🔥 今日紅K突破切線買點：往左上方高處展開 (ax=-38, ay=-65)，與右側邊界「壓力」完全錯開，紅色箭頭精準指向今日突破紅K棒
+            # 4. 🔥 突破切線買點：避開右側「壓力」標籤 (ax=-36, ay=-75)，紅色箭頭直指最新突破紅K棒
             bk = active.get("breakout_point")
             if bk:
                 fig.add_annotation(
                     x=bk["date"], y=bk["price"], xref="x", yref="y",
-                    text=f" 🔥 今日紅K突破切線 {bk['price']} ",
+                    text=f" 🔥 突破切線 {bk['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
-                    ax=-38, ay=-65,
+                    ax=-36, ay=-75,
                     bgcolor="#DC2626", bordercolor="white", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
@@ -638,24 +638,26 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
+            # 3. Ⓒ 次低點：完全置於該日 K 線正下方 (ax=0, ay=52)，橘色箭頭純垂直直直朝上指向該根 K 棒
             pt_c = active.get("c_point")
             if pt_c:
                 fig.add_annotation(
                     x=pt_c["date"], y=pt_c["price"], xref="x", yref="y",
                     text=f" Ⓒ 次低 {pt_c['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#F97316",
-                    ax=-46, ay=42,
+                    ax=0, ay=52,
                     bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
+            # 4. ⚡ 跌破切線空點：避開右側「支撐」標籤 (ax=-36, ay=75)，紅色箭頭直指最新跌破黑K棒
             bk = active.get("breakout_point")
             if bk:
                 fig.add_annotation(
                     x=bk["date"], y=bk["price"], xref="x", yref="y",
-                    text=f" ⚡ 今日黑K跌破切線 {bk['price']} ",
+                    text=f" ⚡ 跌破切線 {bk['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
-                    ax=-38, ay=65,
+                    ax=-36, ay=75,
                     bgcolor="#991B1B", bordercolor="white", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
