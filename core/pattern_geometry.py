@@ -507,13 +507,13 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
             # 更新可能已被修改的現有標註
             fig.layout.annotations = tuple(existing_annos)
 
-            # 獨立標註 Ⓐ 起修頂：向上抬高 ay=-52，避開 K 線頂部，亮青藍箭頭直指高點
+            # 獨立標註 Ⓐ 起修頂：向上大幅抬高 ay=-78，完全避開下方所有 K 線實體與上影線，垂直青藍箭頭直指高點
             if pt_a and not coincide_hp:
                 fig.add_annotation(
                     x=pt_a["date"], y=pt_a["price"], xref="x", yref="y",
                     text=f" Ⓐ 起修頂 {pt_a['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
-                    ax=0, ay=-52,
+                    ax=0, ay=-78,
                     bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
@@ -524,31 +524,31 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     x=pt_b["date"], y=pt_b["price"], xref="x", yref="y",
                     text=f" Ⓑ 回檔底 {pt_b['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
-                    ax=0, ay=36,
+                    ax=0, ay=38,
                     bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 3. Ⓒ 次高點：微幅左上偏移 (ax=-25, ay=-42)，徹底避免與右側突破買點撞車
+            # 3. Ⓒ 次高點：往左上方偏移 (ax=-46, ay=-42)，完全避開右側「頭」圓圈與相鄰 K 線
             pt_c = active.get("c_point")
             if pt_c:
                 fig.add_annotation(
                     x=pt_c["date"], y=pt_c["price"], xref="x", yref="y",
                     text=f" Ⓒ 次高 {pt_c['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
-                    ax=-25, ay=-42,
+                    ax=-46, ay=-42,
                     bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 4. 🔥 突破切線買點：右上方開闊處 (ax=38, ay=-38)
+            # 4. 🔥 今日紅K突破切線買點：往左上方高處展開 (ax=-38, ay=-65)，與右側邊界「壓力」完全錯開，紅色箭頭精準指向今日突破紅K棒
             bk = active.get("breakout_point")
             if bk:
                 fig.add_annotation(
                     x=bk["date"], y=bk["price"], xref="x", yref="y",
-                    text=f" 🔥 突破切線 {bk['price']} ",
+                    text=f" 🔥 今日紅K突破切線 {bk['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
-                    ax=38, ay=-38,
+                    ax=-38, ay=-65,
                     bgcolor="#DC2626", bordercolor="white", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
@@ -623,7 +623,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     x=pt_a["date"], y=pt_a["price"], xref="x", yref="y",
                     text=f" Ⓐ 主跌底 {pt_a['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#F97316",
-                    ax=0, ay=36,
+                    ax=0, ay=38,
                     bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
@@ -633,7 +633,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     x=pt_b["date"], y=pt_b["price"], xref="x", yref="y",
                     text=f" Ⓑ 反彈頂 {pt_b['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#F97316",
-                    ax=0, ay=-52,
+                    ax=0, ay=-78,
                     bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
@@ -644,7 +644,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     x=pt_c["date"], y=pt_c["price"], xref="x", yref="y",
                     text=f" Ⓒ 次低 {pt_c['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#F97316",
-                    ax=-25, ay=42,
+                    ax=-46, ay=42,
                     bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
@@ -653,9 +653,9 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
             if bk:
                 fig.add_annotation(
                     x=bk["date"], y=bk["price"], xref="x", yref="y",
-                    text=f" ⚡ 跌破切線 {bk['price']} ",
+                    text=f" ⚡ 今日黑K跌破切線 {bk['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
-                    ax=38, ay=38,
+                    ax=-38, ay=65,
                     bgcolor="#991B1B", bordercolor="white", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )

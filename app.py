@@ -1737,6 +1737,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if show_labels and t1_peaks:
                 conf_p = [p for p in t1_peaks if not p.get('is_tentative', False)]
                 tent_p = [p for p in t1_peaks if p.get('is_tentative', False)]
+                # 若已具備「🏆 最高頭」專屬標籤，排除在其正下方重複繪製微型「頭」圓圈，避免遮擋紅色指示箭頭
+                if t1_hp:
+                    hp_dt_str = str(pd.to_datetime(t1_hp['date']).date())
+                    conf_p = [p for p in conf_p if str(pd.to_datetime(p['date']).date()) != hp_dt_str]
                 if conf_p:
                     fig1.add_trace(go.Scatter(
                         x=[p['date'] for p in conf_p], y=[p['price'] + offset_v for p in conf_p],
@@ -1761,6 +1765,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if show_labels and t1_troughs:
                 conf_t = [p for p in t1_troughs if not p.get('is_tentative', False)]
                 tent_t = [p for p in t1_troughs if p.get('is_tentative', False)]
+                # 若已具備「⚓ 最低底」專屬標籤，排除在其正上方重複繪製微型「底」圓圈，避免將綠色指示箭頭完全蓋住
+                if t1_lt:
+                    lt_dt_str = str(pd.to_datetime(t1_lt['date']).date())
+                    conf_t = [p for p in conf_t if str(pd.to_datetime(p['date']).date()) != lt_dt_str]
                 if conf_t:
                     fig1.add_trace(go.Scatter(
                         x=[p['date'] for p in conf_t], y=[p['price'] - offset_v for p in conf_t],
@@ -1786,7 +1794,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if t1_hp:
                 annos1.append(dict(x=t1_hp['date'], y=t1_hp['price'], xref="x", yref="y", text=f" 🏆 最高頭 {t1_hp['price']:.2f} ({t1_hp['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=2.0, arrowcolor="#EF4444", ax=0, ay=-38, bgcolor="#B91C1C", bordercolor="white", borderwidth=1.2, font=dict(color="white", size=10, family="Arial Black")))
             if t1_lt:
-                annos1.append(dict(x=t1_lt['date'], y=t1_lt['price'], xref="x", yref="y", text=f" ⚓ 最低底 {t1_lt['price']:.2f} ({t1_lt['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=2.2, arrowcolor="#22C55E", ax=0, ay=36, bgcolor="#15803D", bordercolor="#4ADE80", borderwidth=1.5, font=dict(color="white", size=10, family="Arial Black")))
+                annos1.append(dict(x=t1_lt['date'], y=t1_lt['price'], xref="x", yref="y", text=f" ⚓ 最低底 {t1_lt['price']:.2f} ({t1_lt['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=2.2, arrowcolor="#22C55E", ax=0, ay=38, bgcolor="#15803D", bordercolor="#4ADE80", borderwidth=1.5, font=dict(color="white", size=10, family="Arial Black")))
 
             x_min, x_max = df['Date'].iloc[0], df['Date'].iloc[-1]
             if show_res and trend.get('resistance'):
