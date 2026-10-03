@@ -724,38 +724,46 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 4. 🔥 突破切線買點：紅色箭頭直指最新突破紅K棒
+            # 4. 🔥 突破切線買點：紅色箭頭垂直指向當日高點上方，避免遮擋行進間高點「暫高」或「頭」圓圈
             bk = active.get("breakout_point")
             if bk:
+                target_y = bk["price"]
+                for trace in fig.data:
+                    if trace.name in ["暫高 (行進中)", "頭 (已確認)", "頭", "暫高"]:
+                        if hasattr(trace, 'x') and trace.x is not None:
+                            for x_val, y_val in zip(trace.x, trace.y):
+                                if _same_date(x_val, bk["date"]):
+                                    target_y = y_val
+                                    break
+                        if target_y != bk["price"]:
+                            break
+
+                if target_y == bk["price"]:
+                    cand_high = df.loc[df['Date'] == bk['date'], 'High']
+                    if len(cand_high) > 0:
+                        target_y = float(cand_high.values[0])
+
                 fig.add_annotation(
-                    x=bk["date"], y=bk["price"], xref="x", yref="y",
+                    x=bk["date"], y=target_y, xref="x", yref="y",
                     text=f" 🔥 突破切線 {bk['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
-                    ax=-28, ay=-60,
+                    ax=0, ay=-42, standoff=15,
                     bgcolor="#DC2626", bordercolor="white", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 5. 📐 切線當日點位標註 (例如 763.82 元)，指引今日切線壓力精準位置，不遮擋K線與突破標籤
+            # 5. 📐 切線當日點位標註 (例如 763.82 元)，指引今日切線壓力精準位置，不遮擋K線與移動停利等標籤
             t_line = active.get("tangent_line", {})
             if t_line:
                 y_tan = t_line.get("y1")
                 d_today = df.iloc[-1]['Date']
                 if y_tan is not None:
-                    fig.add_trace(go.Scatter(
-                        x=[d_today], y=[y_tan],
-                        mode="markers",
-                        marker=dict(color="#06B6D4", size=8, symbol="circle", line=dict(color="white", width=1.5)),
-                        name="切線價位",
-                        hoverinfo="text",
-                        hovertext=f"📐 今日切線價: {y_tan:.2f} 元",
-                        showlegend=False
-                    ), row=1, col=1)
+                    # 徹底移除 mode="markers" 避免在 K 線實體上產生突兀圓點遮擋 K 線
                     fig.add_annotation(
                         x=d_today, y=y_tan, xref="x", yref="y",
                         text=f" 📐 切線 {y_tan:.2f} ",
                         showarrow=True, arrowhead=2, arrowsize=1.0, arrowwidth=1.5, arrowcolor="#06B6D4",
-                        ax=48, ay=2,
+                        ax=52, ay=-22, standoff=6,
                         bgcolor="#083344", bordercolor="#06B6D4", borderwidth=1.2,
                         font=dict(color="#38BDF8", size=9.5, family="Arial Black")
                     )
@@ -857,14 +865,30 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 4. ⚡ 跌破切線空點：紅色箭頭直指最新跌破黑K棒
+            # 4. ⚡ 跌破切線空點：紅色箭頭垂直指向當日低點下方，避免遮擋行進間「暫低」或「底」圓圈
             bk = active.get("breakout_point")
             if bk:
+                target_y = bk["price"]
+                for trace in fig.data:
+                    if trace.name in ["底 (已確認)", "暫低 (行進中)", "底", "暫低"]:
+                        if hasattr(trace, 'x') and trace.x is not None:
+                            for x_val, y_val in zip(trace.x, trace.y):
+                                if _same_date(x_val, bk["date"]):
+                                    target_y = y_val
+                                    break
+                        if target_y != bk["price"]:
+                            break
+
+                if target_y == bk["price"]:
+                    cand_low = df.loc[df['Date'] == bk['date'], 'Low']
+                    if len(cand_low) > 0:
+                        target_y = float(cand_low.values[0])
+
                 fig.add_annotation(
-                    x=bk["date"], y=bk["price"], xref="x", yref="y",
+                    x=bk["date"], y=target_y, xref="x", yref="y",
                     text=f" ⚡ 跌破切線 {bk['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
-                    ax=-28, ay=60,
+                    ax=0, ay=42, standoff=15,
                     bgcolor="#991B1B", bordercolor="white", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
@@ -875,20 +899,12 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                 y_tan = t_line.get("y1")
                 d_today = df.iloc[-1]['Date']
                 if y_tan is not None:
-                    fig.add_trace(go.Scatter(
-                        x=[d_today], y=[y_tan],
-                        mode="markers",
-                        marker=dict(color="#F97316", size=8, symbol="circle", line=dict(color="white", width=1.5)),
-                        name="切線價位",
-                        hoverinfo="text",
-                        hovertext=f"📐 今日切線價: {y_tan:.2f} 元",
-                        showlegend=False
-                    ), row=1, col=1)
+                    # 徹底移除 mode="markers" 避免在 K 線實體上產生突兀圓點遮擋 K 線
                     fig.add_annotation(
                         x=d_today, y=y_tan, xref="x", yref="y",
                         text=f" 📐 切線 {y_tan:.2f} ",
                         showarrow=True, arrowhead=2, arrowsize=1.0, arrowwidth=1.5, arrowcolor="#F97316",
-                        ax=48, ay=-2,
+                        ax=52, ay=22, standoff=6,
                         bgcolor="#431407", bordercolor="#F97316", borderwidth=1.2,
                         font=dict(color="#FDBA74", size=9.5, family="Arial Black")
                     )
