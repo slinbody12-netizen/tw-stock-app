@@ -1728,7 +1728,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             y_pad = (curr_ymax - curr_ymin) * 0.085
             auto_y = [curr_ymin - y_pad, curr_ymax + y_pad]
 
-            fig1 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.75, 0.25])
+            fig1 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06, row_heights=[0.75, 0.25])
             fig1.add_trace(go.Candlestick(
                 x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
                 name="K線",
@@ -1849,6 +1849,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 dragmode=drag1, hovermode="x unified"
             )
             fig1.update_xaxes(rangeslider_visible=False, range=init_x)
+            fig1.update_xaxes(showticklabels=True, row=1, col=1)
             fig1.update_yaxes(range=auto_y, row=1, col=1)
 
             if show_gap:
@@ -2620,7 +2621,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             k_ypad = (k_ymax - k_ymin) * 0.07
             k_auto_y = [k_ymin - k_ypad, k_ymax + k_ypad]
 
-            fig2 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.74, 0.26])
+            fig2 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06, row_heights=[0.74, 0.26])
             fig2.add_trace(go.Candlestick(
                 x=df_k['Date'], open=df_k['Open'], high=df_k['High'], low=df_k['Low'], close=df_k['Close'],
                 name=f"{k_period[:2]}",
@@ -2681,6 +2682,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 dragmode=False, hovermode="x unified"
             )
             fig2.update_xaxes(rangeslider_visible=False, range=k_init_x)
+            fig2.update_xaxes(showticklabels=True, row=1, col=1)
             fig2.update_yaxes(range=k_auto_y, row=1, col=1)
             if "KD" in k_sub_chart:
                 fig2.update_yaxes(

@@ -47,128 +47,274 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
     is_ma20_falling = (sma20_today <= float(df.iloc[-3]['SMA_20']) * 1.002) if n >= 3 else False
 
     # =========================================================================
+    # =========================================================================
     # 1. 📐 突破 ABC 修正下降切線 (做多旗型突破)
     # =========================================================================
     abc_pat = None
     if n >= 15:
-        lookback = min(35, n - 2)
-        slice_abc = df.iloc[-lookback:-1]
-        idx_a = int(slice_abc['High'].idxmax())
-        price_a = float(df.loc[idx_a, 'High'])
+        lookback_a = min(50, n - 4)
+        slice_a_pool = df.iloc[-lookback_a:-6]
+        if len(slice_a_pool) >= 3:
+            a_cands = []
+            for k in range(slice_a_pool.index[0] + 1, slice_a_pool.index[-1]):
+                h = float(df.loc[k, 'High'])
+                prev_h = float(df.loc[k-1, 'High'])
+                next_h = float(df.loc[k+1, 'High'])
+                if h >= prev_h and h >= next_h:
+                    a_cands.append(k)
+            max_h_idx = int(slice_a_pool['High'].idxmax())
+            if max_h_idx not in a_cands:
+                a_cands.append(max_h_idx)
 
-        after_a = df.iloc[idx_a + 1:-1] if idx_a < n - 2 else df.iloc[-3:-1]
-        if len(after_a) > 0:
-            idx_b = int(after_a['Low'].idxmin())
-            price_b = float(df.loc[idx_b, 'Low'])
-        else:
-            idx_b = max(0, idx_a - 4)
-            price_b = float(df.loc[idx_b, 'Low'])
+            valid_combos = []
+            for cand_a in a_cands:
+                p_a = float(df.loc[cand_a, 'High'])
+                for cand_c in range(cand_a + 4, n - 2):
+                    p_c = float(df.loc[cand_c, 'High'])
+                    if p_c >= p_a:
+                        continue
+                    sl = (p_c - p_a) / (cand_c - cand_a)
+                    if sl >= 0:
+                        continue
 
-        after_b = df.iloc[idx_b + 1:] if idx_b < n - 1 else df.iloc[-2:]
-        if len(after_b) > 0:
-            idx_c = int(after_b['High'].idxmax())
-            price_c = float(df.loc[idx_c, 'High'])
-        else:
-            idx_c = n - 1
-            price_c = c_today
+                    # 1. 上凸包檢驗：A 到 C 之間，所有中間 K 棒高點不得穿透切線 (容許 0.2% 影線雜訊)
+                    pierced_ac = False
+                    for mid_i in range(cand_a + 1, cand_c):
+                        y_mid = p_a + sl * (mid_i - cand_a)
+                        if float(df.loc[mid_i, 'High']) > y_mid * 1.002:
+                            pierced_ac = True
+                            break
+                    if pierced_ac:
+                        continue
 
-        if idx_c > idx_a:
-            slope = (price_c - price_a) / (idx_c - idx_a)
-        else:
-            slope = -0.05
-            idx_c = n - 1
-            price_c = price_a * 0.98
+                    # 2. C 到昨天 (n-2) 之間，檢驗穿透程度 (超過切線 0.3% 者計為穿身)
+                    pierced_after = 0
+                    for mid_i in range(cand_c + 1, n - 1):
+                        y_mid = p_a + sl * (mid_i - cand_a)
+                        if float(df.loc[mid_i, 'High']) > y_mid * 1.003:
+                            pierced_after += 1
+                    if pierced_after > 1:
+                        continue
 
-        y_tangent_today = price_a + slope * (n - 1 - idx_a)
-        is_breaking = (c_today >= y_tangent_today * 0.995 or c_today >= price_c) and (c_today >= sma5_today) and (slope < 0) and (c_today >= o_today)
+                    # 3. 檢查 C 是否為局部波峰
+                    prev_h = float(df.loc[cand_c - 1, 'High'])
+                    next_h = float(df.loc[cand_c + 1, 'High'])
+                    is_peak_c = (p_c >= prev_h * 0.995) and (p_c >= next_h * 0.995)
 
-        prev_slice = df.iloc[max(0, idx_a - 15):idx_a]
-        wave1_low = float(prev_slice['Low'].min()) if len(prev_slice) > 0 else price_b
-        wave1_amp = max(price_a - wave1_low, price_a - price_b, price_c * 0.05)
-        target_d = round(price_c + wave1_amp, 2)
+                    # 4. 尋找 B 點 (A 與今天之間的最低低點)
+                    slice_b = df.iloc[cand_a + 1:n - 1]
+                    cand_b = int(slice_b['Low'].idxmin())
+                    p_b = float(df.loc[cand_b, 'Low'])
 
-        if is_breaking:
-            status = "🔥 突破下降切線"
-            desc = f"多頭 ABC 旗型整理完成，今日放量突破下降切線 (切線價 {y_tangent_today:.2f} 元)！短空做頭失敗反手多，等距目標價 D' 為 {target_d} 元。"
-        elif slope < 0:
-            status = "旗型收斂中 (未突破)"
-            desc = f"多頭 ABC 旗型整理收斂中，下降切線壓力現值約 {y_tangent_today:.2f} 元，前波高點 C 為 {price_c:.2f} 元。一旦放量長紅衝過切線，等距目標價 D' 上看 {target_d} 元。"
-        else:
-            status = "整理觀察中"
-            desc = f"近期波段整理結構，前波高點 A 為 {price_a:.2f} 元、回檔低點 B 為 {price_b:.2f} 元。待明確轉折突破後，等距目標價 D' 上看 {target_d} 元。"
+                    # 修正深度 (從 A 到 B 至少回檔 3%)
+                    depth_pct = (p_a - p_b) / (p_a + 1e-9)
+                    if depth_pct < 0.03:
+                        continue
 
-        abc_pat = {
-            "id": "abc_correction",
-            "name": "📐 突破 ABC 修正下降切線",
-            "direction": "多",
-            "status": status,
-            "is_breakout": is_breaking,
-            "a_point": {"date": df.loc[idx_a, 'Date'], "price": price_a, "index": idx_a, "label": "A點 (起修頂)"},
-            "b_point": {"date": df.loc[idx_b, 'Date'], "price": price_b, "index": idx_b, "label": "B點 (回檔底)"},
-            "c_point": {"date": df.loc[idx_c, 'Date'], "price": price_c, "index": idx_c, "label": "C點 (次高點)"},
-            "tangent_line": {
-                "x0": df.loc[idx_a, 'Date'], "y0": price_a,
-                "x1": df.iloc[-1]['Date'], "y1": round(y_tangent_today, 2),
-                "slope": slope
-            },
-            "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "🔥 突破切線買點"} if is_breaking else None,
-            "target_d": target_d,
-            "color": "#06B6D4", # Cyan
-            "desc": desc
-        }
+                    y_line_today = p_a + sl * (n - 1 - cand_a)
+                    is_break = (c_today >= y_line_today * 0.995) and (c_today >= sma5_today) and (c_today >= o_today)
+
+                    # 幾何權重綜合評分
+                    score = 100.0
+                    if is_break:
+                        score += 50.0
+                    if is_peak_c:
+                        score += 30.0
+                    if pierced_after == 0:
+                        score += 30.0
+                    else:
+                        score -= 30.0
+                    if (n - 1 - cand_c) >= 5:
+                        score += 15.0
+                    span_ac = cand_c - cand_a
+                    if 6 <= span_ac <= 25:
+                        score += 15.0
+                    score += depth_pct * 50.0
+                    score += (p_a / float(df.loc[max_h_idx, 'High'])) * 20.0
+
+                    valid_combos.append({
+                        'idx_a': cand_a, 'price_a': p_a,
+                        'idx_b': cand_b, 'price_b': p_b,
+                        'idx_c': cand_c, 'price_c': p_c,
+                        'slope': sl, 'y_tangent_today': y_line_today,
+                        'is_breaking': is_break, 'score': score
+                    })
+
+            if valid_combos:
+                valid_combos.sort(key=lambda x: x['score'], reverse=True)
+                best_abc = valid_combos[0]
+
+                idx_a = best_abc['idx_a']
+                price_a = best_abc['price_a']
+                idx_b = best_abc['idx_b']
+                price_b = best_abc['price_b']
+                idx_c = best_abc['idx_c']
+                price_c = best_abc['price_c']
+                slope = best_abc['slope']
+                y_tangent_today = best_abc['y_tangent_today']
+                is_breaking = best_abc['is_breaking']
+
+                prev_slice = df.iloc[max(0, idx_a - 15):idx_a]
+                wave1_low = float(prev_slice['Low'].min()) if len(prev_slice) > 0 else price_b
+                wave1_amp = max(price_a - wave1_low, price_a - price_b, price_c * 0.05)
+                target_d = round(price_c + wave1_amp, 2)
+
+                if is_breaking:
+                    status = "🔥 突破下降切線"
+                    desc = f"多頭 ABC 旗型整理完成，今日放量突破下降切線 (切線價 {y_tangent_today:.2f} 元)！短空做頭失敗反手多，等距目標價 D' 為 {target_d} 元。"
+                elif slope < 0:
+                    status = "旗型收斂中 (未突破)"
+                    desc = f"多頭 ABC 旗型整理收斂中，下降切線壓力現值約 {y_tangent_today:.2f} 元，前波高點 C 為 {price_c:.2f} 元。一旦放量長紅衝過切線，等距目標價 D' 上看 {target_d} 元。"
+                else:
+                    status = "整理觀察中"
+                    desc = f"近期波段整理結構，前波高點 A 為 {price_a:.2f} 元、回檔低點 B 為 {price_b:.2f} 元。待明確轉折突破後，等距目標價 D' 上看 {target_d} 元。"
+
+                abc_pat = {
+                    "id": "abc_correction",
+                    "name": "📐 突破 ABC 修正下降切線",
+                    "direction": "多",
+                    "status": status,
+                    "is_breakout": is_breaking,
+                    "a_point": {"date": df.loc[idx_a, 'Date'], "price": price_a, "index": idx_a, "label": "A點 (起修頂)"},
+                    "b_point": {"date": df.loc[idx_b, 'Date'], "price": price_b, "index": idx_b, "label": "B點 (回檔底)"},
+                    "c_point": {"date": df.loc[idx_c, 'Date'], "price": price_c, "index": idx_c, "label": "C點 (次高點)"},
+                    "tangent_line": {
+                        "x0": df.loc[idx_a, 'Date'], "y0": price_a,
+                        "x1": df.iloc[-1]['Date'], "y1": round(y_tangent_today, 2),
+                        "slope": slope
+                    },
+                    "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "🔥 突破切線買點"} if is_breaking else None,
+                    "target_d": target_d,
+                    "color": "#06B6D4", # Cyan
+                    "desc": desc
+                }
 
     # =========================================================================
     # 2. 📐 跌破反彈 ABC 上升切線 (做空反彈結束重回主跌)
     # =========================================================================
     abc_short_pat = None
     if n >= 15:
-        lookback = min(32, n - 2)
-        slice_abc_s = df.iloc[-lookback:-2]
-        if len(slice_abc_s) >= 8:
-            idx_a_s = int(slice_abc_s['Low'].idxmin())
-            price_a_s = float(df.loc[idx_a_s, 'Low'])
+        lookback_s = min(50, n - 4)
+        slice_s_pool = df.iloc[-lookback_s:-6]
+        if len(slice_s_pool) >= 3:
+            s_cands = []
+            for k in range(slice_s_pool.index[0] + 1, slice_s_pool.index[-1]):
+                l = float(df.loc[k, 'Low'])
+                prev_l = float(df.loc[k-1, 'Low'])
+                next_l = float(df.loc[k+1, 'Low'])
+                if l <= prev_l and l <= next_l:
+                    s_cands.append(k)
+            min_l_idx = int(slice_s_pool['Low'].idxmin())
+            if min_l_idx not in s_cands:
+                s_cands.append(min_l_idx)
 
-            if (n - 1 - idx_a_s) >= 4 and (n - 1 - idx_a_s) <= 28:
-                after_a_s = df.iloc[idx_a_s + 1:-1]
-                if len(after_a_s) >= 3:
-                    idx_b_s = int(after_a_s['High'].idxmax())
-                    price_b_s = float(df.loc[idx_b_s, 'High'])
+            valid_short_combos = []
+            for cand_a_s in s_cands:
+                p_a_s = float(df.loc[cand_a_s, 'Low'])
+                for cand_c_s in range(cand_a_s + 4, n - 2):
+                    p_c_s = float(df.loc[cand_c_s, 'Low'])
+                    if p_c_s <= p_a_s:
+                        continue
+                    sl_s = (p_c_s - p_a_s) / (cand_c_s - cand_a_s)
+                    if sl_s <= 0:
+                        continue
 
-                    if idx_b_s < n - 2:
-                        after_b_s = df.iloc[idx_b_s + 1:]
-                        idx_c_s = int(after_b_s['Low'].idxmin())
-                        price_c_s = float(df.loc[idx_c_s, 'Low'])
+                    # 下凸包檢驗：A 到 C 之間，所有中間 K 棒低點不得跌破切線 (容許 0.2% 誤差)
+                    pierced_ac_s = False
+                    for mid_i in range(cand_a_s + 1, cand_c_s):
+                        y_mid = p_a_s + sl_s * (mid_i - cand_a_s)
+                        if float(df.loc[mid_i, 'Low']) < y_mid * 0.998:
+                            pierced_ac_s = True
+                            break
+                    if pierced_ac_s:
+                        continue
 
-                        if price_c_s > price_a_s * 1.002 and price_b_s > price_a_s and idx_c_s > idx_a_s:
-                            slope_s = (price_c_s - price_a_s) / (idx_c_s - idx_a_s)
-                            if slope_s > 0:
-                                y_tangent_s_today = price_a_s + slope_s * (n - 1 - idx_a_s)
-                                is_breaking_s = (c_today <= y_tangent_s_today * 1.005 or c_today <= price_b_s * 0.99) and (c_today <= sma5_today)
-                                
-                                prev_high_s = df.iloc[max(0, idx_a_s - 15):idx_a_s]
-                                wave1_high_s = float(prev_high_s['High'].max()) if len(prev_high_s) > 0 else price_b_s
-                                wave1_down_amp = max(wave1_high_s - price_a_s, price_b_s - price_a_s)
-                                target_d_s = round(max(1.0, price_c_s - wave1_down_amp), 2)
+                    pierced_after_s = 0
+                    for mid_i in range(cand_c_s + 1, n - 1):
+                        y_mid = p_a_s + sl_s * (mid_i - cand_a_s)
+                        if float(df.loc[mid_i, 'Low']) < y_mid * 0.997:
+                            pierced_after_s += 1
+                    if pierced_after_s > 1:
+                        continue
 
-                                abc_short_pat = {
-                                    "id": "abc_rebound_breakdown",
-                                    "name": "📐 跌破反彈 ABC 上升切線",
-                                    "direction": "空",
-                                    "status": "破線重回主跌" if is_breaking_s else "反彈旗型中",
-                                    "is_breakout": is_breaking_s,
-                                    "a_point": {"date": df.loc[idx_a_s, 'Date'], "price": price_a_s, "index": idx_a_s, "label": "A點 (主跌底)"},
-                                    "b_point": {"date": df.loc[idx_b_s, 'Date'], "price": price_b_s, "index": idx_b_s, "label": "B點 (反彈頂)"},
-                                    "c_point": {"date": df.loc[idx_c_s, 'Date'], "price": price_c_s, "index": idx_c_s, "label": "C點 (次低底)"},
-                                    "tangent_line": {
-                                        "x0": df.loc[idx_a_s, 'Date'], "y0": price_a_s,
-                                        "x1": df.iloc[-1]['Date'], "y1": round(y_tangent_s_today, 2),
-                                        "slope": slope_s
-                                    },
-                                    "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "⚡ 跌破切線空點"} if is_breaking_s else None,
-                                    "target_d": target_d_s,
-                                    "color": "#F97316", # Orange
-                                    "desc": f"空頭反彈 ABC 旗型結束，放量黑K摜破上升切線 (切線價 {y_tangent_s_today:.2f} 元)！短多做底失敗重回主跌段，等距下跌目標價 D' 看 {target_d_s} 元。"
-                                }
+                    prev_l = float(df.loc[cand_c_s - 1, 'Low'])
+                    next_l = float(df.loc[cand_c_s + 1, 'Low'])
+                    is_trough_c = (p_c_s <= prev_l * 1.005) and (p_c_s <= next_l * 1.005)
+
+                    slice_b_s = df.iloc[cand_a_s + 1:n - 1]
+                    cand_b_s = int(slice_b_s['High'].idxmax())
+                    p_b_s = float(df.loc[cand_b_s, 'High'])
+
+                    rebound_pct = (p_b_s - p_a_s) / (p_a_s + 1e-9)
+                    if rebound_pct < 0.03:
+                        continue
+
+                    y_line_s_today = p_a_s + sl_s * (n - 1 - cand_a_s)
+                    is_breaking_s = (c_today <= y_line_s_today * 1.005 or c_today <= p_b_s * 0.99) and (c_today <= sma5_today)
+
+                    score_s = 100.0
+                    if is_breaking_s:
+                        score_s += 50.0
+                    if is_trough_c:
+                        score_s += 30.0
+                    if pierced_after_s == 0:
+                        score_s += 30.0
+                    else:
+                        score_s -= 30.0
+                    if (n - 1 - cand_c_s) >= 5:
+                        score_s += 15.0
+                    span_ac_s = cand_c_s - cand_a_s
+                    if 6 <= span_ac_s <= 25:
+                        score_s += 15.0
+                    score_s += rebound_pct * 50.0
+                    score_s += (float(df.loc[min_l_idx, 'Low']) / (p_a_s + 1e-9)) * 20.0
+
+                    valid_short_combos.append({
+                        'idx_a': cand_a_s, 'price_a': p_a_s,
+                        'idx_b': cand_b_s, 'price_b': p_b_s,
+                        'idx_c': cand_c_s, 'price_c': p_c_s,
+                        'slope': sl_s, 'y_tangent_today': y_line_s_today,
+                        'is_breaking': is_breaking_s, 'score': score_s
+                    })
+
+            if valid_short_combos:
+                valid_short_combos.sort(key=lambda x: x['score'], reverse=True)
+                best_short = valid_short_combos[0]
+
+                idx_a_s = best_short['idx_a']
+                price_a_s = best_short['price_a']
+                idx_b_s = best_short['idx_b']
+                price_b_s = best_short['price_b']
+                idx_c_s = best_short['idx_c']
+                price_c_s = best_short['price_c']
+                slope_s = best_short['slope']
+                y_tangent_s_today = best_short['y_tangent_today']
+                is_breaking_s = best_short['is_breaking']
+
+                prev_high_s = df.iloc[max(0, idx_a_s - 15):idx_a_s]
+                wave1_high_s = float(prev_high_s['High'].max()) if len(prev_high_s) > 0 else price_b_s
+                wave1_down_amp = max(wave1_high_s - price_a_s, price_b_s - price_a_s)
+                target_d_s = round(max(1.0, price_c_s - wave1_down_amp), 2)
+
+                abc_short_pat = {
+                    "id": "abc_rebound_breakdown",
+                    "name": "📐 跌破反彈 ABC 上升切線",
+                    "direction": "空",
+                    "status": "破線重回主跌" if is_breaking_s else "反彈旗型中",
+                    "is_breakout": is_breaking_s,
+                    "a_point": {"date": df.loc[idx_a_s, 'Date'], "price": price_a_s, "index": idx_a_s, "label": "A點 (主跌底)"},
+                    "b_point": {"date": df.loc[idx_b_s, 'Date'], "price": price_b_s, "index": idx_b_s, "label": "B點 (反彈頂)"},
+                    "c_point": {"date": df.loc[idx_c_s, 'Date'], "price": price_c_s, "index": idx_c_s, "label": "C點 (次低底)"},
+                    "tangent_line": {
+                        "x0": df.loc[idx_a_s, 'Date'], "y0": price_a_s,
+                        "x1": df.iloc[-1]['Date'], "y1": round(y_tangent_s_today, 2),
+                        "slope": slope_s
+                    },
+                    "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "⚡ 跌破切線空點"} if is_breaking_s else None,
+                    "target_d": target_d_s,
+                    "color": "#F97316", # Orange
+                    "desc": f"空頭反彈 ABC 旗型結束，放量黑K摜破上升切線 (切線價 {y_tangent_s_today:.2f} 元)！短多做底失敗重回主跌段，等距下跌目標價 D' 看 {target_d_s} 元。"
+                }
 
     # =========================================================================
     # 3. 📦 一字底 (箱型狹幅糾結放量大突破)
@@ -544,13 +690,13 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
             # 更新可能已被修改的現有標註
             fig.layout.annotations = tuple(existing_annos)
 
-            # 獨立標註 Ⓐ 起修頂：向上大幅抬高 ay=-78，完全避開下方所有 K 線實體與上影線，垂直青藍箭頭直指高點
+            # 獨立標註 Ⓐ 起修頂：抬高 ay=-54，避開下方 K 線實體與上方圖例，垂直青藍箭頭直指高點
             if pt_a and not coincide_hp:
                 fig.add_annotation(
                     x=pt_a["date"], y=pt_a["price"], xref="x", yref="y",
                     text=f" Ⓐ 起修頂 {pt_a['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
-                    ax=0, ay=-78,
+                    ax=0, ay=-54,
                     bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
@@ -578,14 +724,14 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 4. 🔥 突破切線買點：避開右側「壓力」標籤 (ax=-36, ay=-75)，紅色箭頭直指最新突破紅K棒
+            # 4. 🔥 突破切線買點：紅色箭頭直指最新突破紅K棒
             bk = active.get("breakout_point")
             if bk:
                 fig.add_annotation(
                     x=bk["date"], y=bk["price"], xref="x", yref="y",
                     text=f" 🔥 突破切線 {bk['price']} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
-                    ax=-36, ay=-75,
+                    ax=-28, ay=-60,
                     bgcolor="#DC2626", bordercolor="white", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
