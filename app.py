@@ -1021,6 +1021,104 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     with c_btn2:
         if st.button("👁️ 追蹤鎖股", key=f"btn_watch_{key_prefix}_{item['code']}", use_container_width=True):
             st.toast(f"已將 {item['name']} ({item['code']}) 加入即時追蹤鎖股池！")
+def get_chart_rangebreaks(df_in: pd.DataFrame) -> list:
+    """
+    產生過濾週末與台股未開盤工作日(如國定假日、颱風假等)之 rangebreaks 設定，使 K 線連續無空缺
+    """
+    if df_in is None or len(df_in) < 2:
+        return [dict(bounds=["sat", "mon"])]
+    rbreaks = [dict(bounds=["sat", "mon"])]
+    try:
+        start_d = df_in['Date'].min()
+        end_d = df_in['Date'].iloc[-1]
+        all_weekdays = pd.date_range(start=start_d, end=end_d, freq='B')
+        trading_dates = set(pd.to_datetime(df_in['Date']).dt.date)
+        missing_weekdays = [d.strftime('%Y-%m-%d') for d in all_weekdays if d.date() not in trading_dates and d.date() <= end_d.date()]
+        if missing_weekdays:
+            rbreaks.append(dict(values=missing_weekdays))
+    except Exception:
+        pass
+    return rbreaks
+
+def calc_right_pad_date(last_dt: pd.Timestamp, num_bars: float = 3.0) -> pd.Timestamp:
+    """
+    依據交易日數量計算右側安全留白邊距的時間點，避開週末與非交易日
+    """
+    try:
+        curr = last_dt
+        bars_added = 0.0
+        while bars_added < num_bars:
+            curr += pd.Timedelta(days=1)
+            if curr.weekday() not in [5, 6]:
+                bars_added += 1.0
+        return curr + pd.Timedelta(hours=12)
+    except Exception:
+        return last_dt + pd.Timedelta(days=4)
+
+def resolve_right_badge_collisions(fig: go.Figure, y_min: float, y_max: float, plot_height_px: int = 450, min_gap_px: int = 24) -> go.Figure:
+    """
+    自動檢測並排除右側標籤 (如 壓力 / 支撐 / 停損 / 目標 / 移動停利 / 等距目標價) 之間的垂直重疊碰撞。
+    若兩標籤在像素空間差距小於 min_gap_px，利用 yshift 進行雙向平滑推移避讓。
+    """
+    if not fig or not fig.layout.annotations:
+        return fig
+
+    annos = list(fig.layout.annotations)
+    right_badge_indices = []
+
+    for idx, a in enumerate(annos):
+        xa = getattr(a, 'xanchor', None) or (a.get('xanchor') if isinstance(a, dict) else None)
+        xs = getattr(a, 'xshift', 0) or (a.get('xshift', 0) if isinstance(a, dict) else 0)
+        sa = getattr(a, 'showarrow', True) if not isinstance(a, dict) else a.get('showarrow', True)
+        y_val = getattr(a, 'y', None) if not isinstance(a, dict) else a.get('y', None)
+
+        if xa == 'left' and xs >= 15 and sa is False and y_val is not None:
+            try:
+                right_badge_indices.append((idx, float(y_val)))
+            except (ValueError, TypeError):
+                pass
+
+    if len(right_badge_indices) <= 1:
+        return fig
+
+    right_badge_indices.sort(key=lambda item: item[1])
+    price_span = max(1.0, y_max - y_min)
+    px_per_price = plot_height_px / price_span
+
+    badge_px = [(y - y_min) * px_per_price for _, y in right_badge_indices]
+    n = len(badge_px)
+    shifts = [0.0] * n
+
+    for i in range(1, n):
+        prev_pos = badge_px[i-1] + shifts[i-1]
+        curr_pos = badge_px[i] + shifts[i]
+        diff = curr_pos - prev_pos
+        if diff < min_gap_px:
+            needed = min_gap_px - diff
+            shifts[i-1] -= needed / 2.0
+            shifts[i] += needed / 2.0
+
+    for i in range(n - 2, -1, -1):
+        next_pos = badge_px[i+1] + shifts[i+1]
+        curr_pos = badge_px[i] + shifts[i]
+        diff = next_pos - curr_pos
+        if diff < min_gap_px:
+            needed = min_gap_px - diff
+            shifts[i] -= needed
+
+    new_annos = list(annos)
+    for (orig_idx, _), s in zip(right_badge_indices, shifts):
+        anno_item = new_annos[orig_idx]
+        if isinstance(anno_item, dict):
+            curr_ys = anno_item.get('yshift', 0) or 0
+            anno_item['yshift'] = curr_ys + round(s)
+        else:
+            curr_ys = getattr(anno_item, 'yshift', 0) or 0
+            anno_item.yshift = curr_ys + round(s)
+
+    fig.layout.annotations = tuple(new_annos)
+    return fig
+
 def compute_ta_indicators(df_in):
     """為重採樣之週K/月K計算標準均線與技術指標"""
     d = df_in.copy()
@@ -1691,10 +1789,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             render_ma_direction_dashboard(df, close_price=float(info['close']), visible_mas=vis_mas_t1 if vis_mas_t1 else None)
 
             # 繪製 Tab 1 專屬轉折波與支撐壓力圖
-            # 為右側保留約 2.5 ~ 3 根 K 棒的安全留白邊距，避免最新 K 線、暫高/暫低圓圈與標籤被圖表右邊界裁切
-            last_dt = df['Date'].iloc[-1]
-            pad_days = 4.5 if (hasattr(last_dt, 'weekday') and last_dt.weekday() in [3, 4]) else 3.5
-            end_x_pad = last_dt + pd.Timedelta(days=pad_days)
+            # 為右側保留約 2.5 ~ 3 根交易日的安全留白邊距，避免最新 K 線、暫高/暫低圓圈與標籤被圖表右邊界裁切
+            end_x_pad = calc_right_pad_date(df['Date'].iloc[-1], num_bars=3.0)
 
             if "45日" in t1_view_bars and len(df) > 45:
                 init_x = [df['Date'].iloc[-45], end_x_pad]
@@ -1856,7 +1952,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             fig1.update_xaxes(
                 rangeslider_visible=False, range=init_x,
                 showgrid=True, gridcolor="rgba(148, 163, 184, 0.22)", gridwidth=1, griddash="dot",
-                showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="dash", spikecolor="#94A3B8"
+                showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="dash", spikecolor="#94A3B8",
+                rangebreaks=get_chart_rangebreaks(df)
             )
             fig1.update_xaxes(
                 showticklabels=True, row=1, col=1,
@@ -1870,6 +1967,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             if show_geometry:
                 fig1 = apply_pattern_geometry_to_figure(fig1, pattern_geo, df)
+
+            # 自動檢測並排除右側標籤 (壓力 / 支撐 / 停損 / 目標 / 移動停利 / 等距目標價) 垂直重疊碰撞
+            fig1 = resolve_right_badge_collisions(fig1, auto_y[0], auto_y[1])
 
             chart_config = {
                 'scrollZoom': False, 'displayModeBar': True,
@@ -2614,10 +2714,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if show_k_60ma: vis_k_mas.append('SMA_60')
             render_ma_direction_dashboard(df_k, close_price=float(df_k['Close'].iloc[-1]) if not df_k.empty else None, visible_mas=vis_k_mas if vis_k_mas else None)
 
-            # 為右側保留約 2.5 ~ 3 根 K 棒的安全留白邊距，避免最新 K 線與標籤被圖表右邊界裁切
-            last_k_dt = df_k['Date'].iloc[-1]
-            k_pad_days = 4.5 if (hasattr(last_k_dt, 'weekday') and last_k_dt.weekday() in [3, 4]) else 3.5
-            k_end_x_pad = last_k_dt + pd.Timedelta(days=k_pad_days)
+            # 為右側保留約 2.5 ~ 3 根交易日的安全留白邊距，避免最新 K 線與標籤被圖表右邊界裁切
+            k_end_x_pad = calc_right_pad_date(df_k['Date'].iloc[-1], num_bars=3.0)
 
             if "45根" in k_view_bars and len(df_k) > 45:
                 k_init_x = [df_k['Date'].iloc[-45], k_end_x_pad]
@@ -2702,7 +2800,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             fig2.update_xaxes(
                 rangeslider_visible=False, range=k_init_x,
                 showgrid=True, gridcolor="rgba(148, 163, 184, 0.22)", gridwidth=1, griddash="dot",
-                showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="dash", spikecolor="#94A3B8"
+                showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="dash", spikecolor="#94A3B8",
+                rangebreaks=get_chart_rangebreaks(df_k)
             )
             fig2.update_xaxes(
                 showticklabels=True, row=1, col=1,
@@ -2717,6 +2816,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     range=[-4, 104],
                     row=2, col=1
                 )
+
+            # 自動檢測並排除右側標籤垂直重疊碰撞
+            fig2 = resolve_right_badge_collisions(fig2, k_auto_y[0], k_auto_y[1])
 
             st.plotly_chart(fig2, use_container_width=True, config=chart_config, key=f"k_plot_{query}_{k_period}_{k_sub_chart}")
 
