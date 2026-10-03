@@ -1691,14 +1691,19 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             render_ma_direction_dashboard(df, close_price=float(info['close']), visible_mas=vis_mas_t1 if vis_mas_t1 else None)
 
             # 繪製 Tab 1 專屬轉折波與支撐壓力圖
+            # 為右側保留約 2.5 ~ 3 根 K 棒的安全留白邊距，避免最新 K 線、暫高/暫低圓圈與標籤被圖表右邊界裁切
+            last_dt = df['Date'].iloc[-1]
+            pad_days = 4.5 if (hasattr(last_dt, 'weekday') and last_dt.weekday() in [3, 4]) else 3.5
+            end_x_pad = last_dt + pd.Timedelta(days=pad_days)
+
             if "45日" in t1_view_bars and len(df) > 45:
-                init_x = [df['Date'].iloc[-45], df['Date'].iloc[-1]]
+                init_x = [df['Date'].iloc[-45], end_x_pad]
                 vis_df = df.iloc[-45:]
             elif "70日" in t1_view_bars and len(df) > 70:
-                init_x = [df['Date'].iloc[-70], df['Date'].iloc[-1]]
+                init_x = [df['Date'].iloc[-70], end_x_pad]
                 vis_df = df.iloc[-70:]
             else:
-                init_x = [df['Date'].iloc[0], df['Date'].iloc[-1]]
+                init_x = [df['Date'].iloc[0], end_x_pad]
                 vis_df = df
 
             y_mins = [vis_df['Low'].min()]
@@ -2609,14 +2614,19 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if show_k_60ma: vis_k_mas.append('SMA_60')
             render_ma_direction_dashboard(df_k, close_price=float(df_k['Close'].iloc[-1]) if not df_k.empty else None, visible_mas=vis_k_mas if vis_k_mas else None)
 
+            # 為右側保留約 2.5 ~ 3 根 K 棒的安全留白邊距，避免最新 K 線與標籤被圖表右邊界裁切
+            last_k_dt = df_k['Date'].iloc[-1]
+            k_pad_days = 4.5 if (hasattr(last_k_dt, 'weekday') and last_k_dt.weekday() in [3, 4]) else 3.5
+            k_end_x_pad = last_k_dt + pd.Timedelta(days=k_pad_days)
+
             if "45根" in k_view_bars and len(df_k) > 45:
-                k_init_x = [df_k['Date'].iloc[-45], df_k['Date'].iloc[-1]]
+                k_init_x = [df_k['Date'].iloc[-45], k_end_x_pad]
                 k_vis_df = df_k.iloc[-45:]
             elif "70根" in k_view_bars and len(df_k) > 70:
-                k_init_x = [df_k['Date'].iloc[-70], df_k['Date'].iloc[-1]]
+                k_init_x = [df_k['Date'].iloc[-70], k_end_x_pad]
                 k_vis_df = df_k.iloc[-70:]
             else:
-                k_init_x = [df_k['Date'].iloc[0], df_k['Date'].iloc[-1]]
+                k_init_x = [df_k['Date'].iloc[0], k_end_x_pad]
                 k_vis_df = df_k
 
             k_ymins = [k_vis_df['Low'].min()]
