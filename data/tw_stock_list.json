@@ -676,6 +676,12 @@
     "has_cb": false
   },
   {
+    "code": "3019",
+    "name": "亞光",
+    "market": "TW",
+    "industry": "光學鏡片"
+  },
+  {
     "code": "3023",
     "name": "信邦",
     "market": "TW",
@@ -714,6 +720,12 @@
     "industry": "電信業",
     "has_futures": true,
     "has_cb": true
+  },
+  {
+    "code": "3081",
+    "name": "聯亞",
+    "market": "TWO",
+    "industry": "光通訊磊晶"
   },
   {
     "code": "3094",
@@ -798,6 +810,12 @@
     "has_cb": false
   },
   {
+    "code": "3362",
+    "name": "先進光",
+    "market": "TWO",
+    "industry": "光學鏡片"
+  },
+  {
     "code": "3363",
     "name": "上詮",
     "market": "TWO",
@@ -832,6 +850,12 @@
     "industry": "ASIC設計"
   },
   {
+    "code": "3450",
+    "name": "聯鈞",
+    "market": "TW",
+    "industry": "光通訊CPO"
+  },
+  {
     "code": "3479",
     "name": "安勤",
     "market": "TWO",
@@ -854,6 +878,12 @@
     "industry": "自動化設備",
     "has_futures": false,
     "has_cb": false
+  },
+  {
+    "code": "3504",
+    "name": "揚明光",
+    "market": "TW",
+    "industry": "光學鏡片"
   },
   {
     "code": "3532",
@@ -1020,6 +1050,12 @@
     "has_cb": false
   },
   {
+    "code": "4976",
+    "name": "佳凌",
+    "market": "TW",
+    "industry": "光學鏡片"
+  },
+  {
     "code": "5209",
     "name": "新鼎",
     "market": "TWO",
@@ -1150,6 +1186,12 @@
     "has_cb": true
   },
   {
+    "code": "6209",
+    "name": "今國光",
+    "market": "TW",
+    "industry": "光學鏡片"
+  },
+  {
     "code": "6214",
     "name": "精誠",
     "market": "TW",
@@ -1158,12 +1200,24 @@
     "has_cb": false
   },
   {
+    "code": "6217",
+    "name": "中探針",
+    "market": "TWO",
+    "industry": "測試探針"
+  },
+  {
     "code": "6218",
     "name": "豪勉",
     "market": "TWO",
     "industry": "網通設備",
     "has_futures": false,
     "has_cb": false
+  },
+  {
+    "code": "6223",
+    "name": "旺矽",
+    "market": "TWO",
+    "industry": "半導體測試探針卡"
   },
   {
     "code": "6224",
@@ -1242,6 +1296,12 @@
     "has_cb": false
   },
   {
+    "code": "6442",
+    "name": "光聖",
+    "market": "TW",
+    "industry": "光通訊CPO"
+  },
+  {
     "code": "6510",
     "name": "精測",
     "market": "TWO",
@@ -1302,6 +1362,12 @@
     "name": "緯穎",
     "market": "TW",
     "industry": "伺服器"
+  },
+  {
+    "code": "6683",
+    "name": "雍智科技",
+    "market": "TWO",
+    "industry": "IC測試載板"
   },
   {
     "code": "6690",
@@ -1426,35 +1492,5 @@
     "industry": "建材營造",
     "has_futures": false,
     "has_cb": false
-  },
-  {
-    "code": "3019",
-    "name": "亞光",
-    "market": "TW",
-    "industry": "光學鏡片"
-  },
-  {
-    "code": "6209",
-    "name": "今國光",
-    "market": "TW",
-    "industry": "光學鏡片"
-  },
-  {
-    "code": "3362",
-    "name": "先進光",
-    "market": "TWO",
-    "industry": "光學鏡片"
-  },
-  {
-    "code": "3504",
-    "name": "揚明光",
-    "market": "TW",
-    "industry": "光學鏡片"
-  },
-  {
-    "code": "4976",
-    "name": "佳凌",
-    "market": "TW",
-    "industry": "光學鏡片"
   }
 ]

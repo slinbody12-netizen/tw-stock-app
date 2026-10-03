@@ -512,12 +512,28 @@ SECTOR_FLEETS = [
         "id": "cpo_optical",
         "name": "光通訊與 CPO 艦隊",
         "icon": "💡",
-        "leader_anchor": "6426",  # 統新
+        "leader_anchor": "6442",  # 光聖
         "members": [
+            {"code": "6442", "name": "光聖"},
+            {"code": "3450", "name": "聯鈞"},
+            {"code": "3081", "name": "聯亞"},
             {"code": "6426", "name": "統新"},
             {"code": "6530", "name": "創威"},
             {"code": "3234", "name": "光環"},
             {"code": "7717", "name": "萊德光電-KY"}
+        ]
+    },
+    {
+        "id": "probe_card_test",
+        "name": "探針卡與先進測試艦隊",
+        "icon": "📌",
+        "leader_anchor": "6223",  # 旺矽
+        "members": [
+            {"code": "6223", "name": "旺矽"},
+            {"code": "6515", "name": "穎崴"},
+            {"code": "6510", "name": "精測"},
+            {"code": "6683", "name": "雍智科技"},
+            {"code": "6217", "name": "中探針"}
         ]
     },
     {
