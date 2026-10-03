@@ -965,7 +965,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                 fig.add_annotation(
                     x=bx["x0"], y=bx["y0"], xref="x", yref="y",
                     text=f" 🛑 箱底防守線: {bx['y0']} 元 ",
-                    showarrow=False, xanchor="left", yanchor="top",
+                    showarrow=False, xanchor="left", yanchor="bottom",
                     bgcolor="#991B1B", bordercolor="#EF4444",
                     font=dict(color="white", size=9)
                 )

@@ -168,16 +168,18 @@ def detect_unfilled_gaps(df: pd.DataFrame, min_gap_pct: float = 0.8, lookback_ba
         "summary_desc": summary_desc
     }
 
-def apply_gaps_to_figure(fig: go.Figure, gaps_data: Dict[str, Any], df: pd.DataFrame, max_draw: int = 4) -> go.Figure:
+def apply_gaps_to_figure(fig: go.Figure, gaps_data: Dict[str, Any], df: pd.DataFrame, max_draw: int = 1) -> go.Figure:
     """
-    在 Plotly 主圖上以半透明陰影色帶 (Shaded Region) 繪製未回補跳空缺口
+    在 Plotly 主圖上以半透明陰影色帶 (Shaded Region) 繪製未回補跳空缺口。
+    預設只繪製最靠近現價的 1 道重大空方缺口反壓與 1 道多方缺口支撐，避免歷史缺口過多造成視覺混亂。
+    標籤統一靠右側邊界 (xanchor='left', xshift=22)，自動納入全圖防碰撞推移系統。
     """
     if not gaps_data or not fig or df is None or df.empty:
         return fig
 
     last_dt = df.iloc[-1]['Date']
     
-    # 限制繪製數量，避免歷史缺口過多造成視覺混亂
+    # 限制繪製數量，聚焦於最迫切面對的關鍵缺口
     bearish_to_draw = gaps_data.get("bearish_gaps", [])[:max_draw]
     bullish_to_draw = gaps_data.get("bullish_gaps", [])[:max_draw]
 
@@ -199,23 +201,18 @@ def apply_gaps_to_figure(fig: go.Figure, gaps_data: Dict[str, Any], df: pd.DataF
             row=1, col=1
         )
         
-        # 右側標註徽章
+        # 右側標註徽章 (靠右側邊界，不設指引線，納入垂直防碰撞系統，避免遮擋K線、頭/暫高圓圈)
         fig.add_annotation(
             x=x1,
             y=(y0 + y1) / 2.0,
-            text=f"🕳️ 空方缺口反壓 {y0:.1f}~{y1:.1f}",
-            showarrow=True,
-            arrowhead=2,
-            arrowsize=1,
-            arrowwidth=1.2,
-            arrowcolor="#A855F7",
-            ax=45,
-            ay=0,
-            font=dict(size=10, color="#FFFFFF", family="Arial Black"),
+            text=f" 🕳️ 空方缺口反壓 {y0:.1f}~{y1:.1f} ",
+            showarrow=False,
+            xanchor="left",
+            xshift=22,
+            font=dict(size=9.5, color="#FFFFFF", family="Arial Black"),
             bgcolor="rgba(147, 51, 234, 0.88)",
             bordercolor="#C084FC",
             borderwidth=1.2,
-            borderpad=3,
             xref="x", yref="y",
             row=1, col=1
         )
@@ -240,19 +237,14 @@ def apply_gaps_to_figure(fig: go.Figure, gaps_data: Dict[str, Any], df: pd.DataF
         fig.add_annotation(
             x=x1,
             y=(y0 + y1) / 2.0,
-            text=f"🛡️ 多方缺口支撐 {y0:.1f}~{y1:.1f}",
-            showarrow=True,
-            arrowhead=2,
-            arrowsize=1,
-            arrowwidth=1.2,
-            arrowcolor="#10B981",
-            ax=45,
-            ay=0,
-            font=dict(size=10, color="#FFFFFF", family="Arial Black"),
+            text=f" 🛡️ 多方缺口支撐 {y0:.1f}~{y1:.1f} ",
+            showarrow=False,
+            xanchor="left",
+            xshift=22,
+            font=dict(size=9.5, color="#FFFFFF", family="Arial Black"),
             bgcolor="rgba(5, 150, 105, 0.88)",
             bordercolor="#34D399",
             borderwidth=1.2,
-            borderpad=3,
             xref="x", yref="y",
             row=1, col=1
         )
