@@ -963,11 +963,11 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     row=1, col=1
                 )
                 fig.add_annotation(
-                    x=df.iloc[-1]['Date'], y=bx["y0"], xref="x", yref="y",
+                    x=bx["x0"], y=bx["y0"], xref="x", yref="y",
                     text=f" 🛑 箱底防守線: {bx['y0']} 元 ",
-                    showarrow=False, xanchor="left", xshift=22,
+                    showarrow=False, xanchor="right", yanchor="top",
                     bgcolor="#991B1B", bordercolor="#EF4444",
-                    font=dict(color="white", size=9.5, family="Arial Black")
+                    font=dict(color="white", size=9)
                 )
 
             tgt_d = active.get("target_d")
