@@ -70,6 +70,16 @@ def calculate_sector_heat_rankings(stocks_data: list = None, force_refresh=False
     """
     global _SECTOR_HEAT_CACHE, _SECTOR_HEAT_TIME
     now = time.time()
+
+    try:
+        import streamlit as st
+        if not force_refresh and 'cached_sector_heat' in st.session_state:
+            _c_d, _c_t = st.session_state['cached_sector_heat']
+            if (now - _c_t) < 300 and _c_d:
+                return _c_d
+    except Exception:
+        pass
+
     if not force_refresh and _SECTOR_HEAT_CACHE is not None and (now - _SECTOR_HEAT_TIME) < 180:
         return _SECTOR_HEAT_CACHE
 
@@ -205,6 +215,11 @@ def calculate_sector_heat_rankings(stocks_data: list = None, force_refresh=False
 
     _SECTOR_HEAT_CACHE = ranked_sectors
     _SECTOR_HEAT_TIME = now
+    try:
+        import streamlit as st
+        st.session_state['cached_sector_heat'] = (ranked_sectors, now)
+    except Exception:
+        pass
     return ranked_sectors
 
 def get_sector_heat_rankings(stocks_data: list = None, force_refresh=False) -> list:

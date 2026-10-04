@@ -227,6 +227,15 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
     now = time.time()
     cache_ttl = 60 if enable_realtime else 300
 
+    try:
+        import streamlit as st
+        if not force_refresh and 'cached_analyzed_stocks' in st.session_state:
+            _c_data, _c_time = st.session_state['cached_analyzed_stocks']
+            if (now - _c_time) < cache_ttl and _c_data:
+                return _c_data
+    except Exception:
+        pass
+
     if not force_refresh and _ANALYZED_STOCKS_CACHE is not None and (now - _LAST_CACHE_TIME) < cache_ttl:
         return _ANALYZED_STOCKS_CACHE
 
@@ -459,6 +468,11 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
 
     _ANALYZED_STOCKS_CACHE = analyzed
     _LAST_CACHE_TIME = now
+    try:
+        import streamlit as st
+        st.session_state['cached_analyzed_stocks'] = (analyzed, now)
+    except Exception:
+        pass
     return analyzed
 
 def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True, filter_no_upper_shadow=False, universe_scope="全部", hot_sub_type="綜合熱門", sector_filter="全部", *args, **kwargs):

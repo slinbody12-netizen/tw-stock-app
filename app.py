@@ -18,6 +18,7 @@ from plotly.subplots import make_subplots
 import importlib
 import datetime
 import os
+import time
 
 import core.data_fetcher
 import core.wave_engine
@@ -32,19 +33,26 @@ import core.market_sync
 import core.pattern_geometry
 import core.gap_detector
 
-# 強制重載 core 模組，確保 Streamlit Cloud 部署即時同步最新簽名與函式
-importlib.reload(core.data_fetcher)
-importlib.reload(core.wave_engine)
-importlib.reload(core.trend_analyzer)
-importlib.reload(core.signal_detector)
-importlib.reload(core.screener)
-importlib.reload(core.sector_radar)
-importlib.reload(core.ai_assistant)
-importlib.reload(core.copilot)
-importlib.reload(core.tracker)
-importlib.reload(core.market_sync)
-importlib.reload(core.pattern_geometry)
-importlib.reload(core.gap_detector)
+# 智慧動態重載：僅在檔案實際被修改 (mtime 改變) 時才 reload，避免使用者每次點選控制項都銷毀快取重算
+_CORE_MODULES = [
+    core.data_fetcher, core.wave_engine, core.trend_analyzer,
+    core.signal_detector, core.screener, core.sector_radar,
+    core.ai_assistant, core.copilot, core.tracker,
+    core.market_sync, core.pattern_geometry, core.gap_detector
+]
+if '_module_mtimes' not in st.session_state:
+    st.session_state._module_mtimes = {}
+
+for _mod in _CORE_MODULES:
+    _fpath = getattr(_mod, '__file__', None)
+    if _fpath and os.path.exists(_fpath):
+        _mtime = os.path.getmtime(_fpath)
+        if st.session_state._module_mtimes.get(_mod.__name__) != _mtime:
+            try:
+                importlib.reload(_mod)
+                st.session_state._module_mtimes[_mod.__name__] = _mtime
+            except Exception:
+                pass
 
 from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, load_stock_list
 from core.gap_detector import detect_unfilled_gaps, apply_gaps_to_figure
@@ -3332,13 +3340,21 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         render_app_guideline()
 
     # ----------------------------------------------------
-    # 🔥 全市場主流族群即時熱度雷達 (Top-Down 資金流向與熱門板塊)
+    # 🔥 全市場主流族群即時熱度雷達 (Top-Down 資金流向與熱門板塊 - 快取保護)
     # ----------------------------------------------------
     hot_sectors = []
-    try:
-        hot_sectors = get_sector_heat_rankings()
-    except Exception as e:
-        st.caption(f"主流族群雷達運算中... ({e})")
+    _now = time.time()
+    _last_sec_t = st.session_state.get('_last_sector_heat_time', 0)
+    _cached_secs = st.session_state.get('_cached_hot_sectors')
+    if _cached_secs and (_now - _last_sec_t) < 300:
+        hot_sectors = _cached_secs
+    else:
+        try:
+            hot_sectors = get_sector_heat_rankings()
+            st.session_state._cached_hot_sectors = hot_sectors
+            st.session_state._last_sector_heat_time = _now
+        except Exception as e:
+            st.caption(f"主流族群雷達運算中... ({e})")
 
     if hot_sectors:
         top5_secs = hot_sectors[:5]
