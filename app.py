@@ -3427,7 +3427,6 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 "選股大類",
                 [
                     "📈 波段策略 (起漲關鍵)",
-                    "🔄 剛變多頭 (反轉起漲 · 近4日)",
                     "🌊 主流族群飆股 (資金風口龍頭)",
                     "🔥 量排行 (位置決定命運)",
                     "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)",
@@ -3442,7 +3441,6 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 "選股大類 (做空)",
                 [
                     "📉 波段策略 (起跌關鍵)",
-                    "🔄 剛變空頭 (破線轉空 · 近4日)",
                     "⚡ 盤中弱勢 (跌破帶量)",
                     "📊 盤中排行 (跌幅排行)",
                     "🔥 量排行",
@@ -3663,15 +3661,8 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         st.caption("💡 **量排行實戰心法（位置決定命運）**：成交量代表主力足跡。若在**低檔起漲放量出紅 K**，為主力建倉進場攻擊量；若在**波段高檔漲多後爆出天量**，為主力短線倒貨出場點，**嚴禁盲目追高**！")
 
     # 價格分級篩選
-    col_p1, col_p2 = st.columns([3, 1])
-    with col_p1:
-        p_filter = st.radio("價格位階篩選", ["全部", "低價 (<30)", "中價 (30-100)", "高價 (100-300)", "超高 (>300)"], horizontal=True, key="scr_price_filter")
-        price_val = p_filter.split()[0]
-    with col_p2:
-        st.write("")
-        refresh_btn = st.button("⚡ 刷新即時行情", help="立即向證交所批次請求全市場最新盤中價量")
-
-    st.caption("🟢 **證交所官方盤中即時模式已啟動**：每日開盤自動串接最新撮合價，所有均線、黃金交叉與一點鐘選股皆以今日最新成交價即時判定！")
+    p_filter = st.radio("價格位階篩選", ["全部", "低價 (<30)", "中價 (30-100)", "高價 (100-300)", "超高 (>300)"], horizontal=True, key="scr_price_filter")
+    price_val = p_filter.split()[0]
 
     if scope_val == "熱門優先":
         if selected_sector_filter != "全部":
@@ -3687,31 +3678,78 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     else:
         scope_tag = "🌐 全市場"
 
-    with st.spinner(f"正在【{scope_tag}】中精確篩選【{target_strategy}】(證交所盤中即時模式)..."):
-        try:
-            results = scan_stocks(
-                strategy=target_strategy,
-                direction=dir_val,
-                price_filter=price_val,
-                limit=50,
-                force_refresh=refresh_btn,
-                enable_realtime=True,
-                universe_scope=scope_val,
-                hot_sub_type=hot_sub_type,
-                sector_filter=selected_sector_filter
-            )
-        except Exception:
-            results = scan_stocks(
-                strategy=target_strategy,
-                direction=dir_val,
-                price_filter=price_val,
-                limit=50,
-                force_refresh=False,
-                enable_realtime=False,
-                universe_scope=scope_val,
-                hot_sub_type=hot_sub_type,
-                sector_filter=selected_sector_filter
-            )
+    # 當前選擇的參數組合
+    current_params = {
+        "scope": scope_val,
+        "dir": dir_val,
+        "strategy": target_strategy,
+        "price": price_val,
+        "hot_type": hot_sub_type,
+        "sector": selected_sector_filter
+    }
+
+    last_params = st.session_state.get('screener_last_params')
+    is_params_changed = (last_params is not None and current_params != last_params)
+
+    # 執行選股與即時刷新按鈕列 (等使用者選好三項連動條件後，再手動點擊執行或首次自動加載)
+    col_btn_a, col_btn_b = st.columns([3.2, 1.2])
+    with col_btn_a:
+        if is_params_changed:
+            btn_text = f"🚀 開始執行選股 (套用新設定：{dir_val} · {target_strategy})"
+            btn_type = "primary"
+        else:
+            btn_text = f"🚀 開始執行選股 (依當前設定：{dir_val} · {target_strategy})"
+            btn_type = "secondary"
+        run_scan_btn = st.button(btn_text, type=btn_type, use_container_width=True, help="選好母體、方向與策略後，點擊此處立即執行篩選")
+
+    with col_btn_b:
+        refresh_btn = st.button("⚡ 刷新即時行情", use_container_width=True, help="立即向證交所批次請求全市場最新盤中價量並重新計算")
+
+    st.caption("🟢 **證交所官方盤中即時模式**：選好上方「母體範圍、操作方向、選股大類」後，點擊【🚀 開始執行選股】即可高速產出名單！")
+
+    # 判斷是否需要執行耗時的 scan_stocks
+    need_scan = False
+    if run_scan_btn or refresh_btn:
+        need_scan = True
+    elif "screener_results" not in st.session_state:
+        need_scan = True
+
+    if need_scan:
+        with st.spinner(f"正在【{scope_tag}】中精確篩選【{target_strategy}】(證交所盤中即時模式)..."):
+            try:
+                results = scan_stocks(
+                    strategy=target_strategy,
+                    direction=dir_val,
+                    price_filter=price_val,
+                    limit=50,
+                    force_refresh=bool(refresh_btn),
+                    enable_realtime=True,
+                    universe_scope=scope_val,
+                    hot_sub_type=hot_sub_type,
+                    sector_filter=selected_sector_filter
+                )
+            except Exception:
+                results = scan_stocks(
+                    strategy=target_strategy,
+                    direction=dir_val,
+                    price_filter=price_val,
+                    limit=50,
+                    force_refresh=False,
+                    enable_realtime=False,
+                    universe_scope=scope_val,
+                    hot_sub_type=hot_sub_type,
+                    sector_filter=selected_sector_filter
+                )
+        st.session_state.screener_results = results
+        st.session_state.screener_last_params = current_params
+        st.session_state.screener_last_tag = scope_tag
+        st.session_state.screener_last_strat = target_strategy
+    else:
+        results = st.session_state.get('screener_results', [])
+
+    # 若使用者已切換選項但尚未點擊「開始執行選股」，以醒目提示告知使用者
+    if is_params_changed:
+        st.warning(f"⚠️ **篩選條件已變更（尚未執行）**：當前條件為【{scope_tag}】▸【{direction}】▸【{target_strategy}】（價格：{price_val}）。請點擊上方【🚀 開始執行選股】按鈕產出最新名單！", icon="🎯")
 
     # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
     st.session_state.browsing_stock_list = [item['code'] for item in results]
@@ -3722,9 +3760,12 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     caution_count = sum(1 for s in results if "警訊" in s.get('safety_rating', ''))
     danger_count = sum(1 for s in results if "嚴禁" in s.get('safety_rating', ''))
 
+    active_tag = st.session_state.get('screener_last_tag', scope_tag)
+    active_strat = st.session_state.get('screener_last_strat', target_strategy)
+
     col_stat1, col_stat2 = st.columns([3, 2])
     with col_stat1:
-        st.markdown(f"**掃描結果（{scope_tag}）：符合【{target_strategy}】共 `{len(results)}` 檔標的**")
+        st.markdown(f"**掃描結果（{active_tag}）：符合【{active_strat}】共 `{len(results)}` 檔標的**")
         st.caption(f"💡 **助教安全把關**：🟢 安全首選 `{safe_count}` 檔 ｜ 🟡 警訊注意 `{caution_count}` 檔 ｜ 🔴 嚴禁追高/已淘汰 `{danger_count}` 檔")
     with col_stat2:
         filter_safe_only = st.toggle(
