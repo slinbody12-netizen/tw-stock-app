@@ -108,30 +108,53 @@ def analyze_trend(df: pd.DataFrame, points: list):
     # 趨勢狀態判定與目標價推估
     # -------------------------------------------------------------
     if hh and hl:
-        trend_status = "多頭趨勢 (頭頭高、底底高)"
-        trend_badge = "多頭 🟢"
-        trend_color = "#E03131"  # 台股紅代表漲
-        # 目標價：N字波等距目標 (突破前高後 target = resistance + (resistance - support))
-        target = round(resistance + (resistance - support), 2)
+        # 多頭趨勢架構：檢查自最新高點以來，是否曾實質跌破前低支撐？
+        bars_since_peak = df[df['Date'] >= curr_peak['date']] if not df.empty else pd.DataFrame()
+        pullback_low = bars_since_peak['Low'].min() if not bars_since_peak.empty and 'Low' in bars_since_peak else latest_low
+        tentative_troughs = [p for p in points if p['type'] == 'TROUGH' and p['date'] >= curr_peak['date']]
+        if tentative_troughs:
+            pullback_low = min(pullback_low, min(p['price'] for p in tentative_troughs))
 
-        # 警戒檢測
-        if latest_close < support:
-            alerts.append(f"⚠️ 警訊：今日收盤價 ({latest_close}) 跌破前低支撐 ({support})，多頭架構遭到破壞！")
-        elif latest_close >= resistance:
-            alerts.append(f"🔥 強勢：今日收盤價 ({latest_close}) 突破前波高點 ({resistance})，多頭續創新高！")
+        has_broken_low = pullback_low <= curr_trough['price'] * 0.998
+        has_new_high = latest_close >= curr_peak['price'] * 1.003
+
+        if has_broken_low and not has_new_high:
+            trend_status = "趨勢改變為盤整 (多頭回檔破前低)"
+            trend_badge = "盤整 🟡"
+            trend_color = "#FFA94D"
+            target = resistance
+            alerts.append(f"⚠️ 警訊：股價自波段高點 ({curr_peak['price']}) 回檔最低至 ({pullback_low:.1f})，已跌破前低支撐 ({curr_trough['price']})，多頭架構遭到破壞，趨勢改變為盤整！")
+        else:
+            trend_status = "多頭趨勢 (頭頭高、底底高)"
+            trend_badge = "多頭 🟢"
+            trend_color = "#E03131"  # 台股紅代表漲
+            target = round(resistance + (resistance - support), 2)
+            if latest_close < support:
+                alerts.append(f"⚠️ 警訊：今日收盤價 ({latest_close}) 跌破前低支撐 ({support})，多頭架構遭到破壞！")
+            elif latest_close >= resistance:
+                alerts.append(f"🔥 強勢：今日收盤價 ({latest_close}) 突破前波高點 ({resistance})，多頭續創新高！")
 
     elif lh and ll:
-        if latest_close > curr_peak['price']:
-            trend_status = "空頭反彈過前高 (架構破壞)"
-            trend_badge = "轉強 🟡"
-            trend_color = "#F59F00"
+        # 空頭趨勢架構：檢查自最新低點以來，反彈波是否已實質超越前高壓力？
+        bars_since_trough = df[df['Date'] >= curr_trough['date']] if not df.empty else pd.DataFrame()
+        rebound_high = bars_since_trough['High'].max() if not bars_since_trough.empty and 'High' in bars_since_trough else latest_high
+        tentative_peaks = [p for p in points if p['type'] == 'PEAK' and p['date'] >= curr_trough['date']]
+        if tentative_peaks:
+            rebound_high = max(rebound_high, max(p['price'] for p in tentative_peaks))
+
+        has_passed_high = rebound_high >= curr_peak['price'] * 1.002
+        has_new_low = latest_close <= curr_trough['price'] * 0.995
+
+        if has_passed_high and not has_new_low:
+            trend_status = "趨勢改變為盤整 (空頭反彈過前高)"
+            trend_badge = "盤整 🟡"
+            trend_color = "#FFA94D"
             target = resistance
-            alerts.append(f"⚠️ 警訊：今日收盤價 ({latest_close}) 突破前高壓力 ({curr_peak['price']})，空頭架構遭到破壞！")
+            alerts.append(f"⚠️ 警訊：股價自波段低點 ({curr_trough['price']}) 反彈最高達 ({rebound_high:.1f})，已突破前高壓力 ({curr_peak['price']})，空頭架構遭到破壞，趨勢改變為盤整！")
         else:
             trend_status = "空頭趨勢 (頭頭低、底底低)"
             trend_badge = "空頭 🔴"
             trend_color = "#2F9E44"  # 台股綠代表跌
-            # 目標價：倒N波等距目標
             target = round(support - (resistance - support), 2)
             if latest_close <= support:
                 alerts.append(f"❄️ 弱勢：今日收盤價 ({latest_close}) 跌破前波低點 ({support})，空頭續創新低！")

@@ -1677,7 +1677,14 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             # 5 大核心技術面指標盒
             c1, c2, c3, c4, c5 = st.columns(5)
             with c1:
-                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>趨勢架構</div><div style='font-size:1.05rem; font-weight:bold; color:{trend['trend_color']};'>{trend['trend_status']}</div></div>", unsafe_allow_html=True)
+                t_status = trend.get('trend_status', '整理中')
+                if " (" in t_status and t_status.endswith(")"):
+                    t_main, t_sub = t_status.split(" (", 1)
+                    t_sub = t_sub.rstrip(")")
+                    t_display = f"{t_main}<br><span style='font-size:0.82rem; font-weight:normal; opacity:0.9;'>({t_sub})</span>"
+                else:
+                    t_display = t_status
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>趨勢架構</div><div style='font-size:1.05rem; font-weight:bold; color:{trend['trend_color']}; line-height:1.25;'>{t_display}</div></div>", unsafe_allow_html=True)
             with c2:
                 st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>壓力線 (前高)</div><div style='font-size:1.25rem; font-weight:bold; color:#FF922B;'>{trend['resistance']}</div></div>", unsafe_allow_html=True)
             with c3:
