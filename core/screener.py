@@ -373,6 +373,9 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "trend_change_date": trend.get('trend_change_date_str', ''),
                 "days_since_change": trend.get('days_since_change', 99),
                 "is_fresh_change": trend.get('is_fresh_change', False),
+                "cons_duration_bars": trend.get('cons_duration_bars', 0),
+                "cons_duration_months": trend.get('cons_duration_months', 0.0),
+                "is_cons_over_2m": trend.get('is_cons_over_2m', False),
                 "support": trend.get('support'),
                 "resistance": trend.get('resistance'),
                 "target": trend.get('target'),
@@ -564,7 +567,11 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
 
         # 4. 策略精準過濾
         match = False
-        if "剛變多頭" in strategy or strategy == "剛變多":
+        if any(k in strategy for k in ["盤整逾2月", "超過2個月", "盤整2月", "老朱戰法"]):
+            # 老朱戰法：盤整超過2個月剛變多頭 (多頭趨勢、天數 <= 5、且盤整天數 >= 40 逾2個月)
+            if s.get('trend_status', '').startswith('多頭趨勢') and s.get('days_since_change', 99) <= 5 and s.get('is_cons_over_2m', False):
+                match = True
+        elif "剛變多頭" in strategy or strategy == "剛變多":
             # 剛變多頭：多頭趨勢且結構確立天數 <= 4
             if s.get('trend_status', '').startswith('多頭趨勢') and s.get('days_since_change', 99) <= 4:
                 match = True
@@ -673,8 +680,9 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
 
     # 排序邏輯：做空、做多與趨勢翻轉自適應
     if is_flip_strat:
-        # 剛翻轉個股：依據距今翻轉天數由近到遠（1天最剛轉變排在最前面），次依成交量排序
+        # 剛翻轉個股：老朱戰法(盤整逾2月)優先置頂，次依據距今翻轉天數由近到遠，最後依成交量排序
         filtered.sort(key=lambda x: (
+            0 if x.get('is_cons_over_2m', False) else 1,
             x.get('days_since_change', 99),
             -float(x.get('volume', 0) or 0)
         ))

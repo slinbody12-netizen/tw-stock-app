@@ -205,6 +205,32 @@ def analyze_trend(df: pd.DataFrame, points: list):
         trend_change_date_str = pd.to_datetime(trend_change_date).strftime('%m/%d')
         days_since_change = len(df[df['Date'] >= trend_change_date])
 
+    # -------------------------------------------------------------
+    # 老朱戰法：檢測轉多頭前是否經歷超過 2 個月（>= 40 個交易日）之充分盤整洗盤
+    # 實戰心法：「橫有多長，豎有多高」，長盤超過 2 個月爆發之股票，波段漲幅往往驚人！
+    # -------------------------------------------------------------
+    cons_duration_bars = 0
+    cons_duration_months = 0.0
+    is_cons_over_2m = False
+
+    if trend_status.startswith("多頭趨勢") and trend_change_date is not None and not df.empty:
+        idx_list = df.index[df['Date'] <= trend_change_date].tolist()
+        if idx_list:
+            t_idx = idx_list[-1]
+            for lookback in range(35, min(150, t_idx)):
+                slice_df = df.iloc[t_idx - lookback : t_idx]
+                h_max = slice_df['High'].max()
+                l_min = slice_df['Low'].min()
+                amp = (h_max - l_min) / (l_min + 1e-9)
+                if amp <= 0.30:  # 振幅在 30% 以內的箱型整理/打底區間
+                    cons_duration_bars = lookback
+
+            if cons_duration_bars >= 40:
+                cons_duration_months = round(cons_duration_bars / 20.0, 1)
+                is_cons_over_2m = True
+                if days_since_change <= 5:
+                    alerts.insert(0, f"🔥 【老朱戰法·橫有多長豎有多高】：本檔在突破前盤整沉澱長達 {cons_duration_bars} 個交易日（約 {cons_duration_months} 個月），今日剛確立多頭趨勢！長盤沉澱後的初升第一根爆發力極強，常展開翻倍大波段行情！")
+
     return {
         "trend_status": trend_status,
         "trend_badge": trend_badge,
@@ -213,6 +239,9 @@ def analyze_trend(df: pd.DataFrame, points: list):
         "trend_change_date_str": trend_change_date_str,
         "days_since_change": days_since_change,
         "is_fresh_change": (days_since_change <= 3),
+        "cons_duration_bars": cons_duration_bars,
+        "cons_duration_months": cons_duration_months,
+        "is_cons_over_2m": is_cons_over_2m,
         "higher_highs": hh,
         "higher_lows": hl,
         "lower_highs": lh,

@@ -711,16 +711,16 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         is_5ma_up = item.get('is_5ma_rising', True)
         is_above_5ma = item.get('above_5ma', True)
         if is_5ma_up:
-            badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>📈 5MA走升</span>"
+            badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px; white-space:nowrap; display:inline-block;'>📈 5MA走升</span>"
         else:
-            badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>↘️ 5MA下彎</span>"
+            badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px; white-space:nowrap; display:inline-block;'>↘️ 5MA下彎</span>"
         if is_above_5ma:
-            badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>站上5MA</span>"
+            badge_html += "<span style='background:#1D392E; color:#52C41A; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px; white-space:nowrap; display:inline-block;'>站上5MA</span>"
         else:
-            badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>破5MA</span>"
+            badge_html += "<span style='background:#3C1F24; color:#FF7875; padding:2px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px; white-space:nowrap; display:inline-block;'>破5MA</span>"
 
     if item.get('main_wave_2nd') or sig.get('main_wave_2nd', False):
-        badge_html += "<span style='background:linear-gradient(90deg, #1890FF, #722ED1); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚀 主升第二波</span>"
+        badge_html += "<span style='background:linear-gradient(90deg, #1890FF, #722ED1); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block;'>🚀 主升第二波</span>"
 
     # 趨勢翻轉醒目標籤 (剛變多頭 / 剛變空頭 / 剛變盤整，天數 <= 4)
     trend_st = item.get('trend_status', '')
@@ -729,12 +729,16 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     date_txt = f" · {chg_date}" if chg_date else ""
     if days_chg <= 4:
         if trend_st.startswith("多頭趨勢"):
-            badge_html += f"<span style='background:linear-gradient(90deg, #16A34A, #22C55E); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(34,197,94,0.4);' title='近{days_chg}天確立多頭結構(頭頭高、底底高)'>🚀 剛變多頭{date_txt}</span>"
+            badge_html += f"<span style='background:linear-gradient(90deg, #16A34A, #22C55E); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(34,197,94,0.4);' title='近{days_chg}天確立多頭結構(頭頭高、底底高)'>🚀 剛變多頭{date_txt}</span>"
+            if item.get('is_cons_over_2m', False):
+                c_m = item.get('cons_duration_months', 2.0)
+                c_b = item.get('cons_duration_bars', 40)
+                badge_html += f"<span style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 8px rgba(225,29,72,0.6);' title='老朱戰法：橫有多長，豎有多高！前段箱型打底長達 {c_b} 天 (約 {c_m} 個月)，突破爆發力強！'>🔥 盤整{c_m}月破繭起漲</span>"
         elif "趨勢改變為盤整" in trend_st or (trend_st.startswith("盤整整理") and days_chg <= 2):
             sub_lbl = "反彈過前高" if "過前高" in trend_st else ("跌破前低" if "跌破前低" in trend_st else "整理")
-            badge_html += f"<span style='background:linear-gradient(90deg, #D97706, #F59E0B); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(245,158,11,0.4);' title='近{days_chg}天結構破壞，趨勢改變為盤整({sub_lbl})'>🟡 剛變盤整 ({sub_lbl}{date_txt})</span>"
+            badge_html += f"<span style='background:linear-gradient(90deg, #D97706, #F59E0B); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(245,158,11,0.4);' title='近{days_chg}天結構破壞，趨勢改變為盤整({sub_lbl})'>🟡 剛變盤整 ({sub_lbl}{date_txt})</span>"
         elif trend_st.startswith("空頭趨勢"):
-            badge_html += f"<span style='background:linear-gradient(90deg, #DC2626, #EF4444); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(239,68,68,0.4);' title='近{days_chg}天確立空頭結構(頭頭低、底底低)'>📉 剛變空頭{date_txt}</span>"
+            badge_html += f"<span style='background:linear-gradient(90deg, #DC2626, #EF4444); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.4);' title='近{days_chg}天確立空頭結構(頭頭低、底底低)'>📉 剛變空頭{date_txt}</span>"
 
     # ----------------------------------------------------
     # 第六章形態收集與智慧精簡 (A+C 混合收納引擎)
@@ -996,6 +1000,17 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
             f"</div>"
         )
 
+    # 老朱戰法：盤整超過2個月剛變多頭專屬金句解說盒
+    lao_zhu_html = ""
+    if trend_st.startswith("多頭趨勢") and item.get('is_cons_over_2m', False):
+        c_bars = item.get('cons_duration_bars', 40)
+        c_months = item.get('cons_duration_months', 2.0)
+        lao_zhu_html = (
+            f"<div style='background:rgba(225, 29, 72, 0.15); border-left:4px solid #E11D48; border-radius:6px; padding:7px 10px; margin-top:6px; color:#FECDD3; font-size:0.82rem; line-height:1.55;'>"
+            f"🔥 <b>【老朱實戰心法 · 橫有多長豎有多高】</b>：本檔在底部/區間盤整長達 <b>{c_bars} 天（約 {c_months} 個月）</b>，剛正式突破確立多頭架構！籌碼沉澱紮實、浮額清洗徹底，依老朱戰法此類標的具備強大爆發潛力，值得密切追蹤起漲進場點！"
+            f"</div>"
+        )
+
     card_html = (
         f'<div style="background:#1E202E; border:1px solid #33364D; border-radius:10px; padding:12px 14px; margin-bottom:4px;">'
         f'<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
@@ -1014,6 +1029,7 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         f'{cost_line_html}'
         f'{smart_k_html}'
         f'{intraday_html}'
+        f'{lao_zhu_html}'
         f'<div style="font-size:0.8rem; color:#FFA94D; margin-bottom:2px;">{sup_text} | {res_text}</div>'
         f'{safety_warn_html}'
         f'{swing_html}'
@@ -1703,12 +1719,15 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 chg_date_str = trend.get('trend_change_date_str', '')
                 days_since_chg = trend.get('days_since_change', 99)
                 is_fresh_chg = trend.get('is_fresh_change', False)
+                is_cons_2m = trend.get('is_cons_over_2m', False)
+                cons_m = trend.get('cons_duration_months', 2.0)
 
                 date_html = ""
                 if chg_date_str:
-                    fresh_badge = "<span style='background:#E03131; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px;'>剛翻轉</span>" if is_fresh_chg else ""
+                    fresh_badge = "<span style='background:#E03131; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>剛翻轉</span>" if is_fresh_chg else ""
+                    lz_badge = f"<span style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; border-radius:3px; padding:1px 5px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>盤整{cons_m}月轉多 🔥</span>" if is_cons_2m else ""
                     days_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
-                    date_html = f"<div style='margin-top:3px; font-size:0.75rem; font-weight:normal; color:#DDD;'>📅 {chg_date_str} 翻轉 · {days_txt} {fresh_badge}</div>"
+                    date_html = f"<div style='margin-top:3px; font-size:0.75rem; font-weight:normal; color:#DDD;'>📅 {chg_date_str} 翻轉 · {days_txt} {fresh_badge}{lz_badge}</div>"
 
                 if " (" in t_status and t_status.endswith(")"):
                     t_main, t_sub = t_status.split(" (", 1)
@@ -3470,8 +3489,9 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 "🔄 趨勢翻轉雷達 (近4日結構改變)",
                 [
                     "🔄 全部趨勢翻轉 (剛變多+剛變空+剛變盤整)",
-                    "🟡 剛變盤整 (空頭反彈過前高 / 多頭跌破整理)",
+                    "🔥 剛變多頭 (盤整逾2月 · 老朱戰法·翻倍潛力)",
                     "🚀 剛變多頭 (反轉轉多 · 突破前高/起漲)",
+                    "🟡 剛變盤整 (空頭反彈過前高 / 多頭跌破整理)",
                     "📉 剛變空頭 (反轉轉空 · 跌破前低/破線)"
                 ],
                 horizontal=True,
@@ -3529,7 +3549,10 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
     target_strategy = "全部"
     if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode:
-        if "剛變盤整" in main_mode:
+        if "盤整逾2月" in main_mode or "老朱戰法" in main_mode:
+            target_strategy = "剛變多頭 (盤整逾2月)"
+            st.caption("🔥 **【老朱戰法 · 盤整超過2個月突然變多頭】**：老朱名言『**橫有多長，豎有多高！**』專門鎖定前段歷經 **2 個月以上（>=40 個交易日）** 密集箱型打底洗盤，近 4 日內**首度破繭突破翻轉為多頭架構**之翻倍潛力標的！籌碼極度沉澱、爆發續航力驚人！")
+        elif "剛變盤整" in main_mode:
             target_strategy = "剛變盤整"
             st.caption("💡 **【🟡 剛變盤整 (結構破壞整理)】**：鎖定近 4 個交易日內，原空頭架構被反彈突破前高破壞（如智邦 2345），或原多頭架構被回檔跌破前低破壞的個股！趨勢改變為盤整，代表舊趨勢告一段落，進入新一輪洗盤與方向醞釀！")
         elif "剛變多頭" in main_mode:
