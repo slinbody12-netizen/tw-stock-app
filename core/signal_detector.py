@@ -230,6 +230,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "high_breakout": False,       # 高檔起漲
         "golden_cross_5_20": False,   # 雙線黃金交叉
         "ma_squeeze_breakout": False, # 🌀 均線糾結突破 (四線糾結起漲第一根)
+        "ma_squeeze_bars": 0,         # 均線糾結天數
+        "ma_squeeze_months": 0.0,     # 均線糾結月數
+        "is_ma_squeeze_over_2m": False,# 均線糾結是否超過2個月 (>=40天)
         "box_range_breakout": False,  # 📦 箱型整理大突破 (一棒過頂·蓄勢噴發起漲第一根)
         "is_gap_breakout": False,     # ⚡ 盤整跳空缺口突破 (力道最強·CH6)
         "breakout_stage": "",         # 突破位階勝率 (初升段8成 / 第二波7成 / 高檔短線)
@@ -727,15 +730,41 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         min_ma = min(ma_list)
         ma_dispersion = (max_ma - min_ma) / (min_ma + 1e-9)
 
-        # 四線離散在 5.2% 以內（四線高度靠攏平躺），且過去 30~50 天橫盤振幅小於 25% (低檔長期打底)
-        is_ma_squeezed = (ma_dispersion <= 0.052) or (abs(sma5 - sma20) / (sma20 + 1e-9) <= 0.035 and abs(sma10 - sma20) / (sma20 + 1e-9) <= 0.035)
+        # 計算歷史均線糾結天數 (逐日回溯 5/10/20/60MA 離散度 <= 6.8%)
+        c_series = df['Close']
+        s5 = c_series.rolling(5).mean()
+        s10 = c_series.rolling(10).mean()
+        s20 = c_series.rolling(20).mean()
+        s60 = c_series.rolling(60).mean() if len(df) >= 60 else s20
+        ma_max_s = pd.concat([s5, s10, s20, s60], axis=1).max(axis=1)
+        ma_min_s = pd.concat([s5, s10, s20, s60], axis=1).min(axis=1)
+        disp_s = (ma_max_s - ma_min_s) / (ma_min_s + 1e-9)
+
+        sq_bars = 0
+        for i in range(len(df) - 2, max(0, len(df) - 150), -1):
+            if disp_s.iloc[i] <= 0.068:
+                sq_bars += 1
+            elif disp_s.iloc[i] <= 0.082 and sq_bars >= 10:
+                sq_bars += 1
+            else:
+                break
+
+        signals_dict['ma_squeeze_bars'] = sq_bars
+        signals_dict['ma_squeeze_months'] = round(sq_bars / 20.0, 1)
+        signals_dict['is_ma_squeeze_over_2m'] = (sq_bars >= 40)
+
+        # 四線離散在 5.5% 以內（四線高度靠攏平躺），且過去 30~50 天橫盤振幅小於 25% (低檔長期打底)
+        is_ma_squeezed = (ma_dispersion <= 0.055) or (abs(sma5 - sma20) / (sma20 + 1e-9) <= 0.038 and abs(sma10 - sma20) / (sma20 + 1e-9) <= 0.038)
         # 一口氣站上/突破四線糾結
         is_standing_all_mas = (c >= sma5 and c >= sma10 and c >= sma20 and c >= (sma60 * 0.992))
 
-        if amplitude <= 0.25 and is_ma_squeezed and is_standing_all_mas and is_red and is_5ma_rising and (c >= rng_max * 0.98 or vol_ratio >= 1.05 or change_pct >= 0.8):
+        if (amplitude <= 0.25 or sq_bars >= 30) and (is_ma_squeezed or sq_bars >= 30) and is_standing_all_mas and is_red and is_5ma_rising and (c >= rng_max * 0.98 or vol_ratio >= 1.05 or change_pct >= 0.8):
             signals_dict['ma_squeeze_breakout'] = True
             signals_dict['flat_base_breakout'] = True
-            signals.append("均線糾結突破 (四線糾結起漲第一根)")
+            if signals_dict['is_ma_squeeze_over_2m']:
+                signals.append(f"🌀 四線糾結逾2月突破 (糾結{signals_dict['ma_squeeze_months']}月·老朱翻倍飆股)")
+            else:
+                signals.append("均線糾結突破 (四線糾結起漲第一根)")
 
     # ----------------------------------------------------
     # 策略 📦：箱型整理大突破 / 一棒過頂 (經典箱型洗盤蓄勢噴發起漲第一根)

@@ -734,11 +734,21 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
                 c_m = item.get('cons_duration_months', 2.0)
                 c_b = item.get('cons_duration_bars', 40)
                 badge_html += f"<span style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 8px rgba(225,29,72,0.6);' title='老朱戰法：橫有多長，豎有多高！前段箱型打底長達 {c_b} 天 (約 {c_m} 個月)，突破爆發力強！'>🔥 盤整{c_m}月破繭起漲</span>"
+            if item.get('is_ma_squeeze_over_2m', False) or sig.get('is_ma_squeeze_over_2m', False):
+                sq_m = item.get('ma_squeeze_months') or sig.get('ma_squeeze_months', 2.0)
+                sq_b = item.get('ma_squeeze_bars') or sig.get('ma_squeeze_bars', 40)
+                badge_html += f"<span style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 8px rgba(168,85,247,0.6);' title='老朱戰法：5/10/20/60MA 四線在低檔平躺糾結長達 {sq_b} 天（約 {sq_m} 個月），放量一箭穿心突破，大漲且持續很久！'>🌀 四線糾結{sq_m}月一箭穿心</span>"
         elif "趨勢改變為盤整" in trend_st or (trend_st.startswith("盤整整理") and days_chg <= 2):
             sub_lbl = "反彈過前高" if "過前高" in trend_st else ("跌破前低" if "跌破前低" in trend_st else "整理")
             badge_html += f"<span style='background:linear-gradient(90deg, #D97706, #F59E0B); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(245,158,11,0.4);' title='近{days_chg}天結構破壞，趨勢改變為盤整({sub_lbl})'>🟡 剛變盤整 ({sub_lbl}{date_txt})</span>"
         elif trend_st.startswith("空頭趨勢"):
             badge_html += f"<span style='background:linear-gradient(90deg, #DC2626, #EF4444); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.4);' title='近{days_chg}天確立空頭結構(頭頭低、底底低)'>📉 剛變空頭{date_txt}</span>"
+    else:
+        # 非近4日翻轉，但若觸發四線糾結逾2月突破，亦展示老朱飆股徽章
+        if (item.get('is_ma_squeeze_over_2m', False) or sig.get('is_ma_squeeze_over_2m', False)) and (sig.get('ma_squeeze_breakout', False) or sig.get('flat_base_breakout', False)):
+            sq_m = item.get('ma_squeeze_months') or sig.get('ma_squeeze_months', 2.0)
+            sq_b = item.get('ma_squeeze_bars') or sig.get('ma_squeeze_bars', 40)
+            badge_html += f"<span style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 8px rgba(168,85,247,0.6);' title='老朱戰法：5/10/20/60MA 四線在低檔平躺糾結長達 {sq_b} 天（約 {sq_m} 個月），放量一箭穿心突破！'>🌀 四線糾結{sq_m}月一箭穿心</span>"
 
     # ----------------------------------------------------
     # 第六章形態收集與智慧精簡 (A+C 混合收納引擎)
@@ -1018,6 +1028,18 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
             f"</div>"
         )
 
+    # 老朱戰法：四線糾結逾2個月突破專屬金句解說盒
+    lao_zhu_squeeze_html = ""
+    is_ma_sq = item.get('is_ma_squeeze_over_2m', False) or sig.get('is_ma_squeeze_over_2m', False)
+    if is_ma_sq and (sig.get('ma_squeeze_breakout', False) or sig.get('flat_base_breakout', False) or (trend_st.startswith("多頭趨勢") and days_chg <= 5)):
+        sq_bars = item.get('ma_squeeze_bars') or sig.get('ma_squeeze_bars', 40)
+        sq_months = item.get('ma_squeeze_months') or sig.get('ma_squeeze_months', 2.0)
+        lao_zhu_squeeze_html = (
+            f"<div style='background:rgba(147, 51, 234, 0.15); border-left:4px solid #A855F7; border-radius:6px; padding:7px 10px; margin-top:6px; color:#E9D5FF; font-size:0.82rem; line-height:1.55;'>"
+            f"🌀 <b>【老朱實戰心法 · 四線合一大爆發】</b>：本檔 <b>5/10/20/60MA 四線在低檔平躺糾結長達 {sq_bars} 天（約 {sq_months} 個月）</b>，所有均線成本極度黏合一致！一旦放量紅K一箭穿心突破，即為老朱經典翻倍主升段飆股特徵，主力籌碼清洗極致，續航力最強、漲幅最驚人！"
+            f"</div>"
+        )
+
     card_html = (
         f'<div style="background:#1E202E; border:1px solid #33364D; border-radius:10px; padding:12px 14px; margin-bottom:4px;">'
         f'<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
@@ -1037,6 +1059,7 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         f'{smart_k_html}'
         f'{intraday_html}'
         f'{lao_zhu_html}'
+        f'{lao_zhu_squeeze_html}'
         f'<div style="font-size:0.8rem; color:#FFA94D; margin-bottom:2px;">{sup_text} | {res_text}</div>'
         f'{safety_warn_html}'
         f'{swing_html}'
@@ -1728,6 +1751,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 is_fresh_chg = trend.get('is_fresh_change', False)
                 is_cons_2m = trend.get('is_cons_over_2m', False)
                 cons_m = trend.get('cons_duration_months', 2.0)
+                is_ma_sq_2m = signals_dict.get('is_ma_squeeze_over_2m', False)
+                sq_m = signals_dict.get('ma_squeeze_months', 2.0)
+                sq_b = signals_dict.get('ma_squeeze_bars', 40)
 
                 date_html = ""
                 if chg_date_str:
@@ -1739,8 +1765,14 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     c_amp = trend.get('cons_amp_pct', 0.0)
                     lz_tip = f"title='{c_s_date}～{chg_date_str} 密集箱型共 {c_bars} 天 ({c_low}～{c_high}元，振幅{c_amp}%)'" if c_s_date else ""
                     lz_badge = f"<span {lz_tip} style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; border-radius:3px; padding:1px 5px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>盤整{cons_m}月轉多 🔥</span>" if is_cons_2m else ""
+                    sq_tip = f"title='老朱戰法：5/10/20/60MA 四線平躺糾結 {sq_b} 天 ({sq_m}個月)，一箭穿心突破！'"
+                    sq_badge = f"<span {sq_tip} style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; border-radius:3px; padding:1px 5px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>四線糾結{sq_m}月 🌀</span>" if is_ma_sq_2m else ""
                     days_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
-                    date_html = f"<div style='margin-top:3px; font-size:0.75rem; font-weight:normal; color:#DDD;'>📅 {chg_date_str} 翻轉 · {days_txt} {fresh_badge}{lz_badge}</div>"
+                    date_html = f"<div style='margin-top:3px; font-size:0.75rem; font-weight:normal; color:#DDD;'>📅 {chg_date_str} 翻轉 · {days_txt} {fresh_badge}{lz_badge}{sq_badge}</div>"
+                elif is_ma_sq_2m:
+                    sq_tip = f"title='老朱戰法：5/10/20/60MA 四線平躺糾結 {sq_b} 天 ({sq_m}個月)，一箭穿心突破！'"
+                    sq_badge = f"<span {sq_tip} style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; border-radius:3px; padding:1px 5px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>四線糾結{sq_m}月 🌀</span>"
+                    date_html = f"<div style='margin-top:3px; font-size:0.75rem; font-weight:normal; color:#DDD;'>{sq_badge}</div>"
 
                 if " (" in t_status and t_status.endswith(")"):
                     t_main, t_sub = t_status.split(" (", 1)
@@ -3502,6 +3534,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 "🔄 趨勢翻轉雷達 (近4日結構改變)",
                 [
                     "🔄 全部趨勢翻轉 (剛變多+剛變空+剛變盤整)",
+                    "🌀 剛變多頭 (四線糾結逾2月 · 老朱翻倍飆股)",
                     "🔥 剛變多頭 (盤整逾2月 · 老朱戰法·翻倍潛力)",
                     "🚀 剛變多頭 (反轉轉多 · 突破前高/起漲)",
                     "🟡 剛變盤整 (空頭反彈過前高 / 多頭跌破整理)",
@@ -3562,7 +3595,10 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
     target_strategy = "全部"
     if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode:
-        if "盤整逾2月" in main_mode or "老朱戰法" in main_mode:
+        if "四線糾結" in main_mode:
+            target_strategy = "剛變多頭 (四線糾結逾2月)"
+            st.caption("🌀 **【老朱神技 · 四線糾結逾 2 個月大爆發】**：朱家泓老師經典心法：『**5/10/20/60MA 四線在低檔平躺糾結超過 2 個月，均線成本高度合一，放量一箭穿心突破，大漲且持續很久！**』專門抓取各週期主力成本一致洗盤極致、即將展開超級大多頭主升段的起漲第一根標的！")
+        elif "盤整逾2月" in main_mode or "老朱戰法" in main_mode:
             target_strategy = "剛變多頭 (盤整逾2月)"
             st.caption("🔥 **【老朱戰法 · 盤整超過2個月突然變多頭】**：老朱名言『**橫有多長，豎有多高！**』專門鎖定前段歷經 **2 個月以上（>=40 個交易日）** 密集箱型打底洗盤，近 4 日內**首度破繭突破翻轉為多頭架構**之翻倍潛力標的！籌碼極度沉澱、爆發續航力驚人！")
         elif "剛變盤整" in main_mode:

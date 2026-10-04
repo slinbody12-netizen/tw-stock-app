@@ -164,8 +164,10 @@ def calculate_quality_score(s):
     if sig.get('is_volume_price_divergence', False):
         score -= 20.0  # 量價背離警示
 
-    # 3. 盤整打底厚度 (老朱戰法：橫有多長豎有多高) 與突破潛力
-    if s.get('is_cons_over_2m', False) and str(s.get('trend_status', '')).startswith('多頭趨勢'):
+    # 3. 盤整打底厚度與均線糾結 (老朱戰法：均線糾結越久爆發力越大)
+    if s.get('is_ma_squeeze_over_2m', False) and (sig.get('ma_squeeze_breakout', False) or sig.get('flat_base_breakout', False)):
+        score += 35.0  # 四線糾結逾 2 個月放量突破，老朱翻倍主力起漲第一根，重磅加分
+    elif s.get('is_cons_over_2m', False) and str(s.get('trend_status', '')).startswith('多頭趨勢'):
         score += 25.0  # 盤整打底逾 2 個月突變多頭，籌碼極度沉澱，具翻倍大主升潛力
     if sig.get('consolidation_breakout_imminent', False):
         score += 30.0
@@ -382,6 +384,9 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "cons_box_high": trend.get('cons_box_high', 0.0),
                 "cons_amp_pct": trend.get('cons_amp_pct', 0.0),
                 "is_cons_over_2m": trend.get('is_cons_over_2m', False),
+                "ma_squeeze_bars": signals_dict.get('ma_squeeze_bars', 0),
+                "ma_squeeze_months": signals_dict.get('ma_squeeze_months', 0.0),
+                "is_ma_squeeze_over_2m": signals_dict.get('is_ma_squeeze_over_2m', False),
                 "support": trend.get('support'),
                 "resistance": trend.get('resistance'),
                 "target": trend.get('target'),
@@ -573,7 +578,11 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
 
         # 4. 策略精準過濾
         match = False
-        if any(k in strategy for k in ["盤整逾2月", "超過2個月", "盤整2月", "老朱戰法"]):
+        if any(k in strategy for k in ["四線糾結逾2月", "均線糾結逾2月", "四線糾結2月"]):
+            # 老朱神技：四線糾結逾2個月大爆發起漲 (四線糾結天數 >= 40天，且剛站上四線/突破)
+            if s.get('is_ma_squeeze_over_2m', False) and (signals_dict.get('ma_squeeze_breakout', False) or signals_dict.get('flat_base_breakout', False) or (s.get('trend_status', '').startswith('多頭趨勢') and s.get('days_since_change', 99) <= 5)):
+                match = True
+        elif any(k in strategy for k in ["盤整逾2月", "超過2個月", "盤整2月", "老朱戰法", "盤整打底逾2月"]):
             # 老朱戰法：盤整超過2個月剛變多頭 (多頭趨勢、天數 <= 5、且盤整天數 >= 40 逾2個月)
             if s.get('trend_status', '').startswith('多頭趨勢') and s.get('days_since_change', 99) <= 5 and s.get('is_cons_over_2m', False):
                 match = True
@@ -686,9 +695,9 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
 
     # 排序邏輯：做空、做多與趨勢翻轉自適應
     if is_flip_strat:
-        # 剛翻轉個股：老朱戰法(盤整逾2月)優先置頂，次依據距今翻轉天數由近到遠，最後依成交量排序
+        # 剛翻轉個股：老朱戰法(四線糾結逾2月 / 盤整逾2月)優先置頂，次依據距今翻轉天數由近到遠，最後依成交量排序
         filtered.sort(key=lambda x: (
-            0 if x.get('is_cons_over_2m', False) else 1,
+            0 if (x.get('is_ma_squeeze_over_2m', False) or x.get('is_cons_over_2m', False)) else 1,
             x.get('days_since_change', 99),
             -float(x.get('volume', 0) or 0)
         ))
