@@ -361,6 +361,9 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "trend_status": trend['trend_status'],
                 "trend_badge": trend['trend_badge'],
                 "trend_color": trend['trend_color'],
+                "trend_change_date": trend.get('trend_change_date_str', ''),
+                "days_since_change": trend.get('days_since_change', 99),
+                "is_fresh_change": trend.get('is_fresh_change', False),
                 "support": trend.get('support'),
                 "resistance": trend.get('resistance'),
                 "target": trend.get('target'),
@@ -531,13 +534,15 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         if watchlist_stage != "全部" and stage != watchlist_stage:
             continue
 
-        # 3. 多空方向篩選
+        # 3. 多空方向篩選 (若選趨勢翻轉相關策略，則放行不作多空排他性過濾)
         is_bear = bool(s.get('is_bear', False))
         is_bull = bool(s.get('is_bull', False))
-        if direction == "多" and is_bear and not (signals_dict.get('bottom_breakout', False) or signals_dict.get('rounding_bottom', False) or signals_dict.get('flat_base_breakout', False) or signals_dict.get('box_range_breakout', False)):
-            continue
-        elif direction == "空" and is_bull and not (signals_dict.get('top_breakdown', False) or signals_dict.get('intraday_weak', False)):
-            continue
+        is_flip_strat = any(k in strategy for k in ["剛變", "趨勢翻轉", "翻轉", "剛轉變"]) or direction in ["翻轉", "全部"]
+        if not is_flip_strat:
+            if direction == "多" and is_bear and not (signals_dict.get('bottom_breakout', False) or signals_dict.get('rounding_bottom', False) or signals_dict.get('flat_base_breakout', False) or signals_dict.get('box_range_breakout', False)):
+                continue
+            elif direction == "空" and is_bull and not (signals_dict.get('top_breakdown', False) or signals_dict.get('intraday_weak', False)):
+                continue
 
         # 3.5 長上影線過濾 (僅限多方做多進場：剔除衝高拉回避雷針，只留收在相對高點的實體紅K)
         if direction == "多" and filter_no_upper_shadow and signals_dict.get('has_long_upper_shadow', False):
@@ -545,7 +550,23 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
 
         # 4. 策略精準過濾
         match = False
-        if direction == "空":
+        if "剛變多頭" in strategy or strategy == "剛變多":
+            # 剛變多頭：多頭趨勢且結構確立天數 <= 4
+            if s.get('trend_status', '').startswith('多頭趨勢') and s.get('days_since_change', 99) <= 4:
+                match = True
+        elif "剛變空頭" in strategy or strategy == "剛變空":
+            # 剛變空頭：空頭趨勢且結構確立天數 <= 4
+            if s.get('trend_status', '').startswith('空頭趨勢') and s.get('days_since_change', 99) <= 4:
+                match = True
+        elif "剛變盤整" in strategy:
+            # 剛變盤整：空頭反彈過前高、多頭跌破前低、或箱型高低未突破整理，天數 <= 4
+            if ('趨勢改變為盤整' in s.get('trend_status', '') or '盤整' in s.get('trend_status', '')) and s.get('days_since_change', 99) <= 4:
+                match = True
+        elif any(k in strategy for k in ["趨勢翻轉", "剛變趨勢", "全部翻轉", "全部趨勢翻轉"]):
+            # 全部翻轉：涵蓋剛變多頭、剛變空頭與剛變盤整，天數 <= 4
+            if s.get('days_since_change', 99) <= 4 and any(ts in s.get('trend_status', '') for ts in ['多頭趨勢', '空頭趨勢', '趨勢改變為盤整', '盤整整理']):
+                match = True
+        elif direction == "空":
             # 做空子策略 (空方波段與即時大類)
             if strategy in ["全部", "盤中排行", "量排行"]:
                 match = True
@@ -636,8 +657,14 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         if match:
             filtered.append(s)
 
-    # 排序邏輯：做空與做多自適應
-    if direction == "空":
+    # 排序邏輯：做空、做多與趨勢翻轉自適應
+    if is_flip_strat:
+        # 剛翻轉個股：依據距今翻轉天數由近到遠（1天最剛轉變排在最前面），次依成交量排序
+        filtered.sort(key=lambda x: (
+            x.get('days_since_change', 99),
+            -float(x.get('volume', 0) or 0)
+        ))
+    elif direction == "空":
         if strategy == "盤中排行":
             filtered.sort(key=lambda x: float(x.get('change_pct', 0) or 0)) # 跌幅大排前
         elif strategy == "量排行":

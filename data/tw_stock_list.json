@@ -238,6 +238,12 @@
     "industry": "記憶體"
   },
   {
+    "code": "2345",
+    "name": "智邦",
+    "market": "TW",
+    "industry": "通信網路業"
+  },
+  {
     "code": "2354",
     "name": "鴻準",
     "market": "TW",

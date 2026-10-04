@@ -714,6 +714,20 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     if item.get('main_wave_2nd') or sig.get('main_wave_2nd', False):
         badge_html += "<span style='background:linear-gradient(90deg, #1890FF, #722ED1); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px;'>🚀 主升第二波</span>"
 
+    # 趨勢翻轉醒目標籤 (剛變多頭 / 剛變空頭 / 剛變盤整，天數 <= 4)
+    trend_st = item.get('trend_status', '')
+    days_chg = item.get('days_since_change', 99)
+    chg_date = item.get('trend_change_date', '')
+    date_txt = f" · {chg_date}" if chg_date else ""
+    if days_chg <= 4:
+        if trend_st.startswith("多頭趨勢"):
+            badge_html += f"<span style='background:linear-gradient(90deg, #16A34A, #22C55E); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(34,197,94,0.4);' title='近{days_chg}天確立多頭結構(頭頭高、底底高)'>🚀 剛變多頭{date_txt}</span>"
+        elif "趨勢改變為盤整" in trend_st or (trend_st.startswith("盤整整理") and days_chg <= 2):
+            sub_lbl = "反彈過前高" if "過前高" in trend_st else ("跌破前低" if "跌破前低" in trend_st else "整理")
+            badge_html += f"<span style='background:linear-gradient(90deg, #D97706, #F59E0B); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(245,158,11,0.4);' title='近{days_chg}天結構破壞，趨勢改變為盤整({sub_lbl})'>🟡 剛變盤整 ({sub_lbl}{date_txt})</span>"
+        elif trend_st.startswith("空頭趨勢"):
+            badge_html += f"<span style='background:linear-gradient(90deg, #DC2626, #EF4444); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; box-shadow:0 0 6px rgba(239,68,68,0.4);' title='近{days_chg}天確立空頭結構(頭頭低、底底低)'>📉 剛變空頭{date_txt}</span>"
+
     # ----------------------------------------------------
     # 第六章形態收集與智慧精簡 (A+C 混合收納引擎)
     # 1. 優先排序：當前所選策略之型態絕對置頂第一位 (C的精神)
@@ -1678,12 +1692,22 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             c1, c2, c3, c4, c5 = st.columns(5)
             with c1:
                 t_status = trend.get('trend_status', '整理中')
+                chg_date_str = trend.get('trend_change_date_str', '')
+                days_since_chg = trend.get('days_since_change', 99)
+                is_fresh_chg = trend.get('is_fresh_change', False)
+
+                date_html = ""
+                if chg_date_str:
+                    fresh_badge = "<span style='background:#E03131; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px;'>剛翻轉</span>" if is_fresh_chg else ""
+                    days_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
+                    date_html = f"<div style='margin-top:3px; font-size:0.75rem; font-weight:normal; color:#DDD;'>📅 {chg_date_str} 翻轉 · {days_txt} {fresh_badge}</div>"
+
                 if " (" in t_status and t_status.endswith(")"):
                     t_main, t_sub = t_status.split(" (", 1)
                     t_sub = t_sub.rstrip(")")
-                    t_display = f"{t_main}<br><span style='font-size:0.82rem; font-weight:normal; opacity:0.9;'>({t_sub})</span>"
+                    t_display = f"{t_main}<br><span style='font-size:0.82rem; font-weight:normal; opacity:0.9;'>({t_sub})</span>{date_html}"
                 else:
-                    t_display = t_status
+                    t_display = f"{t_status}{date_html}"
                 st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>趨勢架構</div><div style='font-size:1.05rem; font-weight:bold; color:{trend['trend_color']}; line-height:1.25;'>{t_display}</div></div>", unsafe_allow_html=True)
             with c2:
                 st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>壓力線 (前高)</div><div style='font-size:1.25rem; font-weight:bold; color:#FF922B;'>{trend['resistance']}</div></div>", unsafe_allow_html=True)
@@ -3380,7 +3404,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             st.dataframe(df_sec, use_container_width=True, hide_index=True)
 
     # 頂部控制列：母體範圍、操作方向與策略大類
-    col_u0, col_t1, col_t2 = st.columns([1.6, 1.1, 3.3])
+    col_u0, col_t1, col_t2 = st.columns([1.3, 1.8, 3.1])
     with col_u0:
         pool_scope = st.radio(
             "🎯 篩選母體範圍",
@@ -3390,14 +3414,20 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         )
         scope_val = "熱門優先" if "熱門" in pool_scope else "全市場"
     with col_t1:
-        direction = st.radio("操作方向", ["🔴 做多 (Long)", "🟢 做空 (Short)"], horizontal=True, key="scr_direction")
-        dir_val = "多" if "做多" in direction else "空"
+        direction = st.radio("操作方向", ["🔴 做多 (Long)", "🟢 做空 (Short)", "🔄 趨勢翻轉 (剛變盤/多/空)"], horizontal=True, key="scr_direction")
+        if "做多" in direction:
+            dir_val = "多"
+        elif "做空" in direction:
+            dir_val = "空"
+        else:
+            dir_val = "翻轉"
     with col_t2:
         if dir_val == "多":
             main_mode = st.radio(
                 "選股大類",
                 [
                     "📈 波段策略 (起漲關鍵)",
+                    "🔄 剛變多頭 (反轉起漲 · 近4日)",
                     "🌊 主流族群飆股 (資金風口龍頭)",
                     "🔥 量排行 (位置決定命運)",
                     "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)",
@@ -3407,12 +3437,31 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 horizontal=True,
                 key="scr_main_mode"
             )
-        else:
+        elif dir_val == "空":
             main_mode = st.radio(
                 "選股大類 (做空)",
-                ["📉 波段策略 (起跌關鍵)", "⚡ 盤中弱勢 (跌破帶量)", "📊 盤中排行 (跌幅排行)", "🔥 量排行", "⏰ 12:40 - 13:30 尾盤一點鐘 (放空首選)"],
+                [
+                    "📉 波段策略 (起跌關鍵)",
+                    "🔄 剛變空頭 (破線轉空 · 近4日)",
+                    "⚡ 盤中弱勢 (跌破帶量)",
+                    "📊 盤中排行 (跌幅排行)",
+                    "🔥 量排行",
+                    "⏰ 12:40 - 13:30 尾盤一點鐘 (放空首選)"
+                ],
                 horizontal=True,
                 key="scr_main_mode_short"
+            )
+        else:
+            main_mode = st.radio(
+                "🔄 趨勢翻轉雷達 (近4日結構改變)",
+                [
+                    "🔄 全部趨勢翻轉 (剛變多+剛變空+剛變盤整)",
+                    "🟡 剛變盤整 (空頭反彈過前高 / 多頭跌破整理)",
+                    "🚀 剛變多頭 (反轉轉多 · 突破前高/起漲)",
+                    "📉 剛變空頭 (反轉轉空 · 跌破前低/破線)"
+                ],
+                horizontal=True,
+                key="scr_main_mode_flip"
             )
 
     selected_sector_filter = "全部"
@@ -3465,7 +3514,20 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
 
     target_strategy = "全部"
-    if "波段" in main_mode:
+    if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode:
+        if "剛變盤整" in main_mode:
+            target_strategy = "剛變盤整"
+            st.caption("💡 **【🟡 剛變盤整 (結構破壞整理)】**：鎖定近 4 個交易日內，原空頭架構被反彈突破前高破壞（如智邦 2345），或原多頭架構被回檔跌破前低破壞的個股！趨勢改變為盤整，代表舊趨勢告一段落，進入新一輪洗盤與方向醞釀！")
+        elif "剛變多頭" in main_mode:
+            target_strategy = "剛變多頭"
+            st.caption("💡 **【🚀 剛變多頭 (反轉轉多 · 突破起漲)】**：鎖定近 4 個交易日內，首度走出「**頭頭高、底底高**」完整多頭架構的起漲個股！為大波段多頭行情的初升段黃金發動點！")
+        elif "剛變空頭" in main_mode:
+            target_strategy = "剛變空頭"
+            st.caption("💡 **【📉 剛變空頭 (反轉轉空 · 破線下殺)】**：鎖定近 4 個交易日內，首度走出「**頭頭低、底底低**」完整空頭架構的初跌個股！多方持股者應提高警覺或紀律停損出場！")
+        else:
+            target_strategy = "全部趨勢翻轉"
+            st.caption("💡 **【🔄 全部趨勢翻轉雷達】**：一次列出全市場近 4 個交易日內發生結構轉變（**剛變多頭、剛變空頭、剛變盤整**）之所有個股，讓您即時掌握關鍵轉折時間點！")
+    elif "波段" in main_mode:
         if dir_val == "多":
             sub_strat = st.radio(
                 "波段核心子策略分類：",
