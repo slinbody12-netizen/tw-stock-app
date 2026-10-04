@@ -164,7 +164,9 @@ def calculate_quality_score(s):
     if sig.get('is_volume_price_divergence', False):
         score -= 20.0  # 量價背離警示
 
-    # 3. 盤整末端突破潛力
+    # 3. 盤整打底厚度 (老朱戰法：橫有多長豎有多高) 與突破潛力
+    if s.get('is_cons_over_2m', False) and str(s.get('trend_status', '')).startswith('多頭趨勢'):
+        score += 25.0  # 盤整打底逾 2 個月突變多頭，籌碼極度沉澱，具翻倍大主升潛力
     if sig.get('consolidation_breakout_imminent', False):
         score += 30.0
     elif sig.get('is_consolidation', False):
