@@ -107,7 +107,11 @@ def analyze_trend(df: pd.DataFrame, points: list):
     # -------------------------------------------------------------
     # 趨勢狀態判定與目標價推估
     # -------------------------------------------------------------
-    trend_change_date = None
+    # -------------------------------------------------------------
+    # 趨勢狀態判定、大趨勢確立點與最近波段拉回點計算
+    # -------------------------------------------------------------
+    major_trend_date = None
+    swing_rebound_date = None
 
     if hh and hl:
         # 多頭趨勢架構：檢查自最新高點以來，是否曾實質跌破前低支撐？
@@ -129,9 +133,10 @@ def analyze_trend(df: pd.DataFrame, points: list):
             if not bars_since_peak.empty:
                 break_bars = bars_since_peak[(bars_since_peak['Low'] <= curr_trough['price'] * 0.998) | (bars_since_peak['Close'] <= curr_trough['price'])]
                 if not break_bars.empty:
-                    trend_change_date = break_bars['Date'].iloc[0]
-            if trend_change_date is None:
-                trend_change_date = curr_peak['date']
+                    major_trend_date = break_bars['Date'].iloc[0]
+            if major_trend_date is None:
+                major_trend_date = curr_peak['date']
+            swing_rebound_date = major_trend_date
         else:
             trend_status = "多頭趨勢 (頭頭高、底底高)"
             trend_badge = "多頭 🟢"
@@ -141,13 +146,32 @@ def analyze_trend(df: pd.DataFrame, points: list):
                 alerts.append(f"⚠️ 警訊：今日收盤價 ({latest_close}) 跌破前低支撐 ({support})，多頭架構遭到破壞！")
             elif latest_close >= resistance:
                 alerts.append(f"🔥 強勢：今日收盤價 ({latest_close}) 突破前波高點 ({resistance})，多頭續創新高！")
-            bars_since_trough = df[df['Date'] >= curr_trough['date']] if not df.empty else pd.DataFrame()
-            if not bars_since_trough.empty and prev_peak:
-                break_bars = bars_since_trough[(bars_since_trough['High'] >= prev_peak['price']) | (bars_since_trough['Close'] >= prev_peak['price'])]
+
+            # 最近一次拉回止跌底點
+            swing_rebound_date = curr_trough['date']
+
+            # 回溯尋找整段連續「頭頭高、底底高」大趨勢初升發動點
+            chain_p = len(peaks) - 1
+            chain_t = len(troughs) - 1
+
+            while chain_p > 0 and chain_t > 0:
+                pp = peaks[chain_p - 1]
+                cp = peaks[chain_p]
+                pt = troughs[chain_t - 1]
+                ct = troughs[chain_t]
+                if cp['price'] >= pp['price'] * 0.995 and ct['price'] >= pt['price'] * 0.992:
+                    chain_p -= 1
+                    chain_t -= 1
+                else:
+                    break
+
+            base_trough = troughs[chain_t]
+            prior_p = peaks[chain_p - 1] if chain_p > 0 else None
+            major_trend_date = base_trough['date']
+            if prior_p:
+                break_bars = df[(df['Date'] >= base_trough['date']) & ((df['Close'] >= prior_p['price']) | (df['High'] >= prior_p['price']))]
                 if not break_bars.empty:
-                    trend_change_date = break_bars['Date'].iloc[0]
-            if trend_change_date is None:
-                trend_change_date = curr_trough['date']
+                    major_trend_date = break_bars['Date'].iloc[0]
 
     elif lh and ll:
         # 空頭趨勢架構：檢查自最新低點以來，反彈波是否已實質超越前高壓力？
@@ -169,9 +193,10 @@ def analyze_trend(df: pd.DataFrame, points: list):
             if not bars_since_trough.empty:
                 break_bars = bars_since_trough[(bars_since_trough['High'] >= curr_peak['price'] * 1.002) | (bars_since_trough['Close'] >= curr_peak['price'])]
                 if not break_bars.empty:
-                    trend_change_date = break_bars['Date'].iloc[0]
-            if trend_change_date is None:
-                trend_change_date = curr_trough['date']
+                    major_trend_date = break_bars['Date'].iloc[0]
+            if major_trend_date is None:
+                major_trend_date = curr_trough['date']
+            swing_rebound_date = major_trend_date
         else:
             trend_status = "空頭趨勢 (頭頭低、底底低)"
             trend_badge = "空頭 🔴"
@@ -179,13 +204,29 @@ def analyze_trend(df: pd.DataFrame, points: list):
             target = round(support - (resistance - support), 2)
             if latest_close <= support:
                 alerts.append(f"❄️ 弱勢：今日收盤價 ({latest_close}) 跌破前波低點 ({support})，空頭續創新低！")
-            bars_since_peak = df[df['Date'] >= curr_peak['date']] if not df.empty else pd.DataFrame()
-            if not bars_since_peak.empty and prev_trough:
-                break_bars = bars_since_peak[(bars_since_peak['Low'] <= prev_trough['price']) | (bars_since_peak['Close'] <= prev_trough['price'])]
+
+            swing_rebound_date = curr_peak['date']
+            chain_p = len(peaks) - 1
+            chain_t = len(troughs) - 1
+
+            while chain_p > 0 and chain_t > 0:
+                pp = peaks[chain_p - 1]
+                cp = peaks[chain_p]
+                pt = troughs[chain_t - 1]
+                ct = troughs[chain_t]
+                if cp['price'] <= pp['price'] * 1.005 and ct['price'] <= pt['price'] * 1.008:
+                    chain_p -= 1
+                    chain_t -= 1
+                else:
+                    break
+
+            base_peak = peaks[chain_p]
+            prior_t = troughs[chain_t - 1] if chain_t > 0 else None
+            major_trend_date = base_peak['date']
+            if prior_t:
+                break_bars = df[(df['Date'] >= base_peak['date']) & ((df['Close'] <= prior_t['price']) | (df['Low'] <= prior_t['price']))]
                 if not break_bars.empty:
-                    trend_change_date = break_bars['Date'].iloc[0]
-            if trend_change_date is None:
-                trend_change_date = curr_peak['date']
+                    major_trend_date = break_bars['Date'].iloc[0]
 
     else:
         trend_status = "盤整整理 (高低未同向突破)"
@@ -196,21 +237,36 @@ def analyze_trend(df: pd.DataFrame, points: list):
             alerts.append(f"🚀 突破：今日收盤價 ({latest_close}) 放量突破盤整箱頂 ({resistance})，轉多訊號！")
         elif latest_close < support:
             alerts.append(f"⚡ 跌破：今日收盤價 ({latest_close}) 跌破盤整箱底 ({support})，轉空訊號！")
-        trend_change_date = max(curr_peak['date'], curr_trough['date'])
+        major_trend_date = max(curr_peak['date'], curr_trough['date'])
+        swing_rebound_date = major_trend_date
 
-    # 計算轉變天數與格式化日期
-    days_since_change = 99
-    trend_change_date_str = ""
-    if trend_change_date is not None and not df.empty:
-        t_dt = pd.to_datetime(trend_change_date)
-        # 嚴密防護：台股週末休市，若出現週末日期自動對齊至最近之有效交易日(週五)
-        if t_dt.weekday() == 5:
-            t_dt = t_dt - pd.Timedelta(days=1)
-        elif t_dt.weekday() == 6:
-            t_dt = t_dt - pd.Timedelta(days=2)
-        trend_change_date = t_dt
-        trend_change_date_str = t_dt.strftime('%m/%d')
-        days_since_change = len(df[df['Date'] >= trend_change_date])
+    # 交易日對齊防護 (台股週末休市，若出現週末日期自動對齊至最近之有效交易日週五)
+    def _clean_trading_date(dt):
+        if dt is None: return None
+        d = pd.to_datetime(dt)
+        if d.weekday() == 5:
+            d = d - pd.Timedelta(days=1)
+        elif d.weekday() == 6:
+            d = d - pd.Timedelta(days=2)
+        return d
+
+    major_trend_date = _clean_trading_date(major_trend_date)
+    swing_rebound_date = _clean_trading_date(swing_rebound_date)
+
+    major_trend_date_str = major_trend_date.strftime('%m/%d') if major_trend_date is not None else ""
+    swing_rebound_date_str = swing_rebound_date.strftime('%m/%d') if swing_rebound_date is not None else ""
+
+    days_since_major = len(df[df['Date'] >= major_trend_date]) if (major_trend_date is not None and not df.empty) else 99
+    days_since_rebound = len(df[df['Date'] >= swing_rebound_date]) if (swing_rebound_date is not None and not df.empty) else 99
+
+    is_fresh_trend_start = (days_since_major <= 4)
+    is_fresh_rebound = (not is_fresh_trend_start) and (days_since_rebound <= 4)
+
+    # 保持向下相容性
+    trend_change_date = major_trend_date if is_fresh_trend_start else swing_rebound_date
+    trend_change_date_str = major_trend_date_str if is_fresh_trend_start else swing_rebound_date_str
+    days_since_change = days_since_major if is_fresh_trend_start else days_since_rebound
+    is_fresh_change = is_fresh_trend_start or is_fresh_rebound
 
     # -------------------------------------------------------------
     # 老朱戰法：檢測轉多頭前是否經歷超過 2 個月（>= 40 個交易日）之充分盤整洗盤
@@ -283,7 +339,15 @@ def analyze_trend(df: pd.DataFrame, points: list):
         "trend_change_date": trend_change_date,
         "trend_change_date_str": trend_change_date_str,
         "days_since_change": days_since_change,
-        "is_fresh_change": (days_since_change <= 4),
+        "is_fresh_change": is_fresh_change,
+        "major_trend_date": major_trend_date,
+        "major_trend_date_str": major_trend_date_str,
+        "days_since_major": days_since_major,
+        "is_fresh_trend_start": is_fresh_trend_start,
+        "swing_rebound_date": swing_rebound_date,
+        "swing_rebound_date_str": swing_rebound_date_str,
+        "days_since_rebound": days_since_rebound,
+        "is_fresh_rebound": is_fresh_rebound,
         "cons_duration_bars": cons_duration_bars,
         "cons_duration_months": cons_duration_months,
         "cons_start_date_str": cons_start_date_str,

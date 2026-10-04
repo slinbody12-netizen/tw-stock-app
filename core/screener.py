@@ -377,6 +377,12 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "trend_change_date": trend.get('trend_change_date_str', ''),
                 "days_since_change": trend.get('days_since_change', 99),
                 "is_fresh_change": trend.get('is_fresh_change', False),
+                "major_trend_date": trend.get('major_trend_date_str', ''),
+                "days_since_major": trend.get('days_since_major', 99),
+                "is_fresh_trend_start": trend.get('is_fresh_trend_start', False),
+                "swing_rebound_date": trend.get('swing_rebound_date_str', ''),
+                "days_since_rebound": trend.get('days_since_rebound', 99),
+                "is_fresh_rebound": trend.get('is_fresh_rebound', False),
                 "cons_duration_bars": trend.get('cons_duration_bars', 0),
                 "cons_duration_months": trend.get('cons_duration_months', 0.0),
                 "cons_start_date": trend.get('cons_start_date_str', ''),
@@ -587,8 +593,12 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             if s.get('trend_status', '').startswith('多頭趨勢') and s.get('days_since_change', 99) <= 5 and s.get('is_cons_over_2m', False):
                 match = True
         elif "剛變多頭" in strategy or strategy == "剛變多":
-            # 剛變多頭：多頭趨勢且結構確立天數 <= 4
-            if s.get('trend_status', '').startswith('多頭趨勢') and s.get('days_since_change', 99) <= 4:
+            # 剛變多頭：涵蓋大趨勢剛轉多 (<=4天) 與 多頭拉回剛止跌 (<=4天)
+            if s.get('trend_status', '').startswith('多頭趨勢') and (s.get('is_fresh_trend_start', False) or s.get('is_fresh_rebound', False) or s.get('days_since_change', 99) <= 4):
+                match = True
+        elif any(k in strategy for k in ["拉回止跌", "回檔止跌", "回檔有守"]):
+            # 多頭拉回止跌：大趨勢為多，且最近拉回守住底底高止跌 <= 4天
+            if s.get('trend_status', '').startswith('多頭趨勢') and (s.get('is_fresh_rebound', False) or s.get('days_since_rebound', 99) <= 4):
                 match = True
         elif "剛變空頭" in strategy or strategy == "剛變空":
             # 剛變空頭：空頭趨勢且結構確立天數 <= 4

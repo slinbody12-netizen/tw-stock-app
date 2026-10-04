@@ -722,27 +722,40 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     if item.get('main_wave_2nd') or sig.get('main_wave_2nd', False):
         badge_html += "<span style='background:linear-gradient(90deg, #1890FF, #722ED1); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block;'>🚀 主升第二波</span>"
 
-    # 趨勢翻轉醒目標籤 (剛變多頭 / 剛變空頭 / 剛變盤整，天數 <= 4)
+    # 趨勢翻轉醒目標籤 (剛轉多 / 拉回止跌 / 剛轉空 / 剛轉盤整)
     trend_st = item.get('trend_status', '')
     days_chg = item.get('days_since_change', 99)
     chg_date = item.get('trend_change_date', '')
     date_txt = f" · {chg_date}" if chg_date else ""
-    if days_chg <= 4:
-        if trend_st.startswith("多頭趨勢"):
-            badge_html += f"<span style='background:linear-gradient(90deg, #16A34A, #22C55E); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(34,197,94,0.4);' title='近{days_chg}天確立多頭結構(頭頭高、底底高)'>🚀 剛變多頭{date_txt}</span>"
-            if item.get('is_cons_over_2m', False):
-                c_m = item.get('cons_duration_months', 2.0)
-                c_b = item.get('cons_duration_bars', 40)
-                badge_html += f"<span style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 8px rgba(225,29,72,0.6);' title='老朱戰法：橫有多長，豎有多高！前段箱型打底長達 {c_b} 天 (約 {c_m} 個月)，突破爆發力強！'>🔥 盤整{c_m}月破繭起漲</span>"
-            if item.get('is_ma_squeeze_over_2m', False) or sig.get('is_ma_squeeze_over_2m', False):
-                sq_m = item.get('ma_squeeze_months') or sig.get('ma_squeeze_months', 2.0)
-                sq_b = item.get('ma_squeeze_bars') or sig.get('ma_squeeze_bars', 40)
-                badge_html += f"<span style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 8px rgba(168,85,247,0.6);' title='老朱戰法：5/10/20/60MA 四線在低檔平躺糾結長達 {sq_b} 天（約 {sq_m} 個月），放量一箭穿心突破，大漲且持續很久！'>🌀 四線糾結{sq_m}月一箭穿心</span>"
-        elif "趨勢改變為盤整" in trend_st or (trend_st.startswith("盤整整理") and days_chg <= 2):
-            sub_lbl = "反彈過前高" if "過前高" in trend_st else ("跌破前低" if "跌破前低" in trend_st else "整理")
-            badge_html += f"<span style='background:linear-gradient(90deg, #D97706, #F59E0B); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(245,158,11,0.4);' title='近{days_chg}天結構破壞，趨勢改變為盤整({sub_lbl})'>🟡 剛變盤整 ({sub_lbl}{date_txt})</span>"
-        elif trend_st.startswith("空頭趨勢"):
-            badge_html += f"<span style='background:linear-gradient(90deg, #DC2626, #EF4444); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.4);' title='近{days_chg}天確立空頭結構(頭頭低、底底低)'>📉 剛變空頭{date_txt}</span>"
+    is_fresh_trend = item.get('is_fresh_trend_start', False)
+    is_fresh_reb = item.get('is_fresh_rebound', False)
+    major_d = item.get('major_trend_date', '')
+    reb_d = item.get('swing_rebound_date', '')
+
+    days_major_val = item.get('days_since_major', days_chg)
+    days_reb_val = item.get('days_since_rebound', days_chg)
+
+    if trend_st.startswith("多頭趨勢"):
+        if is_fresh_trend or (days_chg <= 4 and not is_fresh_reb and not reb_d):
+            d_txt = f" · {major_d}" if major_d else date_txt
+            badge_html += f"<span style='background:linear-gradient(90deg, #16A34A, #22C55E); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(34,197,94,0.4);' title='大趨勢初升段剛確立(近{days_major_val}天)'>🚀 剛轉多{d_txt}</span>"
+        elif is_fresh_reb or days_chg <= 4:
+            d_txt = f" · {reb_d}" if reb_d else date_txt
+            badge_html += f"<span style='background:linear-gradient(90deg, #059669, #10B981); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(16,185,129,0.4);' title='老朱戰法：多頭回檔不破前低，第2隻腳拉回止跌轉折(近{days_reb_val}天)'>📈 拉回止跌{d_txt}</span>"
+
+        if item.get('is_cons_over_2m', False):
+            c_m = item.get('cons_duration_months', 2.0)
+            c_b = item.get('cons_duration_bars', 40)
+            badge_html += f"<span style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 8px rgba(225,29,72,0.6);' title='老朱戰法：橫有多長，豎有多高！前段箱型打底長達 {c_b} 天 (約 {c_m} 個月)，突破爆發力強！'>🔥 盤整{c_m}月破繭起漲</span>"
+        if item.get('is_ma_squeeze_over_2m', False) or sig.get('is_ma_squeeze_over_2m', False):
+            sq_m = item.get('ma_squeeze_months') or sig.get('ma_squeeze_months', 2.0)
+            sq_b = item.get('ma_squeeze_bars') or sig.get('ma_squeeze_bars', 40)
+            badge_html += f"<span style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 8px rgba(168,85,247,0.6);' title='老朱戰法：5/10/20/60MA 四線在低檔平躺糾結長達 {sq_b} 天（約 {sq_m} 個月），放量一箭穿心突破，大漲且持續很久！'>🌀 四線糾結{sq_m}月一箭穿心</span>"
+    elif "趨勢改變為盤整" in trend_st or (trend_st.startswith("盤整整理") and days_chg <= 2):
+        sub_lbl = "反彈過前高" if "過前高" in trend_st else ("跌破前低" if "跌破前低" in trend_st else "整理")
+        badge_html += f"<span style='background:linear-gradient(90deg, #D97706, #F59E0B); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(245,158,11,0.4);' title='近{days_chg}天結構破壞，趨勢改變為盤整({sub_lbl})'>🟡 剛轉盤整 ({sub_lbl}{date_txt})</span>"
+    elif trend_st.startswith("空頭趨勢") and days_chg <= 4:
+        badge_html += f"<span style='background:linear-gradient(90deg, #DC2626, #EF4444); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(239,68,68,0.4);' title='近{days_chg}天確立空頭結構(頭頭低、底底低)'>📉 剛轉空{date_txt}</span>"
     else:
         # 非近4日翻轉，但若觸發四線糾結逾2月突破，亦展示老朱飆股徽章
         if (item.get('is_ma_squeeze_over_2m', False) or sig.get('is_ma_squeeze_over_2m', False)) and (sig.get('ma_squeeze_breakout', False) or sig.get('flat_base_breakout', False)):
@@ -1749,30 +1762,63 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 chg_date_str = trend.get('trend_change_date_str', '')
                 days_since_chg = trend.get('days_since_change', 99)
                 is_fresh_chg = trend.get('is_fresh_change', False)
+                major_d = trend.get('major_trend_date_str', '')
+                days_major = trend.get('days_since_major', 99)
+                is_fresh_trend = trend.get('is_fresh_trend_start', False)
+                reb_d = trend.get('swing_rebound_date_str', '')
+                days_reb = trend.get('days_since_rebound', 99)
+                is_fresh_reb = trend.get('is_fresh_rebound', False)
+
                 is_cons_2m = trend.get('is_cons_over_2m', False)
                 cons_m = trend.get('cons_duration_months', 2.0)
                 is_ma_sq_2m = signals_dict.get('is_ma_squeeze_over_2m', False)
                 sq_m = signals_dict.get('ma_squeeze_months', 2.0)
                 sq_b = signals_dict.get('ma_squeeze_bars', 40)
 
-                date_html = ""
-                if chg_date_str:
-                    fresh_badge = "<span style='background:#E03131; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>剛翻轉</span>" if is_fresh_chg else ""
+                lz_badge = ""
+                if is_cons_2m:
                     c_s_date = trend.get('cons_start_date_str', '')
                     c_bars = trend.get('cons_duration_bars', 0)
                     c_low = trend.get('cons_box_low', 0.0)
                     c_high = trend.get('cons_box_high', 0.0)
                     c_amp = trend.get('cons_amp_pct', 0.0)
                     lz_tip = f"title='{c_s_date}～{chg_date_str} 密集箱型共 {c_bars} 天 ({c_low}～{c_high}元，振幅{c_amp}%)'" if c_s_date else ""
-                    lz_badge = f"<span {lz_tip} style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; border-radius:3px; padding:1px 5px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>盤整{cons_m}月轉多 🔥</span>" if is_cons_2m else ""
+                    lz_badge = f"<span {lz_tip} style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>盤整{cons_m}月轉多 🔥</span>"
+
+                sq_badge = ""
+                if is_ma_sq_2m:
                     sq_tip = f"title='老朱戰法：5/10/20/60MA 四線平躺糾結 {sq_b} 天 ({sq_m}個月)，一箭穿心突破！'"
-                    sq_badge = f"<span {sq_tip} style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; border-radius:3px; padding:1px 5px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>四線糾結{sq_m}月 🌀</span>" if is_ma_sq_2m else ""
-                    days_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
-                    date_html = f"<div style='margin-top:3px; font-size:0.75rem; font-weight:normal; color:#DDD;'>📅 {chg_date_str} 翻轉 · {days_txt} {fresh_badge}{lz_badge}{sq_badge}</div>"
+                    sq_badge = f"<span {sq_tip} style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>四線糾結{sq_m}月 🌀</span>"
+
+                date_html = ""
+                if t_status.startswith("多頭趨勢"):
+                    if is_fresh_trend:
+                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 剛轉多 {major_d} · {d_txt} <span style='background:#16A34A; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉多</span>{lz_badge}{sq_badge}</div>"
+                    elif reb_d and major_d and reb_d != major_d:
+                        reb_txt = "今日" if days_reb <= 1 else f"{days_reb}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 轉多 {major_d} ｜ 止跌 {reb_d} ({reb_txt}){lz_badge}{sq_badge}</div>"
+                    elif reb_d or chg_date_str:
+                        cur_d = reb_d or chg_date_str
+                        cur_days = days_reb if reb_d else days_since_chg
+                        d_txt = "今日" if cur_days <= 1 else f"{cur_days}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 止跌 {cur_d} · {d_txt}{lz_badge}{sq_badge}</div>"
+                elif t_status.startswith("空頭趨勢"):
+                    if is_fresh_trend:
+                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 剛轉空 {major_d} · {d_txt} <span style='background:#DC2626; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉空</span></div>"
+                    elif reb_d and major_d and reb_d != major_d:
+                        reb_txt = "今日" if days_reb <= 1 else f"{days_reb}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 轉空 {major_d} ｜ 遇阻 {reb_d} ({reb_txt})</div>"
+                    elif chg_date_str:
+                        d_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 轉空 {chg_date_str} · {d_txt}</div>"
+                elif chg_date_str:
+                    d_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
+                    fresh_badge = "<span style='background:#D97706; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉盤整</span>" if is_fresh_chg else ""
+                    date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 轉盤整 {chg_date_str} · {d_txt} {fresh_badge}</div>"
                 elif is_ma_sq_2m:
-                    sq_tip = f"title='老朱戰法：5/10/20/60MA 四線平躺糾結 {sq_b} 天 ({sq_m}個月)，一箭穿心突破！'"
-                    sq_badge = f"<span {sq_tip} style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; border-radius:3px; padding:1px 5px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>四線糾結{sq_m}月 🌀</span>"
-                    date_html = f"<div style='margin-top:3px; font-size:0.75rem; font-weight:normal; color:#DDD;'>{sq_badge}</div>"
+                    date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>{sq_badge}</div>"
 
                 if " (" in t_status and t_status.endswith(")"):
                     t_main, t_sub = t_status.split(" (", 1)
