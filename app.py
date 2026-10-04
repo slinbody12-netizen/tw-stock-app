@@ -722,26 +722,25 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     if item.get('main_wave_2nd') or sig.get('main_wave_2nd', False):
         badge_html += "<span style='background:linear-gradient(90deg, #1890FF, #722ED1); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block;'>🚀 主升第二波</span>"
 
-    # 趨勢翻轉醒目標籤 (剛轉多 / 拉回止跌 / 剛轉空 / 剛轉盤整)
+    # 趨勢翻轉醒目標籤 (剛轉多 / 轉弱預警 / 剛轉空 / 剛轉盤整)
     trend_st = item.get('trend_status', '')
     days_chg = item.get('days_since_change', 99)
     chg_date = item.get('trend_change_date', '')
     date_txt = f" · {chg_date}" if chg_date else ""
     is_fresh_trend = item.get('is_fresh_trend_start', False)
-    is_fresh_reb = item.get('is_fresh_rebound', False)
     major_d = item.get('major_trend_date', '')
-    reb_d = item.get('swing_rebound_date', '')
-
     days_major_val = item.get('days_since_major', days_chg)
-    days_reb_val = item.get('days_since_rebound', days_chg)
+    top_warn_badge = item.get('top_warning_badge', '')
+    top_warn_detail = item.get('top_warning_detail', '')
 
     if trend_st.startswith("多頭趨勢"):
-        if is_fresh_trend or (days_chg <= 4 and not is_fresh_reb and not reb_d):
+        if is_fresh_trend or (days_major_val <= 4):
             d_txt = f" · {major_d}" if major_d else date_txt
             badge_html += f"<span style='background:linear-gradient(90deg, #16A34A, #22C55E); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(34,197,94,0.4);' title='大趨勢初升段剛確立(近{days_major_val}天)'>🚀 剛轉多{d_txt}</span>"
-        elif is_fresh_reb or days_chg <= 4:
-            d_txt = f" · {reb_d}" if reb_d else date_txt
-            badge_html += f"<span style='background:linear-gradient(90deg, #059669, #10B981); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block; box-shadow:0 0 6px rgba(16,185,129,0.4);' title='老朱戰法：多頭回檔不破前低，第2隻腳拉回止跌轉折(近{days_reb_val}天)'>📈 拉回止跌{d_txt}</span>"
+        
+        # 實戰提前預警徽章：若多頭結構出現轉弱/轉盤整前兆，醒目亮起預警
+        if top_warn_badge:
+            badge_html += f"<span style='background:#78350F; border:1px solid #D97706; color:#FDE68A; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block;' title='{top_warn_detail}'>{top_warn_badge}</span>"
 
         if item.get('is_cons_over_2m', False):
             c_m = item.get('cons_duration_months', 2.0)
@@ -1795,24 +1794,16 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     if is_fresh_trend:
                         d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
                         date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 剛轉多 {major_d} · {d_txt} <span style='background:#16A34A; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉多</span>{lz_badge}{sq_badge}</div>"
-                    elif reb_d and major_d and reb_d != major_d:
-                        reb_txt = "今日" if days_reb <= 1 else f"{days_reb}天前"
-                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 轉多 {major_d} ｜ 止跌 {reb_d} ({reb_txt}){lz_badge}{sq_badge}</div>"
-                    elif reb_d or chg_date_str:
-                        cur_d = reb_d or chg_date_str
-                        cur_days = days_reb if reb_d else days_since_chg
-                        d_txt = "今日" if cur_days <= 1 else f"{cur_days}天前"
-                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 止跌 {cur_d} · {d_txt}{lz_badge}{sq_badge}</div>"
+                    elif major_d:
+                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 多頭趨勢 · {major_d} 起漲 ({d_txt}){lz_badge}{sq_badge}</div>"
                 elif t_status.startswith("空頭趨勢"):
                     if is_fresh_trend:
                         d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
                         date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 剛轉空 {major_d} · {d_txt} <span style='background:#DC2626; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉空</span></div>"
-                    elif reb_d and major_d and reb_d != major_d:
-                        reb_txt = "今日" if days_reb <= 1 else f"{days_reb}天前"
-                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 轉空 {major_d} ｜ 遇阻 {reb_d} ({reb_txt})</div>"
-                    elif chg_date_str:
-                        d_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
-                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 轉空 {chg_date_str} · {d_txt}</div>"
+                    elif major_d:
+                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 空頭趨勢 · {major_d} 起跌 ({d_txt})</div>"
                 elif chg_date_str:
                     d_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
                     fresh_badge = "<span style='background:#D97706; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉盤整</span>" if is_fresh_chg else ""
@@ -1837,6 +1828,18 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             with c5:
                 lt_text = f"{lowest_trough['price']} ({lowest_trough['date'].strftime('%m/%d')})" if lowest_trough else "無"
                 st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>⚓ 區間最低底</div><div style='font-size:1.15rem; font-weight:bold; color:#52C41A;'>{lt_text}</div></div>", unsafe_allow_html=True)
+
+            # 多頭轉弱 / 提前翻盤整或翻空之預警橫幅 (老朱實戰風控)
+            rev_warns = trend.get('reversal_warnings', [])
+            if rev_warns:
+                warn_bullets = "".join([f"<li style='margin-bottom:3px;'><b>{w['badge']}</b>：{w['detail']}</li>" for w in rev_warns])
+                st.markdown(
+                    f"<div style='background:rgba(217, 119, 6, 0.15); border-left:4px solid #D97706; border-radius:6px; padding:8px 12px; margin:8px 0; color:#FDE68A; font-size:0.83rem; line-height:1.6;'>"
+                    f"⚠️ <b>【老朱戰法 · 多頭轉弱／盤整翻空提前預警】</b><br>"
+                    f"<ul style='margin:4px 0 0 18px; padding:0;'>{warn_bullets}</ul>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
 
             # 專業目標價機制判斷 (未突破前高壓力前暫不啟動，過壓才啟動滿足點)
             has_broken_res = (info['close'] >= trend['resistance']) if trend.get('resistance') else False
@@ -3583,6 +3586,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     "🌀 剛變多頭 (四線糾結逾2月 · 老朱翻倍飆股)",
                     "🔥 剛變多頭 (盤整逾2月 · 老朱戰法·翻倍潛力)",
                     "🚀 剛變多頭 (反轉轉多 · 突破前高/起漲)",
+                    "⚠️ 多頭轉弱預警 (頭未過高/逼近前低/破月線)",
                     "🟡 剛變盤整 (空頭反彈過前高 / 多頭跌破整理)",
                     "📉 剛變空頭 (反轉轉空 · 跌破前低/破線)"
                 ],
@@ -3640,13 +3644,16 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
 
     target_strategy = "全部"
-    if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode:
+    if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode or "轉弱" in main_mode:
         if "四線糾結" in main_mode:
             target_strategy = "剛變多頭 (四線糾結逾2月)"
             st.caption("🌀 **【老朱神技 · 四線糾結逾 2 個月大爆發】**：朱家泓老師經典心法：『**5/10/20/60MA 四線在低檔平躺糾結超過 2 個月，均線成本高度合一，放量一箭穿心突破，大漲且持續很久！**』專門抓取各週期主力成本一致洗盤極致、即將展開超級大多頭主升段的起漲第一根標的！")
         elif "盤整逾2月" in main_mode or "老朱戰法" in main_mode:
             target_strategy = "剛變多頭 (盤整逾2月)"
             st.caption("🔥 **【老朱戰法 · 盤整超過2個月突然變多頭】**：老朱名言『**橫有多長，豎有多高！**』專門鎖定前段歷經 **2 個月以上（>=40 個交易日）** 密集箱型打底洗盤，近 4 日內**首度破繭突破翻轉為多頭架構**之翻倍潛力標的！籌碼極度沉澱、爆發續航力驚人！")
+        elif "轉弱預警" in main_mode:
+            target_strategy = "多頭轉弱預警"
+            st.caption("💡 **【⚠️ 多頭轉弱預警 (頭未過高 / 逼近前低 / 破月線)】**：多頭行進間提前捕捉破綻與風險！包含：反彈高點未過前高（轉盤整前兆）、股價逼近前低關鍵支撐、收盤跌破月線或高檔爆量長黑，協助您提早防守停利、避開回檔與趨勢翻轉！")
         elif "剛變盤整" in main_mode:
             target_strategy = "剛變盤整"
             st.caption("💡 **【🟡 剛變盤整 (結構破壞整理)】**：鎖定近 4 個交易日內，原空頭架構被反彈突破前高破壞（如智邦 2345），或原多頭架構被回檔跌破前低破壞的個股！趨勢改變為盤整，代表舊趨勢告一段落，進入新一輪洗盤與方向醞釀！")

@@ -396,6 +396,10 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "support": trend.get('support'),
                 "resistance": trend.get('resistance'),
                 "target": trend.get('target'),
+                "reversal_warnings": trend.get('reversal_warnings', []),
+                "top_warning_badge": trend.get('top_warning_badge', ''),
+                "top_warning_detail": trend.get('top_warning_detail', ''),
+                "has_reversal_warning": trend.get('has_reversal_warning', False),
                 "signals": signals_list,
                 "signals_dict": signals_dict,
                 "watchlist_stage": stage,
@@ -593,12 +597,12 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             if s.get('trend_status', '').startswith('多頭趨勢') and s.get('days_since_change', 99) <= 5 and s.get('is_cons_over_2m', False):
                 match = True
         elif "剛變多頭" in strategy or strategy == "剛變多":
-            # 剛變多頭：涵蓋大趨勢剛轉多 (<=4天) 與 多頭拉回剛止跌 (<=4天)
-            if s.get('trend_status', '').startswith('多頭趨勢') and (s.get('is_fresh_trend_start', False) or s.get('is_fresh_rebound', False) or s.get('days_since_change', 99) <= 4):
+            # 剛變多頭：大趨勢剛轉多起漲 (<=4天)
+            if s.get('trend_status', '').startswith('多頭趨勢') and (s.get('is_fresh_trend_start', False) or s.get('days_since_major', 99) <= 4):
                 match = True
-        elif any(k in strategy for k in ["拉回止跌", "回檔止跌", "回檔有守"]):
-            # 多頭拉回止跌：大趨勢為多，且最近拉回守住底底高止跌 <= 4天
-            if s.get('trend_status', '').startswith('多頭趨勢') and (s.get('is_fresh_rebound', False) or s.get('days_since_rebound', 99) <= 4):
+        elif any(k in strategy for k in ["轉弱預警", "多頭轉弱", "警訊預警", "風險預警"]):
+            # 多頭轉弱提前預警：多頭中出現頭未過高、逼近前低、跌破月線、高檔爆量長黑等
+            if s.get('has_reversal_warning', False):
                 match = True
         elif "剛變空頭" in strategy or strategy == "剛變空":
             # 剛變空頭：空頭趨勢且結構確立天數 <= 4

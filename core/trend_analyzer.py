@@ -75,6 +75,7 @@ def analyze_trend(df: pd.DataFrame, points: list):
     ll = (trough_diff_pct < -0.008) and not is_flat_bottom  # 底底低 (實質跌破前低超過 0.8%)
 
     latest_close = float(df['Close'].iloc[-1])
+    latest_open = float(df['Open'].iloc[-1]) if 'Open' in df else latest_close
     latest_high = float(df['High'].iloc[-1]) if 'High' in df else latest_close
     latest_low = float(df['Low'].iloc[-1]) if 'Low' in df else latest_close
 
@@ -262,11 +263,127 @@ def analyze_trend(df: pd.DataFrame, points: list):
     is_fresh_trend_start = (days_since_major <= 4)
     is_fresh_rebound = (not is_fresh_trend_start) and (days_since_rebound <= 4)
 
-    # 保持向下相容性
-    trend_change_date = major_trend_date if is_fresh_trend_start else swing_rebound_date
-    trend_change_date_str = major_trend_date_str if is_fresh_trend_start else swing_rebound_date_str
-    days_since_change = days_since_major if is_fresh_trend_start else days_since_rebound
-    is_fresh_change = is_fresh_trend_start or is_fresh_rebound
+    # 趨勢起始日與延續天數
+    trend_change_date = major_trend_date
+    trend_change_date_str = major_trend_date_str
+    days_since_change = days_since_major
+    is_fresh_change = is_fresh_trend_start
+
+    # -------------------------------------------------------------
+    # 多頭轉弱 / 提前翻盤整或翻空之預警偵測引擎 (老朱實戰風控)
+    # -------------------------------------------------------------
+    reversal_warnings = []
+    top_warning_badge = ""
+    top_warning_detail = ""
+
+    if trend_status.startswith("多頭趨勢") and not df.empty:
+        c = latest_close
+        o = latest_open
+        l = latest_low
+        h = latest_high
+
+        sma20 = float(df['Close'].rolling(20).mean().iloc[-1]) if len(df) >= 20 else c
+        prev_sma20 = float(df['Close'].rolling(20).mean().iloc[-2]) if len(df) >= 21 else sma20
+        vol_ma20 = float(df['Volume'].rolling(20).mean().iloc[-1]) if len(df) >= 20 else 1.0
+
+        # A. 破前低 / 逼近前低警戒 (底底高結構破壞)
+        if c < support:
+            reversal_warnings.append({
+                "type": "broken_support",
+                "badge": "⚡ 破前低支撐",
+                "title": "跌破前波低點支撐",
+                "detail": f"收盤價 ({c:.1f}元) 跌破前低關鍵支撐 ({support:.1f}元)，底底高架構破壞，多頭趨勢即將轉空或盤整！",
+                "priority": 1
+            })
+        elif (c <= support * 1.018) or (l <= support and c <= support * 1.025):
+            reversal_warnings.append({
+                "type": "near_support",
+                "badge": "⚡ 逼近前低",
+                "title": "逼近前波低點支撐",
+                "detail": f"股價回檔低點逼近前低關鍵支撐 ({support:.1f}元)，支撐告急，一旦摜破多頭架構將瓦解！",
+                "priority": 2
+            })
+
+        # B. 頭未過高 / 反彈未過前高 (頭頭高慣性受阻，轉盤整前兆)
+        if len(peaks) >= 2 and peaks[-1]['price'] < peaks[-2]['price'] * 0.995:
+            reversal_warnings.append({
+                "type": "lower_peak",
+                "badge": "⚠️ 頭未過高",
+                "title": "頭部未過前高 (轉盤整前兆)",
+                "detail": f"最新確認高點 ({peaks[-1]['price']:.1f}元) 未過前高 ({peaks[-2]['price']:.1f}元)，「頭頭高」多頭慣性受阻，即將轉入箱型盤整！",
+                "priority": 3
+            })
+        elif curr_trough is not None:
+            bars_since_t = df[df['Date'] >= curr_trough['date']]
+            if len(bars_since_t) >= 2:
+                bounce_high = float(bars_since_t['High'].max())
+                if bounce_high < resistance * 0.99:
+                    is_pulling_back = (c < bars_since_t['Close'].iloc[-2]) or (c < o)
+                    if is_pulling_back:
+                        reversal_warnings.append({
+                            "type": "rebound_failed_high",
+                            "badge": "⚠️ 反彈未過高",
+                            "title": "反彈未過前高壓力",
+                            "detail": f"本波反彈高點 ({bounce_high:.1f}元) 未能越過前高壓力 ({resistance:.1f}元)，短線轉折收黑，「頭頭高」慣性受阻，提防動能不足轉入盤整！",
+                            "priority": 4
+                        })
+
+        # C. 高檔爆量長黑 / 假突破
+        if len(df) >= 3:
+            for lookback_i in [-1, -2]:
+                row = df.iloc[lookback_i]
+                b_c = float(row['Close'])
+                b_o = float(row['Open'])
+                b_h = float(row['High'])
+                b_v = float(row['Volume'])
+                is_black = (b_c < b_o) and ((b_o - b_c) / (b_o + 1e-9) >= 0.02)
+                is_huge_vol = (b_v >= vol_ma20 * 1.8) and (b_v >= 500000)
+                is_high_pos = (b_h >= resistance * 0.985) or (b_c >= sma20 * 1.10)
+                if is_black and is_huge_vol and is_high_pos:
+                    reversal_warnings.append({
+                        "type": "heavy_volume_dump",
+                        "badge": "🚨 爆量長黑",
+                        "title": "高檔爆量長黑倒貨",
+                        "detail": f"高檔出現實體大黑K且爆出巨量 ({int(b_v/1000):,}張，為月均量 {b_v/vol_ma20:.1f} 倍)，疑似主力調節倒貨，提防假突破！",
+                        "priority": 5
+                    })
+                    break
+
+        # D. 跌破月線 / 月線下彎 (短多熄火)
+        if c < sma20:
+            if sma20 < prev_sma20 * 0.9995:
+                reversal_warnings.append({
+                    "type": "ma20_break_down",
+                    "badge": "⚠️ 月線下彎",
+                    "title": "跌破下彎月線",
+                    "detail": f"收盤價 ({c:.1f}元) 跌破 20MA 生命線 ({sma20:.2f}元) 且月線已轉下彎，波段多方推升力道明顯減弱！",
+                    "priority": 6
+                })
+            else:
+                reversal_warnings.append({
+                    "type": "ma20_break",
+                    "badge": "⚠️ 跌破月線",
+                    "title": "跌破 20MA 月線",
+                    "detail": f"收盤價 ({c:.1f}元) 跌破 20MA 生命線 ({sma20:.2f}元)，短線多方動能降溫轉入防守！",
+                    "priority": 7
+                })
+
+        # E. 創高量價背離
+        if c >= resistance * 0.985 and len(df) >= 5:
+            vol_3d_avg = float(df['Volume'].iloc[-3:].mean())
+            if vol_3d_avg < vol_ma20 * 0.65 and vol_ma20 >= 500000:
+                reversal_warnings.append({
+                    "type": "volume_divergence",
+                    "badge": "⚠️ 量價背離",
+                    "title": "高檔量價背離",
+                    "detail": f"股價逼近或創高但近 3 日均量顯著萎縮至月均量 65% 以下，攻堅動能不足，提防假過高真拉回！",
+                    "priority": 8
+                })
+
+        if reversal_warnings:
+            reversal_warnings.sort(key=lambda x: x['priority'])
+            top_warning_badge = reversal_warnings[0]['badge']
+            top_warning_detail = reversal_warnings[0]['detail']
 
     # -------------------------------------------------------------
     # 老朱戰法：檢測轉多頭前是否經歷超過 2 個月（>= 40 個交易日）之充分盤整洗盤
@@ -366,5 +483,9 @@ def analyze_trend(df: pd.DataFrame, points: list):
         "support": support,
         "resistance": resistance,
         "target": target,
-        "alerts": alerts
+        "alerts": alerts,
+        "reversal_warnings": reversal_warnings,
+        "top_warning_badge": top_warning_badge,
+        "top_warning_detail": top_warning_detail,
+        "has_reversal_warning": len(reversal_warnings) > 0
     }
