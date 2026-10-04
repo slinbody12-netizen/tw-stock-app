@@ -1005,9 +1005,16 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     if trend_st.startswith("多頭趨勢") and item.get('is_cons_over_2m', False):
         c_bars = item.get('cons_duration_bars', 40)
         c_months = item.get('cons_duration_months', 2.0)
+        c_s_date = item.get('cons_start_date', '')
+        c_e_date = item.get('trend_change_date', '')
+        c_range = f" ({c_s_date}～{c_e_date})" if c_s_date and c_e_date else ""
+        c_low = item.get('cons_box_low', 0.0)
+        c_high = item.get('cons_box_high', 0.0)
+        c_amp = item.get('cons_amp_pct', 0.0)
+        box_txt = f"在 <b>{c_low}～{c_high} 元</b> 箱型區間（振幅 {c_amp}%）" if c_high > 0 else "在底部/區間"
         lao_zhu_html = (
             f"<div style='background:rgba(225, 29, 72, 0.15); border-left:4px solid #E11D48; border-radius:6px; padding:7px 10px; margin-top:6px; color:#FECDD3; font-size:0.82rem; line-height:1.55;'>"
-            f"🔥 <b>【老朱實戰心法 · 橫有多長豎有多高】</b>：本檔在底部/區間盤整長達 <b>{c_bars} 天（約 {c_months} 個月）</b>，剛正式突破確立多頭架構！籌碼沉澱紮實、浮額清洗徹底，依老朱戰法此類標的具備強大爆發潛力，值得密切追蹤起漲進場點！"
+            f"🔥 <b>【老朱實戰心法 · 橫有多長豎有多高】</b>：本檔{box_txt}密集盤整長達 <b>{c_bars} 天（約 {c_months} 個月）</b>{c_range}，剛正式突破確立多頭架構！籌碼沉澱紮實、浮額清洗徹底，依老朱戰法此類標的具備強大爆發潛力，值得密切追蹤起漲進場點！"
             f"</div>"
         )
 
@@ -1725,7 +1732,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 date_html = ""
                 if chg_date_str:
                     fresh_badge = "<span style='background:#E03131; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>剛翻轉</span>" if is_fresh_chg else ""
-                    lz_badge = f"<span style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; border-radius:3px; padding:1px 5px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>盤整{cons_m}月轉多 🔥</span>" if is_cons_2m else ""
+                    c_s_date = trend.get('cons_start_date_str', '')
+                    c_bars = trend.get('cons_duration_bars', 0)
+                    c_low = trend.get('cons_box_low', 0.0)
+                    c_high = trend.get('cons_box_high', 0.0)
+                    c_amp = trend.get('cons_amp_pct', 0.0)
+                    lz_tip = f"title='{c_s_date}～{chg_date_str} 密集箱型共 {c_bars} 天 ({c_low}～{c_high}元，振幅{c_amp}%)'" if c_s_date else ""
+                    lz_badge = f"<span {lz_tip} style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; border-radius:3px; padding:1px 5px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>盤整{cons_m}月轉多 🔥</span>" if is_cons_2m else ""
                     days_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
                     date_html = f"<div style='margin-top:3px; font-size:0.75rem; font-weight:normal; color:#DDD;'>📅 {chg_date_str} 翻轉 · {days_txt} {fresh_badge}{lz_badge}</div>"
 

@@ -207,29 +207,67 @@ def analyze_trend(df: pd.DataFrame, points: list):
 
     # -------------------------------------------------------------
     # 老朱戰法：檢測轉多頭前是否經歷超過 2 個月（>= 40 個交易日）之充分盤整洗盤
+    # -------------------------------------------------------------
+    # 老朱戰法：檢測轉多頭前是否經歷超過 2 個月（>= 40 個交易日）之充分盤整洗盤
     # 實戰心法：「橫有多長，豎有多高」，長盤超過 2 個月爆發之股票，波段漲幅往往驚人！
+    # 精準計算：採用朱家泓標準箱型整理振幅上限 (<= 17%)，連續回溯，不穿透前波主升/主跌段
     # -------------------------------------------------------------
     cons_duration_bars = 0
     cons_duration_months = 0.0
+    cons_start_date_str = ""
+    cons_box_low = 0.0
+    cons_box_high = 0.0
+    cons_amp_pct = 0.0
     is_cons_over_2m = False
 
     if trend_status.startswith("多頭趨勢") and trend_change_date is not None and not df.empty:
         idx_list = df.index[df['Date'] <= trend_change_date].tolist()
         if idx_list:
             t_idx = idx_list[-1]
-            for lookback in range(35, min(150, t_idx)):
-                slice_df = df.iloc[t_idx - lookback : t_idx]
-                h_max = slice_df['High'].max()
-                l_min = slice_df['Low'].min()
-                amp = (h_max - l_min) / (l_min + 1e-9)
-                if amp <= 0.30:  # 振幅在 30% 以內的箱型整理/打底區間
-                    cons_duration_bars = lookback
+            max_amp = 0.18  # 精準標準箱型振幅上限 (18%)
+            best_bars = 0
+            t_dt = pd.to_datetime(trend_change_date)
+            pts_at_or_before = [p for p in points if p['date'] <= t_dt]
 
-            if cons_duration_bars >= 40:
+            for lookback in range(5, min(140, t_idx)):
+                slice_df = df.iloc[t_idx - lookback : t_idx + 1]
+                h_max = float(slice_df['High'].max())
+                l_min = float(slice_df['Low'].min())
+                amp = (h_max - l_min) / (l_min + 1e-9)
+                if amp > max_amp:
+                    break
+
+                cur_dt = df.iloc[t_idx - lookback]['Date']
+                # 檢查 cur_dt 是否恰好越過了前一個推升段的頂峰
+                # 若在 cur_dt 之前的轉折點是連續 2 個以上的底底高、頭頭高，且當前點是該推升段頂點
+                pts_at = [p for p in pts_at_or_before if p['date'] <= cur_dt]
+                if lookback >= 20 and len(pts_at) >= 3:
+                    p_last = pts_at[-1]
+                    if p_last['type'] == 'PEAK' and p_last['price'] == h_max:
+                        p_prev_peaks = [p for p in pts_at[:-1] if p['type'] == 'PEAK']
+                        p_prev_troughs = [p for p in pts_at[:-1] if p['type'] == 'TROUGH']
+                        if len(p_prev_peaks) >= 2 and len(p_prev_troughs) >= 2:
+                            if p_prev_peaks[-1]['price'] < p_last['price'] and p_prev_peaks[-2]['price'] < p_prev_peaks[-1]['price']:
+                                if p_prev_troughs[-1]['price'] > p_prev_troughs[-2]['price']:
+                                    best_bars = lookback
+                                    break
+                best_bars = lookback
+
+            if best_bars >= 10:
+                cons_duration_bars = best_bars
                 cons_duration_months = round(cons_duration_bars / 20.0, 1)
-                is_cons_over_2m = True
-                if days_since_change <= 5:
-                    alerts.insert(0, f"🔥 【老朱戰法·橫有多長豎有多高】：本檔在突破前盤整沉澱長達 {cons_duration_bars} 個交易日（約 {cons_duration_months} 個月），今日剛確立多頭趨勢！長盤沉澱後的初升第一根爆發力極強，常展開翻倍大波段行情！")
+                is_cons_over_2m = (cons_duration_bars >= 40)
+                
+                s_row = df.iloc[t_idx - cons_duration_bars]
+                cons_start_date_str = s_row['Date'].strftime('%m/%d')
+                
+                slice_box = df.iloc[t_idx - cons_duration_bars : t_idx + 1]
+                cons_box_high = round(float(slice_box['High'].max()), 2)
+                cons_box_low = round(float(slice_box['Low'].min()), 2)
+                cons_amp_pct = round(((cons_box_high - cons_box_low) / (cons_box_low + 1e-9)) * 100, 1)
+
+                if is_cons_over_2m and days_since_change <= 5:
+                    alerts.insert(0, f"🔥 【老朱戰法·橫有多長豎有多高】：本檔在突破前於 {cons_start_date_str}～{trend_change_date_str} 密集箱型整理（{cons_box_low}～{cons_box_high} 元，振幅 {cons_amp_pct}%）長達 {cons_duration_bars} 個交易日（約 {cons_duration_months} 個月），今日剛確立多頭趨勢！長盤沉澱後的初升第一根爆發力極強，常展開翻倍大波段行情！")
 
     return {
         "trend_status": trend_status,
@@ -241,6 +279,10 @@ def analyze_trend(df: pd.DataFrame, points: list):
         "is_fresh_change": (days_since_change <= 3),
         "cons_duration_bars": cons_duration_bars,
         "cons_duration_months": cons_duration_months,
+        "cons_start_date_str": cons_start_date_str,
+        "cons_box_low": cons_box_low,
+        "cons_box_high": cons_box_high,
+        "cons_amp_pct": cons_amp_pct,
         "is_cons_over_2m": is_cons_over_2m,
         "higher_highs": hh,
         "higher_lows": hl,
