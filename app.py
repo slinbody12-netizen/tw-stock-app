@@ -3779,27 +3779,25 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
     last_params = st.session_state.get('screener_last_params')
     is_params_changed = (last_params is not None and current_params != last_params)
 
-    # 執行選股與即時刷新按鈕列 (等使用者選好三項連動條件後，再手動點擊執行或首次自動加載)
+    has_executed = ("screener_results" in st.session_state and st.session_state.screener_results is not None)
+
+    # 執行選股與即時刷新按鈕列 (等使用者選好三項連動條件後，再手動點擊執行)
     col_btn_a, col_btn_b = st.columns([3.2, 1.2])
     with col_btn_a:
-        if is_params_changed:
+        if is_params_changed or not has_executed:
             btn_text = f"🚀 開始執行選股 (套用新設定：{dir_val} · {target_strategy})"
-            btn_type = "primary"
         else:
-            btn_text = f"🚀 開始執行選股 (依當前設定：{dir_val} · {target_strategy})"
-            btn_type = "secondary"
-        run_scan_btn = st.button(btn_text, type=btn_type, use_container_width=True, help="選好母體、方向與策略後，點擊此處立即執行篩選")
+            btn_text = f"🚀 重新執行選股 (依當前設定：{dir_val} · {target_strategy})"
+        run_scan_btn = st.button(btn_text, type="primary", use_container_width=True, key="btn_run_screener_action", help="選好母體、方向與策略後，點擊此處立即執行篩選")
 
     with col_btn_b:
-        refresh_btn = st.button("⚡ 刷新即時行情", use_container_width=True, help="立即向證交所批次請求全市場最新盤中價量並重新計算")
+        refresh_btn = st.button("⚡ 刷新即時行情", use_container_width=True, key="btn_refresh_screener_action", help="立即向證交所批次請求全市場最新盤中價量並重新計算")
 
-    st.caption("🟢 **證交所官方盤中即時模式**：選好上方「母體範圍、操作方向、選股大類」後，點擊【🚀 開始執行選股】即可高速產出名單！")
+    st.caption("🟢 **證交所官方盤中即時模式**：選好上方「母體範圍、操作方向、選股大類」後，點擊上方紅色的【🚀 開始執行選股】即可高速產出名單！")
 
-    # 判斷是否需要執行耗時的 scan_stocks
+    # 判斷是否需要執行耗時的 scan_stocks (嚴格鎖定：唯有使用者主動點擊按鈕，才會觸發運算！)
     need_scan = False
     if run_scan_btn or refresh_btn:
-        need_scan = True
-    elif "screener_results" not in st.session_state:
         need_scan = True
 
     if need_scan:
@@ -3833,55 +3831,58 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         st.session_state.screener_last_tag = scope_tag
         st.session_state.screener_last_strat = target_strategy
     else:
-        results = st.session_state.get('screener_results', [])
+        results = st.session_state.get('screener_results', None)
 
-    # 若使用者已切換選項但尚未點擊「開始執行選股」，以醒目提示告知使用者
-    if is_params_changed:
-        st.warning(f"⚠️ **篩選條件已變更（尚未執行）**：當前條件為【{scope_tag}】▸【{direction}】▸【{target_strategy}】（價格：{price_val}）。請點擊上方【🚀 開始執行選股】按鈕產出最新名單！", icon="🎯")
-
-    # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
-    st.session_state.browsing_stock_list = [item['code'] for item in results]
-    st.session_state.browsing_stock_names = {item['code']: item['name'] for item in results}
-
-    # 助教安全統計摘要與過濾器
-    safe_count = sum(1 for s in results if "安全" in s.get('safety_rating', ''))
-    caution_count = sum(1 for s in results if "警訊" in s.get('safety_rating', ''))
-    danger_count = sum(1 for s in results if "嚴禁" in s.get('safety_rating', ''))
-
-    active_tag = st.session_state.get('screener_last_tag', scope_tag)
-    active_strat = st.session_state.get('screener_last_strat', target_strategy)
-
-    col_stat1, col_stat2 = st.columns([3, 2])
-    with col_stat1:
-        st.markdown(f"**掃描結果（{active_tag}）：符合【{active_strat}】共 `{len(results)}` 檔標的**")
-        st.caption(f"💡 **助教安全把關**：🟢 安全首選 `{safe_count}` 檔 ｜ 🟡 警訊注意 `{caution_count}` 檔 ｜ 🔴 嚴禁追高/已淘汰 `{danger_count}` 檔")
-    with col_stat2:
-        filter_safe_only = st.toggle(
-            "🛡️ 僅看【🟢 安全首選】(自動隱藏淘汰與警訊股)",
-            value=False,
-            key=f"filter_safe_only_{target_strategy}",
-            help="開啟後，系統會自動剔除被 14 大淘汰法淘汰、綠色辣椒或帶有警訊之標的，只保留純金首選！"
-        )
-
-    final_display = results
-    if filter_safe_only:
-        final_display = [s for s in results if "安全" in s.get('safety_rating', '')]
-        if not final_display:
-            st.warning(f"在【{target_strategy}】中，目前暫無符合【🟢 安全首選】之完美標的（現有標的皆帶有淘汰瑕疵或警訊，建議空手觀望或切換其他策略）。")
-
-    # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
-    st.session_state.browsing_stock_list = [item['code'] for item in final_display]
-    st.session_state.browsing_stock_names = {item['code']: item['name'] for item in final_display}
-
-    if final_display:
-        cols = st.columns(2)
-        for idx, item in enumerate(final_display):
-            c = cols[idx % 2]
-            with c:
-                render_stock_card(item, key_prefix=f"scr_{target_strategy}_{idx}", current_strategy=target_strategy)
+    if results is None:
+        st.info(f"🎯 **尚未執行篩選**：您目前設定為【{scope_tag}】▸【{direction}】▸【{target_strategy}】（價格：{price_val}）。請確認條件後，點擊上方紅色的【🚀 開始執行選股】按鈕產出名單！")
     else:
-        if not filter_safe_only:
-            st.info(f"目前在【{target_strategy}】條件下暫無符合標的，您可以切換其他子策略或放寬價格位階重新掃描。")
+        # 若使用者已切換選項但尚未點擊「開始執行選股」，以醒目提示告知使用者
+        if is_params_changed:
+            st.warning(f"⚠️ **篩選條件已變更（尚未執行）**：當前條件為【{scope_tag}】▸【{direction}】▸【{target_strategy}】（價格：{price_val}）。請點擊上方【🚀 開始執行選股】按鈕產出最新名單！", icon="🎯")
+
+        # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
+        st.session_state.browsing_stock_list = [item['code'] for item in results]
+        st.session_state.browsing_stock_names = {item['code']: item['name'] for item in results}
+
+        # 助教安全統計摘要與過濾器
+        safe_count = sum(1 for s in results if "安全" in s.get('safety_rating', ''))
+        caution_count = sum(1 for s in results if "警訊" in s.get('safety_rating', ''))
+        danger_count = sum(1 for s in results if "嚴禁" in s.get('safety_rating', ''))
+
+        active_tag = st.session_state.get('screener_last_tag', scope_tag)
+        active_strat = st.session_state.get('screener_last_strat', target_strategy)
+
+        col_stat1, col_stat2 = st.columns([3, 2])
+        with col_stat1:
+            st.markdown(f"**掃描結果（{active_tag}）：符合【{active_strat}】共 `{len(results)}` 檔標的**")
+            st.caption(f"💡 **助教安全把關**：🟢 安全首選 `{safe_count}` 檔 ｜ 🟡 警訊注意 `{caution_count}` 檔 ｜ 🔴 嚴禁追高/已淘汰 `{danger_count}` 檔")
+        with col_stat2:
+            filter_safe_only = st.toggle(
+                "🛡️ 僅看【🟢 安全首選】(自動隱藏淘汰與警訊股)",
+                value=False,
+                key=f"filter_safe_only_{target_strategy}",
+                help="開啟後，系統會自動剔除被 14 大淘汰法淘汰、綠色辣椒或帶有警訊之標的，只保留純金首選！"
+            )
+
+        final_display = results
+        if filter_safe_only:
+            final_display = [s for s in results if "安全" in s.get('safety_rating', '')]
+            if not final_display:
+                st.warning(f"在【{target_strategy}】中，目前暫無符合【🟢 安全首選】之完美標的（現有標的皆帶有淘汰瑕疵或警訊，建議空手觀望或切換其他策略）。")
+
+        # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
+        st.session_state.browsing_stock_list = [item['code'] for item in final_display]
+        st.session_state.browsing_stock_names = {item['code']: item['name'] for item in final_display}
+
+        if final_display:
+            cols = st.columns(2)
+            for idx, item in enumerate(final_display):
+                c = cols[idx % 2]
+                with c:
+                    render_stock_card(item, key_prefix=f"scr_{target_strategy}_{idx}", current_strategy=target_strategy)
+        else:
+            if not filter_safe_only:
+                st.info(f"目前在【{target_strategy}】條件下暫無符合標的，您可以切換其他子策略或放寬價格位階重新掃描。")
 
 # ----------------------------------------------------
 # 功能分頁：大盤同步 · 滯後補漲雷達 (Market Sync & Catch-Up Radar)
