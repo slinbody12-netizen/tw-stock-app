@@ -472,19 +472,28 @@ def fetch_realtime_quote(code: str, market: str = "TW") -> dict:
                     t_str = target_item.get('t', '')
                     if d_str and len(d_str) == 8:
                         today_date = pd.to_datetime(f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}")
-                        date_formatted = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}"
+                        # 週末防護：若 MIS 返回週末日期，對齊至最近之週五收盤日
+                        if today_date.weekday() >= 5:
+                            sub_days = 1 if today_date.weekday() == 5 else 2
+                            today_date = today_date - pd.Timedelta(days=sub_days)
+                        date_formatted = today_date.strftime('%Y-%m-%d')
                         o = float(target_item.get('o', 0)) if target_item.get('o') not in [None, '-', ''] else 0.0
                         h = float(target_item.get('h', 0)) if target_item.get('h') not in [None, '-', ''] else 0.0
                         l = float(target_item.get('l', 0)) if target_item.get('l') not in [None, '-', ''] else 0.0
                         y = float(target_item.get('y', 0)) if target_item.get('y') not in [None, '-', ''] else 0.0
                         z = target_item.get('z', '-')
                         if z in ['-', '', None]:
-                            b_list = target_item.get('b', '').split('_')
-                            a_list = target_item.get('a', '').split('_')
-                            if b_list and b_list[0] and b_list[0] != '-':
-                                z = b_list[0]
-                            elif a_list and a_list[0] and a_list[0] != '-':
-                                z = a_list[0]
+                            # 週末或盤後非撮合時間，成交價嚴格採用昨收/收盤價 y，絕不使用盤口未成交之委買委賣
+                            is_trading_hour = (tw_now.weekday() < 5) and (8 <= tw_now.hour < 14 or (tw_now.hour == 14 and tw_now.minute < 30))
+                            if is_trading_hour:
+                                b_list = target_item.get('b', '').split('_')
+                                a_list = target_item.get('a', '').split('_')
+                                if b_list and b_list[0] and b_list[0] != '-':
+                                    z = b_list[0]
+                                elif a_list and a_list[0] and a_list[0] != '-':
+                                    z = a_list[0]
+                                else:
+                                    z = y
                             else:
                                 z = y
                         c = float(z) if z not in [None, '-', ''] else y
@@ -531,11 +540,20 @@ def fetch_realtime_quote(code: str, market: str = "TW") -> dict:
             chg = round(c - y, 2)
             pct = round((chg / y) * 100, 2) if y > 0 else 0.0
             v_shares = int(fi.get('lastVolume') or 0)
+
+            # 週末防護：若當前為週末 (週六/週日)，快照行情實為週五收盤，嚴格對齊週五日期
+            if tw_now.weekday() == 5:
+                q_date = (tw_now - pd.Timedelta(days=1)).floor('D')
+            elif tw_now.weekday() == 6:
+                q_date = (tw_now - pd.Timedelta(days=2)).floor('D')
+            else:
+                q_date = tw_now.floor('D')
+
             return {
                 "code": code,
                 "name": "加權指數" if is_index else code,
-                "date": tw_now.floor('D'),
-                "date_str": tw_now.strftime('%Y-%m-%d'),
+                "date": q_date,
+                "date_str": q_date.strftime('%Y-%m-%d'),
                 "time": tw_now.strftime('%H:%M:%S'),
                 "open": o,
                 "high": h,
@@ -587,7 +605,11 @@ def _fetch_realtime_chunk(chunk):
                 if not d_str or len(d_str) != 8:
                     continue
                 today_date = pd.to_datetime(f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}")
-                date_formatted = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:]}"
+                # 週末防護：若 MIS 返回週末日期，對齊至最近之週五收盤日
+                if today_date.weekday() >= 5:
+                    sub_days = 1 if today_date.weekday() == 5 else 2
+                    today_date = today_date - pd.Timedelta(days=sub_days)
+                date_formatted = today_date.strftime('%Y-%m-%d')
 
                 o = float(it.get('o', 0)) if it.get('o') not in [None, '-', ''] else 0.0
                 h = float(it.get('h', 0)) if it.get('h') not in [None, '-', ''] else 0.0
@@ -596,16 +618,23 @@ def _fetch_realtime_chunk(chunk):
                 v_lots = int(it.get('v', 0)) if it.get('v') not in [None, '-', ''] else 0
                 v_shares = v_lots * 1000
 
+                tw_now = get_tw_now()
+                is_trading_hour = (tw_now.weekday() < 5) and (8 <= tw_now.hour < 14 or (tw_now.hour == 14 and tw_now.minute < 30))
+
                 z = it.get('z', '-')
                 if z == '-' or not z:
                     z = it.get('trade', {}).get('z', '-')
                 if z == '-' or not z:
-                    b_list = it.get('b', '').split('_')
-                    a_list = it.get('a', '').split('_')
-                    if b_list and b_list[0] and b_list[0] != '-':
-                        z = b_list[0]
-                    elif a_list and a_list[0] and a_list[0] != '-':
-                        z = a_list[0]
+                    # 週末或盤後非撮合時間，成交價嚴格採用昨收/收盤價 y，絕不使用盤口未成交之委買委賣
+                    if is_trading_hour:
+                        b_list = it.get('b', '').split('_')
+                        a_list = it.get('a', '').split('_')
+                        if b_list and b_list[0] and b_list[0] != '-':
+                            z = b_list[0]
+                        elif a_list and a_list[0] and a_list[0] != '-':
+                            z = a_list[0]
+                        else:
+                            z = y
                     else:
                         z = y
 
@@ -777,6 +806,7 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
             pass
 
     # ---------------- 證交所盤中即時行情無縫拼接 ----------------
+    tw_now = get_tw_now()
     quote = realtime_quote
     if quote is None and enable_realtime and (code.isdigit() or code.startswith("^") or code in ["^TWII", "TWII", "t00"]) and not df.empty:
         try:
@@ -812,20 +842,21 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
                     df.loc[idx, 'Low'] = min(q_low, q_close, cur_l) if q_low > 0 else cur_l
                     df.loc[idx, 'Close'] = q_close
                     df.loc[idx, 'Volume'] = max(q_vol, cur_v)
+                    df = calculate_indicators(df)
                 elif q_dt.date() > df_last_dt.date():
-                    # 歷史日K只到昨收，將今天盤中長出來的最新K棒拼接上去
-                    new_candle = pd.DataFrame([{
-                        'Date': q_dt,
-                        'Open': q_open,
-                        'High': max(q_high, q_close),
-                        'Low': min(q_low, q_close),
-                        'Close': q_close,
-                        'Volume': q_vol
-                    }])
-                    df = pd.concat([df, new_candle], ignore_index=True)
-
-                # 重新計算均線與技術指標 (使5MA/20MA與轉折波完全包含今日即時現價)
-                df = calculate_indicators(df)
+                    # 關鍵防護：台股週末 (週六、週日) 絕不開盤，嚴禁在週末拼接虛擬日K棒
+                    # 只有在工作日 (週一至週五) 且報價日期亦為工作日，方可將盤中新長出的K棒拼接上去
+                    if q_dt.weekday() < 5 and tw_now.weekday() < 5:
+                        new_candle = pd.DataFrame([{
+                            'Date': q_dt,
+                            'Open': q_open,
+                            'High': max(q_high, q_close),
+                            'Low': min(q_low, q_close),
+                            'Close': q_close,
+                            'Volume': q_vol
+                        }])
+                        df = pd.concat([df, new_candle], ignore_index=True)
+                        df = calculate_indicators(df)
         except Exception:
             pass
 

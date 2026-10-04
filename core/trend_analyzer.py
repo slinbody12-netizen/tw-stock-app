@@ -202,7 +202,14 @@ def analyze_trend(df: pd.DataFrame, points: list):
     days_since_change = 99
     trend_change_date_str = ""
     if trend_change_date is not None and not df.empty:
-        trend_change_date_str = pd.to_datetime(trend_change_date).strftime('%m/%d')
+        t_dt = pd.to_datetime(trend_change_date)
+        # 嚴密防護：台股週末休市，若出現週末日期自動對齊至最近之有效交易日(週五)
+        if t_dt.weekday() == 5:
+            t_dt = t_dt - pd.Timedelta(days=1)
+        elif t_dt.weekday() == 6:
+            t_dt = t_dt - pd.Timedelta(days=2)
+        trend_change_date = t_dt
+        trend_change_date_str = t_dt.strftime('%m/%d')
         days_since_change = len(df[df['Date'] >= trend_change_date])
 
     # -------------------------------------------------------------
@@ -276,7 +283,7 @@ def analyze_trend(df: pd.DataFrame, points: list):
         "trend_change_date": trend_change_date,
         "trend_change_date_str": trend_change_date_str,
         "days_since_change": days_since_change,
-        "is_fresh_change": (days_since_change <= 3),
+        "is_fresh_change": (days_since_change <= 4),
         "cons_duration_bars": cons_duration_bars,
         "cons_duration_months": cons_duration_months,
         "cons_start_date_str": cons_start_date_str,
