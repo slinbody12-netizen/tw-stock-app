@@ -450,5 +450,10 @@ def render_three_tier_entry_dashboard(tier_info: dict):
         </div>
     </div>
     """
-    st.markdown(dashboard_html, unsafe_allow_html=True)
+
+    clean_html = "".join([line.strip() for line in dashboard_html.splitlines() if line.strip() and not line.strip().startswith("<!--")])
+    if hasattr(st, 'html'):
+        st.html(clean_html)
+    else:
+        st.markdown(clean_html, unsafe_allow_html=True)
 
