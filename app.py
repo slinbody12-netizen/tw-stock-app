@@ -506,12 +506,13 @@ def check_password():
     st.session_state["copilot_authenticated"] = False
     st.session_state.pop("copilot_user", None)
 
+    import unicodedata
     # 支援 URL 參數直接驗證 (?pin=8888 或 ?pin=VIP_PIN 或 ?copilot_pin=...) 便捷存取
     params = st.query_params
     url_pin = params.get("pin") or params.get("copilot_pin")
     if url_pin:
-        clean_url_pin = str(url_pin).strip()
-        if clean_url_pin == SYSTEM_PIN:
+        clean_url_pin = unicodedata.normalize('NFKC', str(url_pin)).strip()
+        if clean_url_pin in [SYSTEM_PIN, "8888"]:
             st.session_state["authenticated"] = True
             st.session_state["is_guest_8888"] = True
             st.session_state["copilot_authenticated"] = False
@@ -530,7 +531,6 @@ def check_password():
                 st.session_state["copilot_user"] = vip_info
                 st.session_state["current_pin"] = clean_url_pin
                 st.query_params["pin"] = clean_url_pin
-                st.session_state["target_nav_menu"] = "🤖 實戰秘密特務 (操盤副駕駛)"
                 return True
 
     # 渲染專用登入解鎖畫面 (手機與電腦皆完美適配)
@@ -548,16 +548,15 @@ def check_password():
             pin_input = st.text_input(
                 "存取密碼 (PIN)",
                 type="password",
-                placeholder="請輸入密碼或特務金鑰",
-                help="訪客預設密碼為 8888；若持有最高指揮官專屬金鑰或 VIP 金鑰可直接在此輸入登入"
+                placeholder="請輸入密碼 (預設 8888)",
+                help="預設密碼為 8888；若持有最高指揮官專屬金鑰 (如 IvanCmdr#8899 或 7777) 可在此輸入登入"
             )
             remember_me = st.checkbox("保持登入狀態 (休眠喚醒或按 r 刷新不跳出)", value=True)
             submitted = st.form_submit_button("🔐 解鎖進入系統", use_container_width=True)
             if submitted:
-                clean_input = str(pin_input).strip()
-                if clean_input == SYSTEM_PIN:
+                clean_input = unicodedata.normalize('NFKC', str(pin_input)).strip()
+                if clean_input in [SYSTEM_PIN, "8888"]:
                     st.session_state["authenticated"] = True
-                    # 關鍵資安隔離：以 8888 登入者設為訪客模式，鎖定僅可查看主圖！
                     st.session_state["is_guest_8888"] = True
                     st.session_state["copilot_authenticated"] = False
                     st.session_state.pop("copilot_user", None)
@@ -574,14 +573,13 @@ def check_password():
                         st.session_state["is_guest_8888"] = False
                         st.session_state["copilot_authenticated"] = True
                         st.session_state["copilot_user"] = vip_info
-                        st.session_state["target_nav_menu"] = "🤖 實戰秘密特務 (操盤副駕駛)"
                         if remember_me:
                             st.session_state["current_pin"] = clean_input
                             st.query_params["pin"] = clean_input
                         st.rerun()
                     else:
-                        st.error("❌ 密碼錯誤，請重新輸入！")
-        st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:12px;'>🛡️ 端對端加密傳輸 · 支援訪客 (8888)、指揮官與 VIP 統一驗證</div>", unsafe_allow_html=True)
+                        st.error("❌ 密碼錯誤，請重新輸入！(預設密碼為 8888)")
+        st.markdown("<div style='text-align:center; color:#5A5E78; font-size:0.78rem; margin-top:12px;'>🛡️ 端對端加密傳輸 · 支援預設密碼 (8888)、指揮官與 VIP 統一驗證</div>", unsafe_allow_html=True)
 
     return False
 
@@ -1511,7 +1509,11 @@ is_guest = st.session_state.get("is_guest_8888", False)
 
 if is_guest:
     MENU_OPTIONS = [
-        "📊 個股技術分析 (轉折波主圖)"
+        "📊 個股技術分析 (轉折波主圖)",
+        "🎯 全攻略選股池 (多/空策略)",
+        "🛰️ 大盤同步·滯後補漲雷達",
+        "👁️ 晚間盤後功課 (鎖股名冊監控)",
+        "🧑‍🏫 AI 實戰操盤助教"
     ]
 else:
     MENU_OPTIONS = [
@@ -1532,7 +1534,7 @@ if st.session_state.get('goto_chart', False):
     st.session_state.nav_menu_radio = MENU_OPTIONS[0]
     st.session_state.goto_chart = False
 elif st.session_state.get('target_nav_menu', None):
-    if not is_guest and st.session_state.target_nav_menu in MENU_OPTIONS:
+    if st.session_state.target_nav_menu in MENU_OPTIONS:
         st.session_state.nav_menu_radio = st.session_state.target_nav_menu
     else:
         st.session_state.nav_menu_radio = MENU_OPTIONS[0]
@@ -1541,12 +1543,16 @@ elif st.session_state.get('target_nav_menu', None):
 st.sidebar.title("📈 技術分析全攻略")
 st.sidebar.caption("專業轉折波與波段趨勢操盤系統")
 
+menu = st.sidebar.radio(
+    "功能導航",
+    MENU_OPTIONS,
+    key="nav_menu_radio"
+)
+
 if is_guest:
-    menu = "📊 個股技術分析 (轉折波主圖)"
     st.sidebar.markdown(
-        "<div style='background:#1C1F2E; padding:8px 12px; border-radius:6px; border:1px solid #3B82F6; color:#93C5FD; font-size:0.82rem; margin-top:6px; margin-bottom:10px;'>"
-        "👤 <b>訪客模式 (8888)</b><br>"
-        "<span style='font-size:0.75rem; color:#94A3B8;'>僅開放「個股技術分析 (轉折波主圖)」功能，其餘高階選股、做功課與特務副駕駛功能均受權限保護。</span>"
+        "<div style='background:#1C1F2E; padding:6px 10px; border-radius:6px; border:1px solid #3B82F6; color:#93C5FD; font-size:0.78rem; margin-top:4px; margin-bottom:8px;'>"
+        "👤 <b>標準模式 (8888)</b> ｜ 操盤副駕駛與私人日誌受權限保護"
         "</div>",
         unsafe_allow_html=True
     )
@@ -1560,8 +1566,7 @@ if is_guest:
                 st.session_state["is_guest_8888"] = False
                 st.session_state["copilot_authenticated"] = True
                 st.session_state["copilot_user"] = u_info
-                st.session_state["nav_menu_radio"] = "📊 個股技術分析 (轉折波主圖)"
-                st.success(f"🎉 驗證成功！歡迎 {u_info.get('name')}，已解鎖全功能！")
+                st.success(f"🎉 驗證成功！歡迎 {u_info.get('name')}，已解鎖最高指揮官權限！")
                 st.rerun()
             else:
                 st.error("❌ 金鑰錯誤，請重新確認！")
@@ -1572,12 +1577,6 @@ if is_guest:
         st.session_state.clear()
         st.query_params.clear()
         st.rerun()
-else:
-    menu = st.sidebar.radio(
-        "功能導航",
-        MENU_OPTIONS,
-        key="nav_menu_radio"
-    )
 
     with st.sidebar.popover("📘 實戰操盤完全手冊", use_container_width=True):
         from core.app_guideline import render_app_guideline
