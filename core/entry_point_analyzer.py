@@ -238,11 +238,15 @@ def calculate_three_tier_entry(
         current_stage = "FIRST_LEG_RALLY"
         stage_code = 1
         stage_name = "🌱 第一腳反彈推升（等打第二腳）"
-        stage_verdict = f"低點 {b1_stop} 元起漲為初升第一波推升，目前尚未拉回打第二隻腳。短線正乖離已大不宜追高，耐心等待量縮拉回守穩 5MA/打第二隻腳再佈局！"
-        badge_text = "🌱 第一腳反彈 (等打腳)"
-        badge_html = "<span style='background:#1E293B; border:1px solid #64748B; color:#CBD5E1; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>🌱 第一腳反彈 (等打腳)</span>"
-        b1_info['status'] = "ACTIVE"
+        gain_pct = ((c - b1_stop) / (b1_stop + 1e-9)) * 100
+        stage_verdict = f"低點 {b1_stop:.2f} 元起漲為初升第一波推升（已漲 +{gain_pct:.1f}%），第一買點 ({b1_p:.2f}元) 已遠離！目前尚未拉回打第二隻腳，短線正乖離過大，現價切勿追價；手中有持股者安心續抱守 5MA，空手者耐心等待量縮拉回打出第二隻腳（底底高）再佈局！"
+        badge_text = "🌱 第一腳反彈 (勿追高)"
+        badge_html = "<span style='background:#1E293B; border:1px solid #64748B; color:#CBD5E1; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>🌱 第一腳反彈 (勿追高)</span>"
+        b1_info['status'] = "MISSED"
+        b1_info['position'] = f"買點已過（已大漲 +{gain_pct:.1f}%，切勿追高）"
+        b1_info['desc'] = f"當時 {b1_stop:.2f} 元止跌V型推升（第一腳反彈中，尚未拉回打第二隻腳）"
         b2_info['status'] = "WAITING"
+        b2_info['desc'] = f"盤中越過前高 {b2_p:.2f} 元，但尚未拉回打第二隻腳，多頭未完備，等回測打腳"
         b3_info['status'] = "WAITING"
 
     # 情況 C：標準多頭階梯流程 (已有底底高 B1 基礎)
@@ -289,6 +293,7 @@ def calculate_three_tier_entry(
 
     return {
         "current_stage": current_stage,
+        "current_price": round(c, 2),
         "stage_code": stage_code,
         "stage_name": stage_name,
         "stage_verdict": stage_verdict,
@@ -310,6 +315,7 @@ def render_three_tier_entry_dashboard(tier_info: dict):
     import streamlit as st
 
     c_stage = tier_info.get('current_stage', '')
+    curr_c = tier_info.get('current_price', 0.0)
     stage_name = tier_info.get('stage_name', '')
     stage_verdict = tier_info.get('stage_verdict', '')
     b1 = tier_info.get('b1') or {}
@@ -345,6 +351,11 @@ def render_three_tier_entry_dashboard(tier_info: dict):
                 f"<span style='background:#10B981; color:#000; font-weight:bold; padding:2px 7px; border-radius:4px; font-size:0.75rem;'>{default_active_name}</span>",
                 "border: 2px solid #10B981; background: rgba(16, 185, 129, 0.08); box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);"
             )
+        elif st_val == 'MISSED':
+            return (
+                f"<span style='background:#2A1B0E; border:1px solid #D97706; color:#FCD34D; font-weight:bold; padding:2px 6px; border-radius:4px; font-size:0.72rem;'>⌛ 買點已過 (勿追)</span>",
+                "border: 1px solid #78350F; background: #1A130B; opacity: 0.9;"
+            )
         elif st_val == 'PASSED':
             return (
                 f"<span style='background:#1E293B; border:1px solid #475569; color:#94A3B8; font-weight:bold; padding:2px 6px; border-radius:4px; font-size:0.72rem;'>✅ 已通過</span>",
@@ -360,7 +371,10 @@ def render_three_tier_entry_dashboard(tier_info: dict):
     b2_badge, b2_style = format_card_status(b2, "🔥 進行中 (黃金買點)")
     b3_badge, b3_style = format_card_status(b3, "🚀 進行中 (衝刺加碼)")
 
-    b1_price_str = f"{b1['price']:.2f} 元" if b1.get('price') else "未成形"
+    if b1.get('status') == 'MISSED':
+        b1_price_str = f"當時 {b1['price']:.2f} 元 <span style='font-size:0.8rem; color:#94A3B8;'>(現價 {curr_c:.2f})</span>"
+    else:
+        b1_price_str = f"{b1['price']:.2f} 元" if b1.get('price') else "未成形"
     b1_stop_str = f"破 {b1['stop_loss']:.2f} 停損" if b1.get('stop_loss') else "未成形"
 
     b2_price_str = f"{b2['price']:.2f} 元" if b2.get('price') else "未成形"
