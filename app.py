@@ -4165,19 +4165,126 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             if not final_display:
                 st.warning(f"在當前篩選下，暫無符合【{tier_filter_opt}】之標的。")
 
-        # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
-        st.session_state.browsing_stock_list = [item['code'] for item in final_display]
-        st.session_state.browsing_stock_names = {item['code']: item['name'] for item in final_display}
+        # 操盤手 3 大作戰區塊分流 (三動態水庫)
+        gold_buys = []
+        ambush_stocks = []
+        hold_stocks = []
 
-        if final_display:
-            cols = st.columns(2)
-            for idx, item in enumerate(final_display):
-                c = cols[idx % 2]
-                with c:
-                    render_stock_card(item, key_prefix=f"scr_{target_strategy}_{idx}", current_strategy=target_strategy)
-        else:
-            if not filter_safe_only:
-                st.info(f"目前在【{target_strategy}】條件下暫無符合標的，您可以切換其他子策略或放寬價格位階重新掃描。")
+        is_short_dir = (dir_val == "空")
+
+        for item in final_display:
+            sig = item.get('signals_dict') or {}
+            is_up = item.get('change', 0) >= 0
+            safety_str = str(item.get('safety_rating', ''))
+            is_safe = ("安全" in safety_str)
+            vol = float(item.get('volume', 0) or 0)
+            close_p = float(item.get('close', 0) or 0)
+            has_enough_vol = (vol >= 1000) or (close_p >= 300 and vol >= 300)
+
+            et_st = item.get('entry_tier_stage') or ''
+            is_missed = (et_st == 'FIRST_LEG_RALLY') or (sig.get('up_days', 1) >= 4)
+            is_fresh_trigger = (
+                (et_st in ['TIER_1', 'TIER_2']) or
+                sig.get('pullback_buy', False) or
+                sig.get('bottom_breakout', False) or
+                sig.get('ma_squeeze_breakout', False) or
+                item.get('box_range_breakout', False) or
+                item.get('is_fresh_trend_start', False) or
+                (sig.get('iron_man', False) and not is_missed)
+            )
+
+            if not is_short_dir:
+                # 做多三區塊分流
+                if is_up and is_safe and has_enough_vol and not is_missed and is_fresh_trigger and not sig.get('is_drop_5pct_warning', False):
+                    gold_buys.append(item)
+                elif not is_up and is_safe:
+                    ambush_stocks.append(item)
+                else:
+                    hold_stocks.append(item)
+            else:
+                # 做空三區塊分流
+                if (not is_up) and is_safe and has_enough_vol:
+                    gold_buys.append(item)
+                elif is_up and is_safe:
+                    ambush_stocks.append(item)
+                else:
+                    hold_stocks.append(item)
+
+        # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤 (優先排列純金買點)
+        priority_queue = gold_buys + ambush_stocks + hold_stocks
+        st.session_state.browsing_stock_list = [item['code'] for item in priority_queue]
+        st.session_state.browsing_stock_names = {item['code']: item['name'] for item in priority_queue}
+
+        tab_lbl1 = f"🏆 今日直接買進 · 純金標的 ({len(gold_buys)})" if not is_short_dir else f"🏆 今日直接放空 · 純金標的 ({len(gold_buys)})"
+        tab_lbl2 = f"💎 明日鎖股追蹤 · 伏兵蓄勢 ({len(ambush_stocks)})" if not is_short_dir else f"💎 明日放空鎖股 · 反彈測壓 ({len(ambush_stocks)})"
+        tab_lbl3 = f"🚀 波段行進續抱 · 切勿追高 ({len(hold_stocks)})" if not is_short_dir else f"📉 空方行進續抱 · 切勿抄底 ({len(hold_stocks)})"
+
+        t_gold, t_ambush, t_hold = st.tabs([tab_lbl1, tab_lbl2, tab_lbl3])
+
+        with t_gold:
+            if not is_short_dir:
+                st.markdown(
+                    "<div style='background:rgba(16, 185, 129, 0.12); border-left:4px solid #10B981; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#A7F3D0;'>"
+                    "🎯 <b>【區塊一 · 今日直接買進】</b>：滿足「今日收紅 K 表態 ＋ 🟢 安全首選 ＋ 成交量充足 ＋ 剛在起漲第 1 根（回後買上漲/突破起漲）」。<b>今日尾盤 13:20 或明日開盤可直接進場！</b>"
+                    "</div>", unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    "<div style='background:rgba(239, 68, 68, 0.12); border-left:4px solid #EF4444; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#FECDD3;'>"
+                    "🎯 <b>【區塊一 · 今日直接放空】</b>：滿足「今日長黑摜破 ＋ 🟢 安全及格 ＋ 放量初跌」。<b>今日尾盤 13:20 或明日開盤可直接放空！</b>"
+                    "</div>", unsafe_allow_html=True
+                )
+            if gold_buys:
+                cols = st.columns(2)
+                for idx, item in enumerate(gold_buys):
+                    with cols[idx % 2]:
+                        render_stock_card(item, key_prefix=f"gold_{target_strategy}_{idx}", current_strategy=target_strategy)
+            else:
+                st.info("💡 今日在此條件下暫無完全滿足『剛起漲＋零瑕疵綠燈＋紅K攻擊』之完美純金標的。<br><b>老朱實戰心法：寧可錯過，不可做錯！</b> 建議空手耐心觀望，或切換至【💎 明日鎖股追蹤】觀察蓄勢伏兵！")
+
+        with t_ambush:
+            if not is_short_dir:
+                st.markdown(
+                    "<div style='background:rgba(13, 148, 136, 0.12); border-left:4px solid #14B8A6; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#99F6E4;'>"
+                    "💎 <b>【區塊二 · 明日鎖股追蹤】</b>：結構健全之優質好股，今日拉回量縮呈現「綠辣椒」或回測 5MA/20MA 守穩未破。<b>今日絕不盲目急買，列為明日第一優先鎖股！次日出現「轉折紅K」即為最佳切入點！</b>"
+                    "</div>", unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    "<div style='background:rgba(217, 119, 6, 0.12); border-left:4px solid #D97706; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#FDE68A;'>"
+                    "💎 <b>【區塊二 · 明日放空鎖股】</b>：弱勢空方股今日微幅反彈，但受下彎均線壓制。<b>今日不躁進，等次日反彈無力出轉折黑K即為最佳放空點！</b>"
+                    "</div>", unsafe_allow_html=True
+                )
+            if ambush_stocks:
+                cols = st.columns(2)
+                for idx, item in enumerate(ambush_stocks):
+                    with cols[idx % 2]:
+                        render_stock_card(item, key_prefix=f"ambush_{target_strategy}_{idx}", current_strategy=target_strategy)
+            else:
+                st.info("目前無處於拉回量縮守線階段之鎖股標的。")
+
+        with t_hold:
+            if not is_short_dir:
+                st.markdown(
+                    "<div style='background:rgba(59, 130, 246, 0.12); border-left:4px solid #3B82F6; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#BFDBFE;'>"
+                    "🚀 <b>【區塊三 · 波段行進續抱】</b>：多頭架構行進中，但已連漲數日（買點已過）、或短線正乖離過大（帶有警訊）。<br>"
+                    "💼 <b>持股者指引</b>：手中有持股者安心續抱守 5MA 生命線，跌破 5MA 才停利；<br>"
+                    "🛒 <b>空手者指引</b>：<b>今日切勿追高</b>，耐心等待量縮拉回打腳後再進場！"
+                    "</div>", unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    "<div style='background:rgba(100, 116, 139, 0.12); border-left:4px solid #64748B; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#CBD5E1;'>"
+                    "📉 <b>【區塊三 · 空方行進續抱】</b>：空頭主跌段行進中。空單續抱守 5MA，多方切勿盲目猜底接刀！"
+                    "</div>", unsafe_allow_html=True
+                )
+            if hold_stocks:
+                cols = st.columns(2)
+                for idx, item in enumerate(hold_stocks):
+                    with cols[idx % 2]:
+                        render_stock_card(item, key_prefix=f"hold_{target_strategy}_{idx}", current_strategy=target_strategy)
+            else:
+                st.info("目前無處於波段行進續抱階段之標的。")
 
 # ----------------------------------------------------
 # 功能分頁：大盤同步 · 滯後補漲雷達 (Market Sync & Catch-Up Radar)
