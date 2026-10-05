@@ -12,5 +12,5 @@ enableXsrfProtection = false
 
 [client]
 toolbarMode = "minimal"
-showErrorDetails = "none"
+showErrorDetails = "full"
 

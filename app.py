@@ -11,6 +11,14 @@
 """
 
 import streamlit as st
+
+st.set_page_config(
+    page_title="技術分析全攻略 - 股票趨勢與轉折波系統",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -49,12 +57,12 @@ for _mod in _CORE_MODULES:
     _fpath = getattr(_mod, '__file__', None)
     if _fpath and os.path.exists(_fpath):
         _mtime = os.path.getmtime(_fpath)
-        if st.session_state._module_mtimes.get(_mod.__name__) != _mtime:
+        if st.session_state._module_mtimes.get(_mod.__name__) is not None and st.session_state._module_mtimes.get(_mod.__name__) != _mtime:
             try:
                 importlib.reload(_mod)
-                st.session_state._module_mtimes[_mod.__name__] = _mtime
             except Exception:
                 pass
+        st.session_state._module_mtimes[_mod.__name__] = _mtime
 
 from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, load_stock_list
 from core.gap_detector import detect_unfilled_gaps, apply_gaps_to_figure
@@ -91,15 +99,6 @@ from core.tracker import (
     record_recommendation, update_all_tracking_performance,
     get_performance_statistics, auto_record_daily_all_categories,
     delete_recommendation
-)
-
-
-
-st.set_page_config(
-    page_title="技術分析全攻略 - 股票趨勢與轉折波系統",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded"
 )
 
 st.markdown("""
