@@ -4175,6 +4175,7 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         for item in final_display:
             sig = item.get('signals_dict') or {}
             is_up = item.get('change', 0) >= 0
+            is_red_k = bool(item.get('is_red', is_up))
             safety_str = str(item.get('safety_rating', ''))
             is_safe = ("安全" in safety_str)
             vol = float(item.get('volume', 0) or 0)
@@ -4182,7 +4183,8 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             has_enough_vol = (vol >= 1000) or (close_p >= 300 and vol >= 300)
 
             et_st = item.get('entry_tier_stage') or ''
-            is_missed = (et_st == 'FIRST_LEG_RALLY') or (sig.get('up_days', 1) >= 4)
+            up_d = int(sig.get('up_days') or 0)
+            is_missed = (et_st == 'FIRST_LEG_RALLY') or (up_d >= 4)
             is_fresh_trigger = (
                 (et_st in ['TIER_1', 'TIER_2']) or
                 sig.get('pullback_buy', False) or
@@ -4195,17 +4197,21 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
             if not is_short_dir:
                 # 做多三區塊分流
-                if is_up and is_safe and has_enough_vol and not is_missed and is_fresh_trigger and not sig.get('is_drop_5pct_warning', False):
+                # 區塊一【今日直接買進】：滿足實體紅K/平盤站穩 + 🟢安全首選 + 成交量充足 + 新鮮買點(未連漲4天/未錯過第一腳) + 無暴跌假突破警訊
+                if is_up and is_red_k and is_safe and has_enough_vol and not is_missed and is_fresh_trigger and not sig.get('is_drop_5pct_warning', False):
                     gold_buys.append(item)
-                elif not is_up and is_safe:
+                elif (not is_up or not is_red_k) and is_safe:
+                    # 區塊二【明日鎖股追蹤】：結構健全之安全好股，今日拉回量縮(綠辣椒)或收黑測均線，今日不急買，列為明日優先鎖股！次日出轉折紅K過昨高即為買點！
                     ambush_stocks.append(item)
                 else:
+                    # 區塊三【波段行進續抱】：持股者續抱守5MA，或已連漲多日/帶有淘汰警訊，空手者切勿追高！
                     hold_stocks.append(item)
             else:
                 # 做空三區塊分流
-                if (not is_up) and is_safe and has_enough_vol:
+                is_black_k = not is_red_k or (item.get('change', 0) <= 0)
+                if is_black_k and is_safe and has_enough_vol:
                     gold_buys.append(item)
-                elif is_up and is_safe:
+                elif (not is_black_k) and is_safe:
                     ambush_stocks.append(item)
                 else:
                     hold_stocks.append(item)

@@ -384,6 +384,7 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "close": close_price,
                 "change": info['change'],
                 "change_pct": info['change_pct'],
+                "is_red": bool(recent_data[-1]['close'] >= recent_data[-1]['open']) if recent_data else bool(info['change'] >= 0),
                 "volume": info['volume'],
                 "volume_str": f"{int(info['volume']/1000):,} 張" if info['volume'] >= 1000 else f"{info['volume']} 股",
                 "trend_status": trend['trend_status'],

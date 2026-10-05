@@ -423,6 +423,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             up_days += 1
         else:
             break
+    signals_dict['up_days'] = up_days
 
     # 4. 前方 30 天爆量長黑排查
     heavy_black_ks = []
