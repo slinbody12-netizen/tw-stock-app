@@ -133,7 +133,20 @@ def calculate_quality_score(s):
     elif "嚴禁追高" in safety:
         score -= 50.0
 
-    # 2. 型態起漲權重
+    # 2. 老朱三層進場階梯起漲時效權重 (優先獎勵新鮮買點，避免推高檔已過買點)
+    et_st = s.get('entry_tier_stage') or ''
+    if et_st == 'TIER_2':
+        score += 35.0  # 第 2 買點：標準多頭確立 (黃金重倉進場點)
+    elif et_st == 'TIER_1':
+        score += 25.0  # 第 1 買點：底部轉折試單 (剛起漲新鮮點)
+    elif et_st == 'TIER_3':
+        score += 20.0  # 第 3 買點：大箱頂加速衝刺
+    elif et_st == 'FIRST_LEG_RALLY':
+        score -= 30.0  # 初升單腳急拉已遠離起漲點，等打第二腳，防止推薦追高
+    elif et_st == 'BOTTOMING':
+        score -= 35.0  # 探底觀望期，未見止跌紅K
+
+    # 3. 型態起漲權重
     if sig.get('iron_man', False):
         score += 35.0
     if sig.get('main_wave_2nd', False):

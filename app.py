@@ -1055,11 +1055,101 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
             f"</div>"
         )
 
-    # 老朱三層進場階梯戰法徽章與進場指引行
-    entry_tier_html = ""
+    # 提取核心精簡徽章 (最多 2~3 個，杜絕眼花)
+    core_badge_html = ""
+    if rank_badge:
+        if "No.1" in rank_badge:
+            core_badge_html += f"<span style='background:linear-gradient(135deg, #FF4D4F 0%, #FA8C16 100%); color:#FFFFFF; padding:2px 8px; border-radius:4px; font-size:0.82rem; font-weight:800; margin-right:4px;'>👑 {rank_badge}</span>"
+        elif "No.2" in rank_badge or "No.3" in rank_badge:
+            core_badge_html += f"<span style='background:linear-gradient(135deg, #D97706 0%, #F59E0B 100%); color:#FFFFFF; padding:2px 8px; border-radius:4px; font-size:0.82rem; font-weight:800; margin-right:4px;'>⭐ {rank_badge}</span>"
+        else:
+            core_badge_html += f"<span style='background:#23293E; color:#94A3B8; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; border:1px solid #3B4261;'>{rank_badge}</span>"
+
+    if is_iron_man:
+        core_badge_html += "<span style='background:linear-gradient(90deg, #D97706, #B45309); color:white; font-weight:bold; padding:2px 6px; border-radius:3px; font-size:0.76rem; margin-right:3px;'>🏆 無敵鐵金剛</span>"
+    elif sig.get('ma_squeeze_breakout') or (item.get('is_ma_squeeze_over_2m') and sig.get('flat_base_breakout')):
+        core_badge_html += "<span style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; font-weight:bold; padding:2px 6px; border-radius:3px; font-size:0.76rem; margin-right:3px;'>🌀 四線糾結突破</span>"
+    elif item.get('box_range_breakout') or sig.get('box_range_breakout'):
+        core_badge_html += "<span style='background:linear-gradient(90deg, #059669, #10B981); color:white; font-weight:bold; padding:2px 6px; border-radius:3px; font-size:0.76rem; margin-right:3px;'>📦 箱型大突破</span>"
+    elif item.get('main_wave_2nd') or sig.get('main_wave_2nd'):
+        core_badge_html += "<span style='background:linear-gradient(90deg, #1890FF, #722ED1); color:white; font-weight:bold; padding:2px 6px; border-radius:3px; font-size:0.76rem; margin-right:3px;'>🚀 主升第二波</span>"
+    elif item.get('is_turnover_success') or sig.get('is_turnover_success'):
+        core_badge_html += "<span style='background:linear-gradient(90deg, #FA541C, #F5222D); color:white; font-weight:bold; padding:2px 6px; border-radius:3px; font-size:0.76rem; margin-right:3px;'>🔥 換手成功</span>"
+    elif item.get('is_cons_over_2m') and trend_st.startswith("多頭趨勢"):
+        core_badge_html += "<span style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; font-weight:bold; padding:2px 6px; border-radius:3px; font-size:0.76rem; margin-right:3px;'>🔥 盤整破繭起漲</span>"
+    elif is_fresh_trend or (days_chg <= 4 and trend_st.startswith("多頭趨勢")):
+        core_badge_html += "<span style='background:linear-gradient(90deg, #16A34A, #22C55E); color:white; font-weight:bold; padding:2px 6px; border-radius:3px; font-size:0.76rem; margin-right:3px;'>🚀 剛轉多</span>"
+    elif pattern_badges:
+        core_badge_html += pattern_badges[0]['html']
+
+    if item.get('market') == 'TWO':
+        core_badge_html += "<span style='background:#722ED1; color:white; padding:1px 5px; border-radius:3px; font-size:0.72rem; margin-right:3px;'>櫃</span>"
+
+    # 提取核心起漲關鍵說明
+    if is_iron_man:
+        breakout_desc = "老朱旗艦無敵鐵金剛：底底高確立 ＋ 雙線翻揚 ＋ 站穩 5MA"
+    elif sig.get('ma_squeeze_breakout') or (item.get('is_ma_squeeze_over_2m') and sig.get('flat_base_breakout')):
+        sq_m = item.get('ma_squeeze_months') or 2.0
+        breakout_desc = f"四線在低檔平躺糾結逾 {sq_m} 個月，今日一箭穿心放量突破起漲第一根"
+    elif item.get('box_range_breakout') or sig.get('box_range_breakout') or sig.get('flat_base_breakout'):
+        breakout_desc = "放量一棒摜破箱型整理頂部，無上方套牢賣壓，主升段第 1 根"
+    elif item.get('main_wave_2nd') or sig.get('main_wave_2nd'):
+        breakout_desc = "強勢龍頭拉回守穩月線，今日放量過昨高展開主升第二波"
+    elif item.get('is_turnover_success') or sig.get('is_turnover_success'):
+        breakout_desc = "巨量洗盤後強勢收盤過高，新主力大單接手換手成功"
+    elif item.get('is_cons_over_2m') and trend_st.startswith("多頭趨勢"):
+        c_m = item.get('cons_duration_months', 2.0)
+        breakout_desc = f"底部密集打底逾 {c_m} 個月，籌碼沉澱徹底，首度破繭翻轉為多頭"
+    elif is_fresh_trend or (days_chg <= 4 and trend_st.startswith("多頭趨勢")):
+        breakout_desc = "走出「頭頭高、底底高」多頭架構，初升段起漲確立"
+    elif sig.get('pullback_buy'):
+        breakout_desc = "回後買上漲：回測均線支撐有守，轉折紅K發動"
+    elif not is_up and "安全" in safety_str:
+        breakout_desc = "💎 頂級鎖股伏兵：回檔呈現綠辣椒不破線，靜待轉折紅K進場"
+    elif trend_st.startswith("多頭趨勢"):
+        breakout_desc = "多頭架構行進，均線多頭排列支撐推升"
+    else:
+        breakout_desc = trend_st if trend_st else "常態波動整理"
+
+    # 老朱階梯買點決策
     et = item.get('entry_tier') or {}
-    et_stage = item.get('entry_tier_stage') or et.get('current_stage', '')
-    if et_stage and et_stage != "NONE":
+    et_st = item.get('entry_tier_stage') or et.get('current_stage', '')
+    if et_st == 'TIER_1':
+        b1_p = et.get('b1', {}).get('price', item['close'])
+        b1_s = et.get('b1', {}).get('stop_loss', item['close'] * 0.95)
+        tier_action_html = f"<span style='color:#10B981; font-weight:bold;'>🟢 第 1 買點【底部轉折試單】</span> (建議部位 10~20% ｜ 試單價約 {b1_p:.2f} 元 ｜ 破 {b1_s:.2f} 停損)"
+    elif et_st == 'TIER_2':
+        b2_p = et.get('b2', {}).get('price', item['close'])
+        b2_s = et.get('b2', {}).get('stop_loss', item['close'] * 0.95)
+        tier_action_html = f"<span style='color:#EF4444; font-weight:bold;'>🔥 第 2 買點【標準多頭確立】</span> (建議重倉 60~70% ｜ 黃金進場價約 {b2_p:.2f} 元 ｜ 破 {b2_s:.2f} 停損)"
+    elif et_st == 'TIER_3':
+        b3_p = et.get('b3', {}).get('price', item['close'])
+        tier_action_html = f"<span style='color:#8B5CF6; font-weight:bold;'>🚀 第 3 買點【波段加碼追價】</span> (順勢追價加碼 ｜ 突破 {b3_p:.2f} 元總攻)"
+    elif et_st == 'FIRST_LEG_RALLY':
+        tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⌛ 買點已過【切勿追高】</span> (單腳急拉已遠離起漲點，手中有股續抱守 5MA，空手者等打第2腳)"
+    elif et_st == 'BOTTOMING':
+        tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>🛑 探底觀望期【暫勿進場】</span> (尚未見底部止跌轉折紅K，耐心觀望)"
+    else:
+        tier_action_html = f"<span style='color:#CBD5E1;'>{et.get('stage_name', '波段推進中')}</span>"
+
+    # 風險防守與目標獲利空間
+    stop_p = swing.get('stop_loss', round(item['close'] * 0.95, 2))
+    risk_pct = swing.get('risk_pct', 5.0)
+    ma5_val = swing.get('ma5_defend', round(item['close'] * 0.97, 2))
+    target_p = swing.get('target_res', round(item['close'] * 1.10, 2))
+    reward_pct = swing.get('reward_pct', 10.0)
+    rr_ratio = swing.get('rr_ratio', 2.0)
+
+    risk_reward_html = (
+        f"🛑 <b>建議停損</b>：守 <b>{stop_p} 元</b> (-{risk_pct}%) ｜ "
+        f"🛡️ <b>生命線</b>：守 <b>5MA ({ma5_val} 元)</b> ｜ "
+        f"🏁 <b>短線目標</b>：上看 <b>{target_p} 元</b> (+{reward_pct}%) ｜ "
+        f"⚖️ <b>風報比</b>：<b>1 : {rr_ratio}</b>"
+    )
+
+    # 老朱三層進場階梯戰法徽章與進場指引行 (供展開詳細時使用)
+    entry_tier_html = ""
+    if et_st and et_st != "NONE":
         b_html = item.get('entry_tier_badge') or et.get('badge_html', '')
         v_text = item.get('entry_tier_verdict') or et.get('stage_verdict', '')
         entry_tier_html = (
@@ -1069,46 +1159,64 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
             f"</div>"
         )
 
+    # 渲染極簡 3 秒決策精簡卡片
     card_html = (
-        f'<div style="background:#1E202E; border:1px solid #33364D; border-radius:10px; padding:12px 14px; margin-bottom:4px;">'
-        f'<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
-        f'<div><span style="font-size:1.15rem; font-weight:bold; color:white;">{item["name"]}</span>'
-        f'<span style="color:#888; font-size:0.9rem; margin-left:4px;">{item["code"]}</span>'
-        f'<span style="margin-left:6px;">{badge_html}</span></div>'
+        f'<div style="background:#181A26; border:1px solid #2E334D; border-radius:10px; padding:12px 14px; margin-bottom:6px; box-shadow:0 3px 10px rgba(0,0,0,0.25);">'
+        f'<div style="display:flex; justify-content:space-between; align-items:center;">'
+        f'<div><span style="font-size:1.18rem; font-weight:bold; color:white;">{item["name"]}</span>'
+        f'<span style="color:#94A3B8; font-size:0.88rem; margin-left:4px;">{item["code"]}</span>'
+        f'<span style="margin-left:8px;">{core_badge_html}</span></div>'
         f'<div style="text-align:right;"><span style="font-size:1.25rem; font-weight:bold; color:{c_color};">{item["close"]:.2f}</span>'
         f'<span style="font-size:0.85rem; font-weight:bold; color:{c_color}; margin-left:4px;">{sign}{item["change"]:.2f} ({sign}{item["change_pct"]:.2f}%)</span></div>'
         f'</div>'
-        f'<div style="display:flex; justify-content:space-between; font-size:0.82rem; color:#AAA; margin:4px 0;">'
-        f'<div>產業：<b>{item["industry"]}</b> | 成交量：<b>{item["volume_str"]}</b>{per_str}</div><div>{chili_str}</div>'
+        f'<div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#94A3B8; margin:5px 0 8px 0; border-bottom:1px solid #232738; padding-bottom:6px;">'
+        f'<div>產業：<b style="color:#E2E8F0;">{item["industry"]}</b> ｜ 成交量：<b style="color:#E2E8F0;">{item["volume_str"]}</b>{per_str}</div>'
+        f'<div><span style="color:{safety_color}; font-weight:bold;">{safety}</span></div>'
         f'</div>'
-        f'<div style="display:flex; justify-content:space-between; font-size:0.82rem; margin-bottom:4px;">'
-        f'<div style="color:#99A;">{item.get("broker_info", "")}</div><div style="color:{safety_color}; font-weight:bold;">{safety}</div>'
+        f'<div style="background:#10131F; border-left:3.5px solid #3B82F6; border-radius:6px; padding:8px 10px; font-size:0.82rem; line-height:1.6;">'
+        f'<div style="color:#E2E8F0; margin-bottom:3px;">🎯 <b>起漲關鍵</b>：<span style="color:#F1F5F9; font-weight:600;">{breakout_desc}</span></div>'
+        f'<div style="margin-bottom:3px;">📍 <b>買點定位</b>：{tier_action_html}</div>'
+        f'<div style="color:#CBD5E1;">{risk_reward_html}</div>'
         f'</div>'
-        f'{cost_line_html}'
-        f'{entry_tier_html}'
-        f'{smart_k_html}'
-        f'{intraday_html}'
-        f'{lao_zhu_html}'
-        f'{lao_zhu_squeeze_html}'
-        f'<div style="font-size:0.8rem; color:#FFA94D; margin-bottom:2px;">{sup_text} | {res_text}</div>'
-        f'{safety_warn_html}'
-        f'{swing_html}'
-        f'{two_tr_html}'
         f'</div>'
     )
     st.markdown(card_html, unsafe_allow_html=True)
-            
-    fig_mini = render_mini_kline(item.get('recent_bars', []))
-    if fig_mini:
-        mini_config = {
-            'scrollZoom': False,             # 徹底禁止滾輪/手勢縮放，防止誤觸變形
-            'displayModeBar': False,          # 隱藏工具列，畫面乾淨
-            'doubleClick': 'reset',           # 雙擊瞬間復原置中視角
-            'responsive': True
-        }
-        st.plotly_chart(fig_mini, use_container_width=True, config=mini_config, key=f"mini_{key_prefix}_{item['code']}")
-        st.markdown("<div style='text-align:center; color:#6B7280; font-size:0.72rem; margin-top:-6px; margin-bottom:4px;'>↔️ 支援水平滑動查看近 60 日歷史 · 雙擊圖表重置視角</div>", unsafe_allow_html=True)
-        
+
+    # 展開詳細籌碼、主力外資成本、老朱戰法解析與 60 日 K 線圖
+    with st.expander(f"🔍 展開詳細籌碼、外資主力成本與 60 日 K 線 ({item['name']}) ▾", expanded=False):
+        if badge_html:
+            st.markdown(f"<div style='margin-bottom:6px;'><b>完整戰法標籤</b>：{badge_html}</div>", unsafe_allow_html=True)
+        if cost_line_html:
+            st.markdown(cost_line_html, unsafe_allow_html=True)
+        if entry_tier_html:
+            st.markdown(entry_tier_html, unsafe_allow_html=True)
+        if smart_k_html:
+            st.markdown(smart_k_html, unsafe_allow_html=True)
+        if intraday_html:
+            st.markdown(intraday_html, unsafe_allow_html=True)
+        if lao_zhu_html:
+            st.markdown(lao_zhu_html, unsafe_allow_html=True)
+        if lao_zhu_squeeze_html:
+            st.markdown(lao_zhu_squeeze_html, unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size:0.8rem; color:#FFA94D; margin:4px 0;">{sup_text} | {res_text}</div>', unsafe_allow_html=True)
+        if safety_warn_html:
+            st.markdown(safety_warn_html, unsafe_allow_html=True)
+        if swing_html:
+            st.markdown(swing_html, unsafe_allow_html=True)
+        if two_tr_html:
+            st.markdown(two_tr_html, unsafe_allow_html=True)
+
+        fig_mini = render_mini_kline(item.get('recent_bars', []))
+        if fig_mini:
+            mini_config = {
+                'scrollZoom': False,
+                'displayModeBar': False,
+                'doubleClick': 'reset',
+                'responsive': True
+            }
+            st.plotly_chart(fig_mini, use_container_width=True, config=mini_config, key=f"mini_{key_prefix}_{item['code']}")
+            st.caption("↔️ 支援水平滑動查看近 60 日歷史 · 雙擊圖表重置視角")
+
     c_btn1, c_btn2 = st.columns([1, 1])
     with c_btn1:
         if st.button("📊 載入主圖", key=f"btn_load_{key_prefix}_{item['code']}", use_container_width=True):
@@ -3569,72 +3677,147 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             df_sec = pd.DataFrame(sec_table_data)
             st.dataframe(df_sec, use_container_width=True, hide_index=True)
 
-    # 頂部控制列：母體範圍、操作方向與策略大類
-    col_u0, col_t1, col_t2 = st.columns([1.3, 1.8, 3.1])
-    with col_u0:
-        pool_scope = st.radio(
-            "🎯 篩選母體範圍",
-            ["🌐 全市場股票", "🔥 熱門優先 (量大/主流族群)"],
-            horizontal=True,
-            key="scr_pool_scope"
-        )
-        scope_val = "熱門優先" if "熱門" in pool_scope else "全市場"
-    with col_t1:
-        direction = st.radio("操作方向", ["🔴 做多 (Long)", "🟢 做空 (Short)", "🔄 趨勢翻轉 (剛變盤/多/空)"], horizontal=True, key="scr_direction")
-        if "做多" in direction:
-            dir_val = "多"
-        elif "做空" in direction:
-            dir_val = "空"
-        else:
-            dir_val = "翻轉"
-    with col_t2:
-        if dir_val == "多":
-            main_mode = st.radio(
-                "選股大類",
-                [
-                    "📈 波段策略 (起漲關鍵)",
-                    "🌊 主流族群飆股 (資金風口龍頭)",
-                    "🔥 量排行 (位置決定命運)",
-                    "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)",
-                    "⚡ 盤中強勢 (量價齊揚)",
-                    "💎 長抱標的 (長期多排)"
-                ],
-                horizontal=True,
-                key="scr_main_mode"
-            )
-        elif dir_val == "空":
-            main_mode = st.radio(
-                "選股大類 (做空)",
-                [
-                    "📉 波段策略 (起跌關鍵)",
-                    "⚡ 盤中弱勢 (跌破帶量)",
-                    "📊 盤中排行 (跌幅排行)",
-                    "🔥 量排行",
-                    "⏰ 12:40 - 13:30 尾盤一點鐘 (放空首選)"
-                ],
-                horizontal=True,
-                key="scr_main_mode_short"
-            )
-        else:
-            main_mode = st.radio(
-                "🔄 趨勢翻轉雷達 (近4日結構改變)",
-                [
-                    "🔄 全部趨勢翻轉 (剛變多+剛變空+剛變盤整)",
-                    "🌀 剛變多頭 (四線糾結逾2月 · 老朱翻倍飆股)",
-                    "🔥 剛變多頭 (盤整逾2月 · 老朱戰法·翻倍潛力)",
-                    "🚀 剛變多頭 (反轉轉多 · 突破前高/起漲)",
-                    "⚠️ 多頭轉弱預警 (頭未過高/逼近前低/破月線)",
-                    "🟡 剛變盤整 (空頭反彈過前高 / 多頭跌破整理)",
-                    "📉 剛變空頭 (反轉轉空 · 跌破前低/破線)"
-                ],
-                horizontal=True,
-                key="scr_main_mode_flip"
-            )
+    # 頂部控制列：模式切換 (極簡模式 vs 專家進階模式)
+    scr_mode_tabs = st.radio(
+        "🎯 選股模式切換",
+        ["⚡ 操盤手極簡起漲模式 (推薦·3鍵抓起漲賺錢股)", "🛠️ 專家自訂進階模式 (完整展開17大子策略/79族群/自訂條件)"],
+        horizontal=True,
+        key="scr_mode_tabs"
+    )
+    is_simple_mode = "極簡" in scr_mode_tabs
 
     selected_sector_filter = "全部"
     hot_sub_type = "綜合熱門"
+    target_strategy = "無敵鐵金剛"
+    scope_val = "熱門優先"
+    price_val = "全部"
+    dir_val = "多"
+    direction = "🔴 做多 (Long)"
 
-    if scope_val == "熱門優先":
+    if is_simple_mode:
+        col_s1, col_s2 = st.columns([1.5, 3.5])
+        with col_s1:
+            simple_dir = st.radio("操作方向", ["🔴 做多起漲 (Long)", "🟢 做空起跌 (Short)"], horizontal=True, key="scr_simp_dir")
+            dir_val = "多" if "做多" in simple_dir else "空"
+            direction = "🔴 做多 (Long)" if dir_val == "多" else "🟢 做空 (Short)"
+        with col_s2:
+            if dir_val == "多":
+                simp_strat = st.radio(
+                    "👑 老朱起漲王牌策略 (聚焦新鮮起漲第 1 根)",
+                    [
+                        "👑 無敵鐵金剛 (三線合一·勝率7~8成黃金起漲)",
+                        "🚀 剛轉多起漲 (盤整逾2月/四線糾結大突破)",
+                        "⏰ 尾盤一點鐘買點 (短線 3 至 5 天價差首選)",
+                        "🌊 資金風口主流龍頭 (Top 5 族群領頭羊)"
+                    ],
+                    horizontal=True,
+                    key="scr_simp_strat_long"
+                )
+                if "無敵鐵金剛" in simp_strat:
+                    target_strategy = "無敵鐵金剛"
+                    main_mode = "📈 波段策略 (起漲關鍵)"
+                    st.caption("💡 **無敵鐵金剛**：勝率 7~8 成旗艦戰法！轉折多頭確立（底底高＋頭頭高）＋ 5MA/20MA雙線翻揚 ＋ 今日紅K站穩5MA！")
+                elif "剛轉多" in simp_strat:
+                    target_strategy = "剛變多頭"
+                    dir_val = "翻轉"
+                    direction = "🔄 剛變多頭起漲"
+                    main_mode = "🔄 趨勢翻轉雷達 (近4日結構改變)"
+                    st.caption("💡 **剛轉多起漲**：專門抓取打底逾 2 個月破繭翻多、或四線黏合糾結一箭穿心之初升段起漲第一根！")
+                elif "尾盤一點鐘" in simp_strat:
+                    target_strategy = "一點鐘"
+                    main_mode = "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)"
+                    st.caption("💡 **尾盤一點鐘買點**：盤中量縮整理守均線，12:40~13:30 出攻擊量確認站穩進場，防當沖甩轎！")
+                else:
+                    target_strategy = "主流族群"
+                    main_mode = "🌊 主流族群飆股 (資金風口龍頭)"
+                    hot_sub_type = "TOP5_SECTOR"
+                    st.caption("💡 **資金風口主流龍頭**：全市場資金最集中的 Top 5 族群中，當日出量收紅站穩 5MA 之領漲龍頭！")
+            else:
+                simp_strat = st.radio(
+                    "📉 空方起跌核心策略",
+                    [
+                        "📉 剛轉空頭破線 (頭低底低·初跌段起跌)",
+                        "⚡ 盤中弱勢跌破 (跌破帶量)",
+                        "⏰ 尾盤一點鐘放空 (放空首選)"
+                    ],
+                    horizontal=True,
+                    key="scr_simp_strat_short"
+                )
+                if "剛轉空頭" in simp_strat:
+                    target_strategy = "剛變空頭"
+                    dir_val = "翻轉"
+                    direction = "🔄 剛變空頭破線"
+                    main_mode = "🔄 趨勢翻轉雷達 (近4日結構改變)"
+                elif "盤中弱勢" in simp_strat:
+                    target_strategy = "盤中弱勢"
+                    main_mode = "⚡ 盤中弱勢 (跌破帶量)"
+                else:
+                    target_strategy = "一點鐘"
+                    main_mode = "⏰ 12:40 - 13:30 尾盤一點鐘 (放空首選)"
+    else:
+        # 🛠️ 專家自訂進階模式 (保留完整細部篩選)
+        col_u0, col_t1, col_t2 = st.columns([1.3, 1.8, 3.1])
+        with col_u0:
+            pool_scope = st.radio(
+                "🎯 篩選母體範圍",
+                ["🌐 全市場股票", "🔥 熱門優先 (量大/主流族群)"],
+                horizontal=True,
+                key="scr_pool_scope"
+            )
+            scope_val = "熱門優先" if "熱門" in pool_scope else "全市場"
+        with col_t1:
+            direction = st.radio("操作方向", ["🔴 做多 (Long)", "🟢 做空 (Short)", "🔄 趨勢翻轉 (剛變盤/多/空)"], horizontal=True, key="scr_direction")
+            if "做多" in direction:
+                dir_val = "多"
+            elif "做空" in direction:
+                dir_val = "空"
+            else:
+                dir_val = "翻轉"
+        with col_t2:
+            if dir_val == "多":
+                main_mode = st.radio(
+                    "選股大類",
+                    [
+                        "📈 波段策略 (起漲關鍵)",
+                        "🌊 主流族群飆股 (資金風口龍頭)",
+                        "🔥 量排行 (位置決定命運)",
+                        "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)",
+                        "⚡ 盤中強勢 (量價齊揚)",
+                        "💎 長抱標的 (長期多排)"
+                    ],
+                    horizontal=True,
+                    key="scr_main_mode"
+                )
+            elif dir_val == "空":
+                main_mode = st.radio(
+                    "選股大類 (做空)",
+                    [
+                        "📉 波段策略 (起跌關鍵)",
+                        "⚡ 盤中弱勢 (跌破帶量)",
+                        "📊 盤中排行 (跌幅排行)",
+                        "🔥 量排行",
+                        "⏰ 12:40 - 13:30 尾盤一點鐘 (放空首選)"
+                    ],
+                    horizontal=True,
+                    key="scr_main_mode_short"
+                )
+            else:
+                main_mode = st.radio(
+                    "🔄 趨勢翻轉雷達 (近4日結構改變)",
+                    [
+                        "🔄 全部趨勢翻轉 (剛變多+剛變空+剛變盤整)",
+                        "🌀 剛變多頭 (四線糾結逾2月 · 老朱翻倍飆股)",
+                        "🔥 剛變多頭 (盤整逾2月 · 老朱戰法·翻倍潛力)",
+                        "🚀 剛變多頭 (反轉轉多 · 突破前高/起漲)",
+                        "⚠️ 多頭轉弱預警 (頭未過高/逼近前低/破月線)",
+                        "🟡 剛變盤整 (空頭反彈過前高 / 多頭跌破整理)",
+                        "📉 剛變空頭 (反轉轉空 · 跌破前低/破線)"
+                    ],
+                    horizontal=True,
+                    key="scr_main_mode_flip"
+                )
+
+    if not is_simple_mode and scope_val == "熱門優先":
         # 建立熱門子維度與 79 個細分產業族群選單
         sector_options = [
             "🔥 綜合熱門 (量大前50 + 主流風口 + 主力大買)",
@@ -3680,167 +3863,168 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     st.success(f"🎯 **已鎖定【{clean_sec}】族群**，請於下方挑選技術戰法！")
 
 
-    target_strategy = "全部"
-    if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode or "轉弱" in main_mode:
-        if "四線糾結" in main_mode:
-            target_strategy = "剛變多頭 (四線糾結逾2月)"
-            st.caption("🌀 **【老朱神技 · 四線糾結逾 2 個月大爆發】**：朱家泓老師經典心法：『**5/10/20/60MA 四線在低檔平躺糾結超過 2 個月，均線成本高度合一，放量一箭穿心突破，大漲且持續很久！**』專門抓取各週期主力成本一致洗盤極致、即將展開超級大多頭主升段的起漲第一根標的！")
-        elif "盤整逾2月" in main_mode or "老朱戰法" in main_mode:
-            target_strategy = "剛變多頭 (盤整逾2月)"
-            st.caption("🔥 **【老朱戰法 · 盤整超過2個月突然變多頭】**：老朱名言『**橫有多長，豎有多高！**』專門鎖定前段歷經 **2 個月以上（>=40 個交易日）** 密集箱型打底洗盤，近 4 日內**首度破繭突破翻轉為多頭架構**之翻倍潛力標的！籌碼極度沉澱、爆發續航力驚人！")
-        elif "轉弱預警" in main_mode:
-            target_strategy = "多頭轉弱預警"
-            st.caption("💡 **【⚠️ 多頭轉弱預警 (頭未過高 / 逼近前低 / 破月線)】**：多頭行進間提前捕捉破綻與風險！包含：反彈高點未過前高（轉盤整前兆）、股價逼近前低關鍵支撐、收盤跌破月線或高檔爆量長黑，協助您提早防守停利、避開回檔與趨勢翻轉！")
-        elif "剛變盤整" in main_mode:
-            target_strategy = "剛變盤整"
-            st.caption("💡 **【🟡 剛變盤整 (結構破壞整理)】**：鎖定近 4 個交易日內，原空頭架構被反彈突破前高破壞（如智邦 2345），或原多頭架構被回檔跌破前低破壞的個股！趨勢改變為盤整，代表舊趨勢告一段落，進入新一輪洗盤與方向醞釀！")
-        elif "剛變多頭" in main_mode:
-            target_strategy = "剛變多頭"
-            st.caption("💡 **【🚀 剛變多頭 (反轉轉多 · 突破起漲)】**：鎖定近 4 個交易日內，首度走出「**頭頭高、底底高**」完整多頭架構的起漲個股！為大波段多頭行情的初升段黃金發動點！")
-        elif "剛變空頭" in main_mode:
-            target_strategy = "剛變空頭"
-            st.caption("💡 **【📉 剛變空頭 (反轉轉空 · 破線下殺)】**：鎖定近 4 個交易日內，首度走出「**頭頭低、底底低**」完整空頭架構的初跌個股！多方持股者應提高警覺或紀律停損出場！")
-        else:
-            target_strategy = "全部趨勢翻轉"
-            st.caption("💡 **【🔄 全部趨勢翻轉雷達】**：一次列出全市場近 4 個交易日內發生結構轉變（**剛變多頭、剛變空頭、剛變盤整**）之所有個股，讓您即時掌握關鍵轉折時間點！")
-    elif "波段" in main_mode:
-        if dir_val == "多":
-            sub_strat = st.radio(
-                "波段核心子策略分類：",
-                [
-                    "🏆 無敵鐵金剛 (三線合一·高勝率旗艦)",
-                    "🚀 主升段第二波 (鎖一做二·飆股再發動)",
-                    "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)",
-                    "🔥 換手成功強勢股 (高檔爆量再創新高)",
-                    "⚡ 突破大量黑K高點 (飆股換手·突破起漲)",
-                    "📐 突破ABC修正切線 (短空做頭失敗反手多)",
-                    "📊 K線橫盤突破 (3天橫盤放量突破)",
-                    "🚀 突破上升軌道線 (多頭加速噴出)",
-                    "🐅 飆股智慧K線 (未破昨低續抱)",
-                    "👑 頭高底高 (六字訣多頭確認)",
-                    "🎯 回後準進場 (拉回測線有守·短線買點)",
-                    "🌀 均線糾結突破 (四線糾結起漲第一根)",
-                    "📦 一字底放量突破 (60天糾結·飆股第一根)",
-                    "🥣 圓弧底放量突破 (U型底慢火打底)",
-                    "🌱 底部起漲 (綜合底型突破)",
-                    "🚀 高檔起漲 (多頭突破再創高)",
-                    "⚔️ 雙線翻揚 (5MA/20MA 向上翻揚)"
-                ],
-                horizontal=True,
-                key="scr_sub_strat"
-            )
-            if "無敵鐵金剛" in sub_strat:
-                target_strategy = "無敵鐵金剛"
-                st.caption("💡 **無敵鐵金剛（三線合一）**：官方 App 勝率最高（7～8成）旗艦戰法！同時滿足「**轉折多頭確立（底底高＋頭頭高）** + **5MA/20MA雙線金叉翻揚** + **今日紅K站穩5MA**」。操盤紀律：**買進後守穩 5MA 一路續抱，跌破 5MA 立即紀律停利出場！**")
-            elif "主升段第二波" in sub_strat:
-                target_strategy = "主升段第二波"
-                st.caption("💡 **【主升段第二波戰法】鎖第一波，做第二波 (強勢飆股波段)**：鎖定第一波連噴 15%~30% 的市場龍頭，拉回洗盤跌破 5MA 但守穩月線 (20MA)，今日出放量紅K過昨高站回 5MA，為第二波主升段絕佳買點！")
-            elif "箱型整理大突破" in sub_strat or "箱型" in sub_strat:
-                target_strategy = "箱型整理大突破"
-                st.caption("💡 **【箱型整理大突破 (一棒過頂)】**：股價在 12~35 天箱型區間（振幅 12%~25%）反覆洗盤震盪蓄勢後，今日以**實體長紅放量一棒摜破過去一個月的箱頂壓力線**！主力洗盤換手完畢，上方無套牢賣壓，通常為**新一波波段主升段起漲第一根**！")
-            elif "換手成功" in sub_strat:
-                target_strategy = "換手成功"
-                st.caption("💡 **【高檔爆量換手成功】**：高檔爆大量黑K或變盤線後 3 天內，強勢收盤突破該爆量K棒最高點！主力洗盤換手完畢，新主力籌碼進駐續噴主升段！")
-            elif "突破大量黑K高點" in sub_strat:
-                target_strategy = "突破大量黑K高點"
-                st.caption("💡 **【突破大量黑K最高點 (飆股換手突破起漲)】**：強勢飆股在短線急漲後拉出巨量黑K棒洗盤，但主力籌碼極強，1~3天內立刻拉出大量紅K收盤實質突破該黑K最高點！這代表盤面籌碼被新主力全數接走換手成功，常展開大波段噴出行情！")
-            elif "突破ABC修正切線" in sub_strat:
-                target_strategy = "突破ABC修正切線"
-                st.caption("💡 **【突破 ABC 修正下降切線 (短空做頭失敗反手多)】**：多頭走勢中出現 20 天以內的 A-B-C 旗型向下修正（月線維持翻揚助漲），今日放量紅K收盤實質突破下降切線！短空做頭失敗，多頭趨勢重啟，可依 A-B 振幅計算等距波段目標價 D'！")
-            elif "K線橫盤突破" in sub_strat:
-                target_strategy = "K線橫盤突破"
-                st.caption("💡 **【K線橫盤突破 (3天橫盤放量突破)】**：連續 3 天收盤價皆未跌破第 1 天母K棒低點、亦未突破其高點（極狹幅震盪整理），第 4 天（或今日）放量紅K強勢突破該 3 天最高點並站穩 5MA！微觀結構轉折確立，為短線高勝率發動點！")
-            elif "突破上升軌道線" in sub_strat:
-                target_strategy = "突破上升軌道線"
-                st.caption("💡 **【突破上升軌道線 (多頭加速噴出)】**：股價沿著上升切線與平行軌道線穩健走多，今日帶量大紅K強勢衝破上升軌道線上緣！代表多頭力道暴增，由常態通道轉為主升段加速噴出！")
-            elif "智慧K線" in sub_strat:
-                target_strategy = "智慧K線續抱"
-                st.caption("💡 **【飆股智慧 K 線交易法 (未破昨低續抱)】**：鎖定強勢大漲股，只要每日收盤未跌破前一日最低價即一路抱牢奔跑！每日 13:20 檢視，若確認跌破前一日最低價則果斷賣出，讓利潤最大化同時嚴控回檔風險！")
-            elif "頭高底高" in sub_strat:
-                target_strategy = "頭高底高"
-                st.caption("💡 **選股 vs 鎖股分工**：此處【👑 頭高底高】是「**六字訣多頭確立、5MA走升且站穩5MA**」之強勢多頭名單。")
-            elif "回後準進場" in sub_strat:
-                target_strategy = "回後準進場"
-                st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
-            elif "均線糾結突破" in sub_strat:
-                target_strategy = "均線糾結突破"
-                st.caption("💡 **【四線高度糾結突破】**：5MA、10MA、20MA、60MA 四線在低檔平躺糾結 1~3 個月後，首度放量長紅一口氣突破四線！**大師實戰心法**：糾結突破爆發力極大（常翻 2~3 倍），第一天沒買到沒關係，**次日若未漲停鎖死，開平或小漲趕快買進**！")
-            elif "一字底" in sub_strat:
-                target_strategy = "一字底"
-                st.caption("💡 **【一字底放量突破 (60天糾結·飆股第一根)】**：股價在 30~60 天極狹幅區間（振幅 <= 12%~15%）內反覆洗盤，5/10/20/60MA 四線平躺糾結，今日長紅放量一棒摜破箱頂頸線！上方浮額洗淨、萬里無雲，通常為大波段翻倍飆股的主升第一根！")
-            elif "圓弧底" in sub_strat:
-                target_strategy = "圓弧底"
-                st.caption("💡 **【圓弧底慢火打底 (U型底·突破或翻揚)】**：左側緩跌量縮、中央平坦打底（洗淨浮額）、右側溫和量增推升，形成對稱 U 型弧線。包含兩大實戰買點：(1) **放量過頸線起漲**（帶量突破左右水平頸線，等距對稱波發動）；(2) **慢火打底右側翻揚**（凹槽打底完成，脫離底部 3%~5% 站上 5MA/20MA 走平翻揚起步）！")
-            elif "底部起漲" in sub_strat:
-                target_strategy = "底部起漲"
-            elif "高檔起漲" in sub_strat:
-                target_strategy = "高檔起漲"
-            elif "雙線翻揚" in sub_strat:
-                target_strategy = "雙線翻揚"
-        else:
-            sub_strat = st.radio(
-                "空方波段核心子策略分類：",
-                [
-                    "👑 頭低底低 (六字訣空頭確認)",
-                    "🎯 彈後準進場 (反彈測線無力·短線空點)",
-                    "⚡ 跌破大量紅K低點 (弱勢反彈破底)",
-                    "📐 跌破反彈ABC切線 (短多做底失敗反手空)",
-                    "📊 K線橫盤跌破 (3天橫盤長黑摜破)",
-                    "📉 跌破下降軌道線 (空頭加速趕底)",
-                    "🌀 均線糾結跌破 (四線空排初跌)",
-                    "🛑 頂部起跌 (高檔頭部成形·首度跌破)",
-                    "📉 低檔起跌 (破底續跌·弱勢續殺)",
-                    "⚔️ 雙線死亡交叉 (5MA/20MA 雙線下彎走空)"
-                ],
-                horizontal=True,
-                key="scr_sub_strat_short"
-            )
-            st.caption("💡 **做空實戰心法**：【🎯 彈後準進場】是「**反彈測線無力、今日轉折黑K跌破5MA、12:40 - 13:30 可進場放空**」的黃金空點名單！")
-            if "頭低底低" in sub_strat:
-                target_strategy = "頭低底低"
-            elif "彈後準進場" in sub_strat:
-                target_strategy = "彈後準進場"
-            elif "跌破大量紅K低點" in sub_strat:
-                target_strategy = "跌破大量紅K低點"
-                st.caption("💡 **【跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱)】**：空頭下跌趨勢中出現爆量紅K弱勢反彈，隨後 1~3 天內即被長黑摜破該反彈紅K最低點！代表搶反彈浮額全面套牢，空頭慣性強勢重啟，為黃金空點！")
-            elif "跌破反彈ABC切線" in sub_strat:
-                target_strategy = "跌破反彈ABC切線"
-                st.caption("💡 **【跌破反彈 ABC 上升切線 (短多做底失敗重回主跌)】**：空頭下跌中出現 20 天以內 A-B-C 三波弱勢反彈（受下彎月線壓制），今日放量黑K摜破上升切線與 B 點低點！短多做底失敗重回主跌段，可測等距下跌目標價！")
-            elif "K線橫盤跌破" in sub_strat:
-                target_strategy = "K線橫盤跌破"
-                st.caption("💡 **【K線橫盤跌破 (3天橫盤長黑摜破)】**：下跌行進中連續 3 天狹幅震盪未過高亦未破低，第 4 天長黑跌破橫盤最低點且 5MA 翻黑下彎！弱勢盤整表態，空方續殺發動！")
-            elif "跌破下降軌道線" in sub_strat:
-                target_strategy = "跌破下降軌道線"
-                st.caption("💡 **【跌破下降軌道線 (空頭加速趕底)】**：空頭沿下降軌道線緩步下跌，今日放量中長黑貫穿下軌道線！代表恐慌性拋補湧現，空頭轉強加速趕底！")
-            elif "均線糾結跌破" in sub_strat:
-                target_strategy = "均線糾結跌破"
-                st.caption("💡 **【均線糾結跌破 (四線空排)】**：高檔平台四線糾結後長黑摜破，均線全面展開呈現 5MA < 10MA < 20MA < 60MA 全數下彎（如講義波若威 3163 崩跌）！**操盤實戰心法**：波段做空守 20MA (月線) 一路抱到底，做多者必須立即全數清倉！")
-            elif "頂部起跌" in sub_strat:
-                target_strategy = "頂部起跌"
-            elif "低檔起跌" in sub_strat:
-                target_strategy = "低檔起跌"
-            elif "雙線死亡交叉" in sub_strat:
-                target_strategy = "雙線死亡交叉"
-    elif "主流族群" in main_mode:
-        target_strategy = "主流族群"
-        st.caption("💡 **【全市場主流族群飆股】**：鎖定全市場資金佔比最高、板塊集體大漲的 **Top 5 主流族群**（如半導體/IC、航運業、AI硬體等），並優先精選其中具有**轉折起漲紅K、操盤線走升且站穩 5MA** 之領頭龍頭股！")
-    elif "長抱" in main_mode:
-        target_strategy = "長抱"
-    elif "強勢" in main_mode:
-        target_strategy = "盤中強勢"
-    elif "弱勢" in main_mode:
-        target_strategy = "盤中弱勢"
-    elif "一點鐘" in main_mode:
-        target_strategy = "一點鐘"
-    elif "盤中排行" in main_mode:
-        target_strategy = "盤中排行"
-    elif "量排行" in main_mode:
-        target_strategy = "量排行"
-        st.caption("💡 **量排行實戰心法（位置決定命運）**：成交量代表主力足跡。若在**低檔起漲放量出紅 K**，為主力建倉進場攻擊量；若在**波段高檔漲多後爆出天量**，為主力短線倒貨出場點，**嚴禁盲目追高**！")
-
-    # 價格分級篩選
-    p_filter = st.radio("價格位階篩選", ["全部", "低價 (<30)", "中價 (30-100)", "高價 (100-300)", "超高 (>300)"], horizontal=True, key="scr_price_filter")
-    price_val = p_filter.split()[0]
+    if not is_simple_mode:
+        target_strategy = "全部"
+        if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode or "轉弱" in main_mode:
+            if "四線糾結" in main_mode:
+                target_strategy = "剛變多頭 (四線糾結逾2月)"
+                st.caption("🌀 **【老朱神技 · 四線糾結逾 2 個月大爆發】**：朱家泓老師經典心法：『**5/10/20/60MA 四線在低檔平躺糾結超過 2 個月，均線成本高度合一，放量一箭穿心突破，大漲且持續很久！**』專門抓取各週期主力成本一致洗盤極致、即將展開超級大多頭主升段的起漲第一根標的！")
+            elif "盤整逾2月" in main_mode or "老朱戰法" in main_mode:
+                target_strategy = "剛變多頭 (盤整逾2月)"
+                st.caption("🔥 **【老朱戰法 · 盤整超過2個月突然變多頭】**：老朱名言『**橫有多長，豎有多高！**』專門鎖定前段歷經 **2 個月以上（>=40 個交易日）** 密集箱型打底洗盤，近 4 日內**首度破繭突破翻轉為多頭架構**之翻倍潛力標的！籌碼極度沉澱、爆發續航力驚人！")
+            elif "轉弱預警" in main_mode:
+                target_strategy = "多頭轉弱預警"
+                st.caption("💡 **【⚠️ 多頭轉弱預警 (頭未過高 / 逼近前低 / 破月線)】**：多頭行進間提前捕捉破綻與風險！包含：反彈高點未過前高（轉盤整前兆）、股價逼近前低關鍵支撐、收盤跌破月線或高檔爆量長黑，協助您提早防守停利、避開回檔與趨勢翻轉！")
+            elif "剛變盤整" in main_mode:
+                target_strategy = "剛變盤整"
+                st.caption("💡 **【🟡 剛變盤整 (結構破壞整理)】**：鎖定近 4 個交易日內，原空頭架構被反彈突破前高破壞（如智邦 2345），或原多頭架構被回檔跌破前低破壞的個股！趨勢改變為盤整，代表舊趨勢告一段落，進入新一輪洗盤與方向醞釀！")
+            elif "剛變多頭" in main_mode:
+                target_strategy = "剛變多頭"
+                st.caption("💡 **【🚀 剛變多頭 (反轉轉多 · 突破起漲)】**：鎖定近 4 個交易日內，首度走出「**頭頭高、底底高**」完整多頭架構的起漲個股！為大波段多頭行情的初升段黃金發動點！")
+            elif "剛變空頭" in main_mode:
+                target_strategy = "剛變空頭"
+                st.caption("💡 **【📉 剛變空頭 (反轉轉空 · 破線下殺)】**：鎖定近 4 個交易日內，首度走出「**頭頭低、底底低**」完整空頭架構的初跌個股！多方持股者應提高警覺或紀律停損出場！")
+            else:
+                target_strategy = "全部趨勢翻轉"
+                st.caption("💡 **【🔄 全部趨勢翻轉雷達】**：一次列出全市場近 4 個交易日內發生結構轉變（**剛變多頭、剛變空頭、剛變盤整**）之所有個股，讓您即時掌握關鍵轉折時間點！")
+        elif "波段" in main_mode:
+            if dir_val == "多":
+                sub_strat = st.radio(
+                    "波段核心子策略分類：",
+                    [
+                        "🏆 無敵鐵金剛 (三線合一·高勝率旗艦)",
+                        "🚀 主升段第二波 (鎖一做二·飆股再發動)",
+                        "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)",
+                        "🔥 換手成功強勢股 (高檔爆量再創新高)",
+                        "⚡ 突破大量黑K高點 (飆股換手·突破起漲)",
+                        "📐 突破ABC修正切線 (短空做頭失敗反手多)",
+                        "📊 K線橫盤突破 (3天橫盤放量突破)",
+                        "🚀 突破上升軌道線 (多頭加速噴出)",
+                        "🐅 飆股智慧K線 (未破昨低續抱)",
+                        "👑 頭高底高 (六字訣多頭確認)",
+                        "🎯 回後準進場 (拉回測線有守·短線買點)",
+                        "🌀 均線糾結突破 (四線糾結起漲第一根)",
+                        "📦 一字底放量突破 (60天糾結·飆股第一根)",
+                        "🥣 圓弧底放量突破 (U型底慢火打底)",
+                        "🌱 底部起漲 (綜合底型突破)",
+                        "🚀 高檔起漲 (多頭突破再創高)",
+                        "⚔️ 雙線翻揚 (5MA/20MA 向上翻揚)"
+                    ],
+                    horizontal=True,
+                    key="scr_sub_strat"
+                )
+                if "無敵鐵金剛" in sub_strat:
+                    target_strategy = "無敵鐵金剛"
+                    st.caption("💡 **無敵鐵金剛（三線合一）**：官方 App 勝率最高（7～8成）旗艦戰法！同時滿足「**轉折多頭確立（底底高＋頭頭高）** + **5MA/20MA雙線金叉翻揚** + **今日紅K站穩5MA**」。操盤紀律：**買進後守穩 5MA 一路續抱，跌破 5MA 立即紀律停利出場！**")
+                elif "主升段第二波" in sub_strat:
+                    target_strategy = "主升段第二波"
+                    st.caption("💡 **【主升段第二波戰法】鎖第一波，做第二波 (強勢飆股波段)**：鎖定第一波連噴 15%~30% 的市場龍頭，拉回洗盤跌破 5MA 但守穩月線 (20MA)，今日出放量紅K過昨高站回 5MA，為第二波主升段絕佳買點！")
+                elif "箱型整理大突破" in sub_strat or "箱型" in sub_strat:
+                    target_strategy = "箱型整理大突破"
+                    st.caption("💡 **【箱型整理大突破 (一棒過頂)】**：股價在 12~35 天箱型區間（振幅 12%~25%）反覆洗盤震盪蓄勢後，今日以**實體長紅放量一棒摜破過去一個月的箱頂壓力線**！主力洗盤換手完畢，上方無套牢賣壓，通常為**新一波波段主升段起漲第一根**！")
+                elif "換手成功" in sub_strat:
+                    target_strategy = "換手成功"
+                    st.caption("💡 **【高檔爆量換手成功】**：高檔爆大量黑K或變盤線後 3 天內，強勢收盤突破該爆量K棒最高點！主力洗盤換手完畢，新主力籌碼進駐續噴主升段！")
+                elif "突破大量黑K高點" in sub_strat:
+                    target_strategy = "突破大量黑K高點"
+                    st.caption("💡 **【突破大量黑K最高點 (飆股換手突破起漲)】**：強勢飆股在短線急漲後拉出巨量黑K棒洗盤，但主力籌碼極強，1~3天內立刻拉出大量紅K收盤實質突破該黑K最高點！這代表盤面籌碼被新主力全數接走換手成功，常展開大波段噴出行情！")
+                elif "突破ABC修正切線" in sub_strat:
+                    target_strategy = "突破ABC修正切線"
+                    st.caption("💡 **【突破 ABC 修正下降切線 (短空做頭失敗反手多)】**：多頭走勢中出現 20 天以內的 A-B-C 旗型向下修正（月線維持翻揚助漲），今日放量紅K收盤實質突破下降切線！短空做頭失敗，多頭趨勢重啟，可依 A-B 振幅計算等距波段目標價 D'！")
+                elif "K線橫盤突破" in sub_strat:
+                    target_strategy = "K線橫盤突破"
+                    st.caption("💡 **【K線橫盤突破 (3天橫盤放量突破)】**：連續 3 天收盤價皆未跌破第 1 天母K棒低點、亦未突破其高點（極狹幅震盪整理），第 4 天（或今日）放量紅K強勢突破該 3 天最高點並站穩 5MA！微觀結構轉折確立，為短線高勝率發動點！")
+                elif "突破上升軌道線" in sub_strat:
+                    target_strategy = "突破上升軌道線"
+                    st.caption("💡 **【突破上升軌道線 (多頭加速噴出)】**：股價沿著上升切線與平行軌道線穩健走多，今日帶量大紅K強勢衝破上升軌道線上緣！代表多頭力道暴增，由常態通道轉為主升段加速噴出！")
+                elif "智慧K線" in sub_strat:
+                    target_strategy = "智慧K線續抱"
+                    st.caption("💡 **【飆股智慧 K 線交易法 (未破昨低續抱)】**：鎖定強勢大漲股，只要每日收盤未跌破前一日最低價即一路抱牢奔跑！每日 13:20 檢視，若確認跌破前一日最低價則果斷賣出，讓利潤最大化同時嚴控回檔風險！")
+                elif "頭高底高" in sub_strat:
+                    target_strategy = "頭高底高"
+                    st.caption("💡 **選股 vs 鎖股分工**：此處【👑 頭高底高】是「**六字訣多頭確立、5MA走升且站穩5MA**」之強勢多頭名單。")
+                elif "回後準進場" in sub_strat:
+                    target_strategy = "回後準進場"
+                    st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
+                elif "均線糾結突破" in sub_strat:
+                    target_strategy = "均線糾結突破"
+                    st.caption("💡 **【四線高度糾結突破】**：5MA、10MA、20MA、60MA 四線在低檔平躺糾結 1~3 個月後，首度放量長紅一口氣突破四線！**大師實戰心法**：糾結突破爆發力極大（常翻 2~3 倍），第一天沒買到沒關係，**次日若未漲停鎖死，開平或小漲趕快買進**！")
+                elif "一字底" in sub_strat:
+                    target_strategy = "一字底"
+                    st.caption("💡 **【一字底放量突破 (60天糾結·飆股第一根)】**：股價在 30~60 天極狹幅區間（振幅 <= 12%~15%）內反覆洗盤，5/10/20/60MA 四線平躺糾結，今日長紅放量一棒摜破箱頂頸線！上方浮額洗淨、萬里無雲，通常為大波段翻倍飆股的主升第一根！")
+                elif "圓弧底" in sub_strat:
+                    target_strategy = "圓弧底"
+                    st.caption("💡 **【圓弧底慢火打底 (U型底·突破或翻揚)】**：左側緩跌量縮、中央平坦打底（洗淨浮額）、右側溫和量增推升，形成對稱 U 型弧線。包含兩大實戰買點：(1) **放量過頸線起漲**（帶量突破左右水平頸線，等距對稱波發動）；(2) **慢火打底右側翻揚**（凹槽打底完成，脫離底部 3%~5% 站上 5MA/20MA 走平翻揚起步）！")
+                elif "底部起漲" in sub_strat:
+                    target_strategy = "底部起漲"
+                elif "高檔起漲" in sub_strat:
+                    target_strategy = "高檔起漲"
+                elif "雙線翻揚" in sub_strat:
+                    target_strategy = "雙線翻揚"
+            else:
+                sub_strat = st.radio(
+                    "空方波段核心子策略分類：",
+                    [
+                        "👑 頭低底低 (六字訣空頭確認)",
+                        "🎯 彈後準進場 (反彈測線無力·短線空點)",
+                        "⚡ 跌破大量紅K低點 (弱勢反彈破底)",
+                        "📐 跌破反彈ABC切線 (短多做底失敗反手空)",
+                        "📊 K線橫盤跌破 (3天橫盤長黑摜破)",
+                        "📉 跌破下降軌道線 (空頭加速趕底)",
+                        "🌀 均線糾結跌破 (四線空排初跌)",
+                        "🛑 頂部起跌 (高檔頭部成形·首度跌破)",
+                        "📉 低檔起跌 (破底續跌·弱勢續殺)",
+                        "⚔️ 雙線死亡交叉 (5MA/20MA 雙線下彎走空)"
+                    ],
+                    horizontal=True,
+                    key="scr_sub_strat_short"
+                )
+                st.caption("💡 **做空實戰心法**：【🎯 彈後準進場】是「**反彈測線無力、今日轉折黑K跌破5MA、12:40 - 13:30 可進場放空**」的黃金空點名單！")
+                if "頭低底低" in sub_strat:
+                    target_strategy = "頭低底低"
+                elif "彈後準進場" in sub_strat:
+                    target_strategy = "彈後準進場"
+                elif "跌破大量紅K低點" in sub_strat:
+                    target_strategy = "跌破大量紅K低點"
+                    st.caption("💡 **【跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱)】**：空頭下跌趨勢中出現爆量紅K弱勢反彈，隨後 1~3 天內即被長黑摜破該反彈紅K最低點！代表搶反彈浮額全面套牢，空頭慣性強勢重啟，為黃金空點！")
+                elif "跌破反彈ABC切線" in sub_strat:
+                    target_strategy = "跌破反彈ABC切線"
+                    st.caption("💡 **【跌破反彈 ABC 上升切線 (短多做底失敗重回主跌)】**：空頭下跌中出現 20 天以內 A-B-C 三波弱勢反彈（受下彎月線壓制），今日放量黑K摜破上升切線與 B 點低點！短多做底失敗重回主跌段，可測等距下跌目標價！")
+                elif "K線橫盤跌破" in sub_strat:
+                    target_strategy = "K線橫盤跌破"
+                    st.caption("💡 **【K線橫盤跌破 (3天橫盤長黑摜破)】**：下跌行進中連續 3 天狹幅震盪未過高亦未破低，第 4 天長黑跌破橫盤最低點且 5MA 翻黑下彎！弱勢盤整表態，空方續殺發動！")
+                elif "跌破下降軌道線" in sub_strat:
+                    target_strategy = "跌破下降軌道線"
+                    st.caption("💡 **【跌破下降軌道線 (空頭加速趕底)】**：空頭沿下降軌道線緩步下跌，今日放量中長黑貫穿下軌道線！代表恐慌性拋補湧現，空頭轉強加速趕底！")
+                elif "均線糾結跌破" in sub_strat:
+                    target_strategy = "均線糾結跌破"
+                    st.caption("💡 **【均線糾結跌破 (四線空排)】**：高檔平台四線糾結後長黑摜破，均線全面展開呈現 5MA < 10MA < 20MA < 60MA 全數下彎（如講義波若威 3163 崩跌）！**操盤實戰心法**：波段做空守 20MA (月線) 一路抱到底，做多者必須立即全數清倉！")
+                elif "頂部起跌" in sub_strat:
+                    target_strategy = "頂部起跌"
+                elif "低檔起跌" in sub_strat:
+                    target_strategy = "低檔起跌"
+                elif "雙線死亡交叉" in sub_strat:
+                    target_strategy = "雙線死亡交叉"
+        elif "主流族群" in main_mode:
+            target_strategy = "主流族群"
+            st.caption("💡 **【全市場主流族群飆股】**：鎖定全市場資金佔比最高、板塊集體大漲的 **Top 5 主流族群**（如半導體/IC、航運業、AI硬體等），並優先精選其中具有**轉折起漲紅K、操盤線走升且站穩 5MA** 之領頭龍頭股！")
+        elif "長抱" in main_mode:
+            target_strategy = "長抱"
+        elif "強勢" in main_mode:
+            target_strategy = "盤中強勢"
+        elif "弱勢" in main_mode:
+            target_strategy = "盤中弱勢"
+        elif "一點鐘" in main_mode:
+            target_strategy = "一點鐘"
+        elif "盤中排行" in main_mode:
+            target_strategy = "盤中排行"
+        elif "量排行" in main_mode:
+            target_strategy = "量排行"
+            st.caption("💡 **量排行實戰心法（位置決定命運）**：成交量代表主力足跡。若在**低檔起漲放量出紅 K**，為主力建倉進場攻擊量；若在**波段高檔漲多後爆出天量**，為主力短線倒貨出場點，**嚴禁盲目追高**！")
+    
+        # 價格分級篩選
+        p_filter = st.radio("價格位階篩選", ["全部", "低價 (<30)", "中價 (30-100)", "高價 (100-300)", "超高 (>300)"], horizontal=True, key="scr_price_filter")
+        price_val = p_filter.split()[0]
 
     if scope_val == "熱門優先":
         if selected_sector_filter != "全部":
