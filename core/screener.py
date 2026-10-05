@@ -21,6 +21,7 @@ from core.data_fetcher import load_stock_list, fetch_stock_kline, batch_fetch_re
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
+from core.entry_point_analyzer import calculate_three_tier_entry
 
 BROKER_NAMES = ["台灣摩根", "凱基台北", "元大", "富邦", "國泰敦南", "美商高盛", "統一", "永豐金", "華南永昌"]
 
@@ -268,6 +269,7 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
             points, _, highest, lowest = calculate_turning_points(df, ma_period=5)
             trend = analyze_trend(df, points)
             signals_dict, signals_list = detect_signals(df, trend)
+            entry_tier = calculate_three_tier_entry(df, points, trend, signals_dict)
 
             close_price = info['close']
             stage = signals_dict.get('watchlist_stage', '觀察中')
@@ -450,7 +452,14 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                 "smart_kline_safe": signals_dict.get('smart_kline_safe', True),
                 "smart_kline_defend": signals_dict.get('smart_kline_defend', 0.0),
                 "smart_kline_exit_warning": signals_dict.get('smart_kline_exit_warning', False),
-                "breakout_stage": signals_dict.get('breakout_stage', '')
+                "breakout_stage": signals_dict.get('breakout_stage', ''),
+                "entry_tier": entry_tier,
+                "entry_tier_stage": entry_tier.get('current_stage', 'NONE'),
+                "entry_tier_code": entry_tier.get('stage_code', 0),
+                "entry_tier_name": entry_tier.get('stage_name', ''),
+                "entry_tier_badge": entry_tier.get('badge_html', ''),
+                "entry_tier_text": entry_tier.get('badge_text', ''),
+                "entry_tier_verdict": entry_tier.get('stage_verdict', '')
             }
             stock_record['quality_score'] = calculate_quality_score(stock_record)
             analyzed.append(stock_record)

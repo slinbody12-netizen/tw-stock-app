@@ -32,13 +32,15 @@ import core.tracker
 import core.market_sync
 import core.pattern_geometry
 import core.gap_detector
+import core.entry_point_analyzer
 
 # 智慧動態重載：僅在檔案實際被修改 (mtime 改變) 時才 reload，避免使用者每次點選控制項都銷毀快取重算
 _CORE_MODULES = [
     core.data_fetcher, core.wave_engine, core.trend_analyzer,
     core.signal_detector, core.screener, core.sector_radar,
     core.ai_assistant, core.copilot, core.tracker,
-    core.market_sync, core.pattern_geometry, core.gap_detector
+    core.market_sync, core.pattern_geometry, core.gap_detector,
+    core.entry_point_analyzer
 ]
 if '_module_mtimes' not in st.session_state:
     st.session_state._module_mtimes = {}
@@ -68,6 +70,7 @@ from core.market_sync import (
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals, categorize_signals
+from core.entry_point_analyzer import calculate_three_tier_entry, render_three_tier_entry_dashboard
 from core.screener import scan_stocks, load_speedy_chips, get_all_analyzed_stocks
 from core.sector_radar import calculate_sector_heat_rankings, get_stock_sector_info, get_sector_heat_rankings
 from core.ai_assistant import answer_question, extract_target_symbol, extract_date_from_query, diagnose_stock_deeply, get_daily_market_briefing
@@ -1052,6 +1055,20 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
             f"</div>"
         )
 
+    # 老朱三層進場階梯戰法徽章與進場指引行
+    entry_tier_html = ""
+    et = item.get('entry_tier') or {}
+    et_stage = item.get('entry_tier_stage') or et.get('current_stage', '')
+    if et_stage and et_stage != "NONE":
+        b_html = item.get('entry_tier_badge') or et.get('badge_html', '')
+        v_text = item.get('entry_tier_verdict') or et.get('stage_verdict', '')
+        entry_tier_html = (
+            f"<div style='display:flex; align-items:flex-start; background:#111827; border:1px solid #1F2937; border-left:3px solid #3B82F6; border-radius:5px; padding:6px 9px; margin:5px 0; font-size:0.79rem; line-height:1.45;'>"
+            f"<div style='margin-right:7px; flex-shrink:0;'>{b_html}</div>"
+            f"<div style='color:#E2E8F0;'>{v_text}</div>"
+            f"</div>"
+        )
+
     card_html = (
         f'<div style="background:#1E202E; border:1px solid #33364D; border-radius:10px; padding:12px 14px; margin-bottom:4px;">'
         f'<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
@@ -1068,6 +1085,7 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         f'<div style="color:#99A;">{item.get("broker_info", "")}</div><div style="color:{safety_color}; font-weight:bold;">{safety}</div>'
         f'</div>'
         f'{cost_line_html}'
+        f'{entry_tier_html}'
         f'{smart_k_html}'
         f'{intraday_html}'
         f'{lao_zhu_html}'
@@ -1865,9 +1883,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 two_tr = signals_dict.get('two_tranches', {})
                 if two_tr.get('advice'):
                     st.info(f"💡 **【買兩張（長短配）實戰操盤指引】**：{two_tr['advice']}")
-            if trend['alerts']:
-                for alert in trend['alerts']:
-                    st.warning(alert)
+            # 老朱三層進場階梯戰法 (Three-Tier Entry Hierarchy) 操盤導航看板
+            entry_tier = calculate_three_tier_entry(df, points, trend, signals_dict)
+            render_three_tier_entry_dashboard(entry_tier)
+
             if signals_list:
                 render_strategy_signals_dashboard(signals_list, signals_dict, trend, info)
 
@@ -1910,12 +1929,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             show_stop = r1_c8.checkbox("🛑 停損/移動停利線", value=True, key=f"t1_stop_{query}")
             show_gap = r1_c9.checkbox("🕳️ 缺口色帶", value=True, key=f"t1_gap_{query}")
 
-            # 第二行：AI 型態幾何作圖專屬控制列
-            r2_c1, r2_c2 = st.columns([3.2, 3.8])
-            show_geometry = r2_c1.checkbox("📐 顯示 AI 型態幾何線 (ABC切線/一字底/圓弧底/軌道線)", value=True, key=f"t1_geom_{query}")
+            # 第二行：AI 型態幾何與老朱三層買點專屬控制列
+            r2_c1, r2_c2, r2_c3 = st.columns([3.2, 3.2, 2.6])
+            show_geometry = r2_c1.checkbox("📐 顯示 AI 型態幾何線 (切線/箱型/軌道)", value=True, key=f"t1_geom_{query}")
+            show_entry_tiers = r2_c2.checkbox("🎯 顯示老朱三層買點線 (B1/B2/B3)", value=True, key=f"t1_tiers_{query}")
             if show_geometry and pattern_geo.get("patterns_found"):
                 p_options = [p["name"] for p in pattern_geo["patterns_found"]]
-                chosen_pname = r2_c2.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
+                chosen_pname = r2_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
                 p_match = next((p for p in pattern_geo["patterns_found"] if p["name"] == chosen_pname), None)
                 if p_match:
                     pattern_geo["active_pattern"] = p_match
@@ -2088,6 +2108,23 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 elif rec_sl_plot > 0:
                     shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=rec_sl_plot, y1=rec_sl_plot, line=dict(color="#FF4D4F", width=1.8, dash="dot"), layer="below"))
                     annos1.append(dict(x=x_max, y=rec_sl_plot, xref="x", yref="y", text=f" 🛑 停損 {rec_sl_plot:.2f} (-{ch7_sl_plot.get('risk_pct')}%) ", showarrow=False, bgcolor="#FF4D4F", font=dict(color="white", size=10), xanchor="left", xshift=22))
+
+            if show_entry_tiers and entry_tier:
+                b1_data = entry_tier.get('b1', {})
+                b2_data = entry_tier.get('b2', {})
+                b3_data = entry_tier.get('b3', {})
+                b1_stop = b1_data.get('stop_loss')
+                b2_price = b2_data.get('price')
+                b3_price = b3_data.get('price')
+                if b1_stop and b1_stop > 0:
+                    shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=b1_stop, y1=b1_stop, line=dict(color="#10B981", width=1.5, dash="dot"), layer="below"))
+                    annos1.append(dict(x=x_max, y=b1_stop, xref="x", yref="y", text=f" 🟢 B1試單防守 {b1_stop:.2f} ", showarrow=False, bgcolor="#064E3B", font=dict(color="#A7F3D0", size=10, family="Arial Black"), xanchor="left", xshift=22))
+                if b2_price and b2_price > 0:
+                    shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=b2_price, y1=b2_price, line=dict(color="#F59E0B", width=1.8), layer="below"))
+                    annos1.append(dict(x=x_max, y=b2_price, xref="x", yref="y", text=f" 🔥 B2標準頸線 {b2_price:.2f} ", showarrow=False, bgcolor="#78350F", font=dict(color="#FDE68A", size=10, family="Arial Black"), xanchor="left", xshift=22))
+                if b3_price and b3_price > 0 and b3_price != b2_price:
+                    shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=b3_price, y1=b3_price, line=dict(color="#8B5CF6", width=1.8, dash="dash"), layer="below"))
+                    annos1.append(dict(x=x_max, y=b3_price, xref="x", yref="y", text=f" 🚀 B3突破加碼 {b3_price:.2f} ", showarrow=False, bgcolor="#4C1D95", font=dict(color="#DDD6FE", size=10, family="Arial Black"), xanchor="left", xshift=22))
 
             # 副圖：成交量 + 20MA量線
             vol_colors = ['#FF4D4F' if df.loc[k, 'Close'] >= df.loc[k, 'Open'] else '#2F9E44' for k in range(len(df))]
@@ -3905,16 +3942,23 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         active_tag = st.session_state.get('screener_last_tag', scope_tag)
         active_strat = st.session_state.get('screener_last_strat', target_strategy)
 
-        col_stat1, col_stat2 = st.columns([3, 2])
+        col_stat1, col_stat2, col_stat3 = st.columns([2.5, 1.3, 1.8])
         with col_stat1:
             st.markdown(f"**掃描結果（{active_tag}）：符合【{active_strat}】共 `{len(results)}` 檔標的**")
             st.caption(f"💡 **助教安全把關**：🟢 安全首選 `{safe_count}` 檔 ｜ 🟡 警訊注意 `{caution_count}` 檔 ｜ 🔴 嚴禁追高/已淘汰 `{danger_count}` 檔")
         with col_stat2:
             filter_safe_only = st.toggle(
-                "🛡️ 僅看【🟢 安全首選】(自動隱藏淘汰與警訊股)",
+                "🛡️ 僅看【🟢 安全首選】",
                 value=False,
                 key=f"filter_safe_only_{target_strategy}",
                 help="開啟後，系統會自動剔除被 14 大淘汰法淘汰、綠色辣椒或帶有警訊之標的，只保留純金首選！"
+            )
+        with col_stat3:
+            tier_filter_opt = st.selectbox(
+                "🎯 依老朱進場階梯篩選：",
+                ["全部階梯", "🟢 第 1 買點 (底部試單)", "🔥 第 2 買點 (標準多頭)", "🚀 第 3 買點 (加碼追價)", "🌱 第一腳反彈推升", "🛑 探底觀望期"],
+                index=0,
+                key=f"tier_filter_{target_strategy}"
             )
 
         final_display = results
@@ -3922,6 +3966,20 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             final_display = [s for s in results if "安全" in s.get('safety_rating', '')]
             if not final_display:
                 st.warning(f"在【{target_strategy}】中，目前暫無符合【🟢 安全首選】之完美標的（現有標的皆帶有淘汰瑕疵或警訊，建議空手觀望或切換其他策略）。")
+
+        if tier_filter_opt != "全部階梯":
+            if "第 1 買點" in tier_filter_opt:
+                final_display = [s for s in final_display if s.get('entry_tier_stage') == 'TIER_1']
+            elif "第 2 買點" in tier_filter_opt:
+                final_display = [s for s in final_display if s.get('entry_tier_stage') == 'TIER_2']
+            elif "第 3 買點" in tier_filter_opt:
+                final_display = [s for s in final_display if s.get('entry_tier_stage') == 'TIER_3']
+            elif "第一腳反彈" in tier_filter_opt:
+                final_display = [s for s in final_display if s.get('entry_tier_stage') == 'FIRST_LEG_RALLY']
+            elif "探底觀望" in tier_filter_opt:
+                final_display = [s for s in final_display if s.get('entry_tier_stage') == 'BOTTOMING']
+            if not final_display:
+                st.warning(f"在當前篩選下，暫無符合【{tier_filter_opt}】之標的。")
 
         # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
         st.session_state.browsing_stock_list = [item['code'] for item in final_display]
