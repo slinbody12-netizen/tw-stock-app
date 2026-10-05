@@ -611,7 +611,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # 操作紀律：買進後守穩 5MA 一路續抱，跌破 5MA 立即紀律停利出場！
     # ----------------------------------------------------
     is_20ma_rising = (sma20 >= prev_sma20 * 0.998)
-    if is_bull and sma5 >= sma20 and is_5ma_rising and is_20ma_rising and is_red and (c >= sma5):
+    is_5ma_turning = is_5ma_rising or (c >= sma5 and sma5 >= prev_sma5 * 0.985) or (sma20 >= prev_sma20 and c >= sma5)
+    if is_bull and sma5 >= sma20 and is_5ma_turning and is_20ma_rising and is_red and (c >= sma5):
         signals_dict['iron_man'] = True
         signals.append("🏆 無敵鐵金剛 (多頭確立+雙線翻揚+今日紅K站上5MA)")
 
