@@ -47,3 +47,4 @@ tunnel_url.txt
 data/cache/
 *.log
 *.pkl
+!data/screener_snapshot.pkl

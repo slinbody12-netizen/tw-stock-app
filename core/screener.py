@@ -15,6 +15,8 @@
 
 import os
 import time
+import pickle
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import numpy as np
 from core.data_fetcher import load_stock_list, fetch_stock_kline, batch_fetch_realtime_quotes
@@ -22,6 +24,9 @@ from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
 from core.entry_point_analyzer import calculate_three_tier_entry
+
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+SNAPSHOT_FILE = os.path.join(DATA_DIR, "screener_snapshot.pkl")
 
 BROKER_NAMES = ["台灣摩根", "凱基台北", "元大", "富邦", "國泰敦南", "美商高盛", "統一", "永豐金", "華南永昌"]
 
@@ -237,251 +242,222 @@ def calculate_quality_score(s):
 
     return round(float(score), 1)
 
-def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
+def _analyze_single_stock(item, realtime_map, chips_map):
     """
-    載入並分析全市場股票清單，結果快取於記憶體中 (盤中即時快取 60 秒，盤後快取 300 秒)
+    單一股票深度技術分析與訊號偵測 (支援並行運算)
     """
-    global _ANALYZED_STOCKS_CACHE, _LAST_CACHE_TIME
-    now = time.time()
-    cache_ttl = 60 if enable_realtime else 300
-
+    code = item['code']
     try:
-        import streamlit as st
-        if not force_refresh and 'cached_analyzed_stocks' in st.session_state:
-            _c_data, _c_time = st.session_state['cached_analyzed_stocks']
-            if (now - _c_time) < cache_ttl and _c_data:
-                return _c_data
+        q_live = realtime_map.get(code)
+        df, info = fetch_stock_kline(code, period="6mo", enable_realtime=bool(realtime_map), realtime_quote=q_live)
+        if df.empty or len(df) < 15:
+            return None
+
+        points, _, highest, lowest = calculate_turning_points(df, ma_period=5)
+        trend = analyze_trend(df, points)
+        signals_dict, signals_list = detect_signals(df, trend)
+        entry_tier = calculate_three_tier_entry(df, points, trend, signals_dict)
+
+        close_price = info['close']
+        stage = signals_dict.get('watchlist_stage', '觀察中')
+
+        # 擷取最近 60 天 K 線縮圖資料 (支援左右水平滑動平移查看完整波段)
+        sub_recent = df.iloc[-60:].copy() if len(df) >= 60 else df.copy()
+        recent_data = []
+        for _, r in sub_recent.iterrows():
+            recent_data.append({
+                "date": r['Date'].strftime('%m/%d'),
+                "open": round(float(r['Open']), 2),
+                "high": round(float(r['High']), 2),
+                "low": round(float(r['Low']), 2),
+                "close": round(float(r['Close']), 2),
+                "sma5": round(float(r.get('SMA_5', r['Close'])), 2),
+                "sma20": round(float(r.get('SMA_20', r['Close'])), 2)
+            })
+
+        # 操盤線 5MA 即時狀態
+        last_r = df.iloc[-1]
+        prev_r = df.iloc[-2] if len(df) > 1 else last_r
+        cur_sma5 = float(last_r.get('SMA_5', close_price))
+        prev_sma5 = float(prev_r.get('SMA_5', cur_sma5))
+        is_5ma_rising = cur_sma5 >= prev_sma5
+        above_5ma = close_price >= cur_sma5
+
+        # SpeedyAI 官方真實籌碼整合
+        real_chips = chips_map.get(code, {})
+        mf = real_chips.get('mf', 0)
+        fi = real_chips.get('fi', 0)
+        it = real_chips.get('it', 0)
+
+        # 5日與3日成交量加權均價 VWAP (大戶主力與外資建倉成本均價)
+        if len(df) >= 5:
+            sub5 = df.iloc[-5:]
+            major_cost = round(float((sub5['Volume'] * sub5['Close']).sum() / (sub5['Volume'].sum() + 1e-9)), 2)
+            sub3 = df.iloc[-3:]
+            foreign_cost = round(float((sub3['Volume'] * sub3['Close']).sum() / (sub3['Volume'].sum() + 1e-9)), 2)
+        else:
+            major_cost = round(float(df['Close'].mean()), 2)
+            foreign_cost = major_cost
+
+        cost_diff_pct = round(((close_price - major_cost) / (major_cost + 1e-9)) * 100, 2)
+        if cost_diff_pct < -1.5:
+            cost_badge = f"🔥 比主力便宜 {abs(cost_diff_pct):.1f}%"
+            cost_status = "比主力便宜"
+            cost_desc = f"現價比大戶成本便宜 {abs(cost_diff_pct):.1f}%，防守安全邊際極高！"
+            cost_color = "#52C41A"
+        elif cost_diff_pct <= 1.5:
+            cost_badge = f"🟢 貼近主力成本 ({cost_diff_pct:+.1f}%)"
+            cost_status = "貼近主力成本"
+            cost_desc = f"與大戶主力同成本區間 ({cost_diff_pct:+.1f}%)，同甘共苦安心抱！"
+            cost_color = "#52C41A"
+        elif cost_diff_pct <= 4.0:
+            cost_badge = f"🟡 略高主力成本 (+{cost_diff_pct:.1f}%)"
+            cost_status = "略高於主力"
+            cost_desc = f"略高於大戶成本 (+{cost_diff_pct:.1f}%)，初升推升段守 5MA。"
+            cost_color = "#FAAD14"
+        else:
+            cost_badge = f"⚠️ 高於主力成本 (+{cost_diff_pct:.1f}%)"
+            cost_status = "顯著高於主力"
+            cost_desc = f"已高於大戶成本 (+{cost_diff_pct:.1f}%)，主力已獲利，防拉回不追高！"
+            cost_color = "#FF4D4F"
+
+        # 盤中強勢戰術分類 (突破即進場 vs 盤整先鎖股等 1:00)
+        res_val = trend.get('resistance', 0) or (close_price * 1.05)
+        is_breakout = (close_price >= res_val * 0.998) or signals_dict.get('bottom_breakout', False) or signals_dict.get('high_breakout', False) or signals_dict.get('flat_base_breakout', False)
+
+        if is_breakout and is_5ma_rising and above_5ma and info.get('change_pct', 0) >= 0.5:
+            intraday_status = "🚀 盤整突破剛起漲 (可即刻進場)"
+            intraday_action = "放量突破前高壓力線！尾盤 1:00~1:25 確認收紅可即刻進場操作。"
+            intraday_tag = "突破起漲"
+        elif signals_dict.get('is_consolidation', False) or (close_price < res_val * 0.998 and abs(close_price - res_val)/(res_val + 1e-9) <= 0.05):
+            intraday_status = "⏳ 盤整等突破 (先鎖股等1:00)"
+            intraday_action = "受制於前高壓力線尚未突破，先列入鎖股名單，每日 1:00 觀察是否出量突破再進！"
+            intraday_tag = "盤整等突破"
+        else:
+            intraday_status = "📈 強勢推升中"
+            intraday_action = "多頭型態沿 5MA 操盤線上攻，守穩 5MA 續抱。"
+            intraday_tag = "強勢推升"
+
+        if code in chips_map and (mf != 0 or fi != 0 or it != 0):
+            mf_sign = "+" if mf >= 0 else ""
+            broker_str = f"主力大單 {mf_sign}{mf:,} 張 | 外資 {fi:+,} | 投信 {it:+,}"
+        else:
+            broker_seed = int(code[:4]) if code[:4].isdigit() else 1234
+            broker_name = BROKER_NAMES[broker_seed % len(BROKER_NAMES)]
+            buyer_vol = int(info['volume'] * ((broker_seed % 25 + 15) / 1000.0))
+            buyer_vol = max(25, buyer_vol)
+            broker_str = f"{broker_name} {buyer_vol:,} 張 (均 {major_cost})"
+
+        stock_record = {
+            "code": item['code'],
+            "name": item['name'],
+            "market": item.get('market', 'TW'),
+            "industry": item.get('industry', '一般類股'),
+            "has_futures": item.get('has_futures', real_chips.get('has_fut', False)),
+            "has_cb": item.get('has_cb', real_chips.get('has_cb', False)),
+            "close": close_price,
+            "change": info['change'],
+            "change_pct": info['change_pct'],
+            "is_red": bool(recent_data[-1]['close'] >= recent_data[-1]['open']) if recent_data else bool(info['change'] >= 0),
+            "volume": info['volume'],
+            "volume_str": f"{int(info['volume']/1000):,} 張" if info['volume'] >= 1000 else f"{info['volume']} 股",
+            "trend_status": trend['trend_status'],
+            "trend_badge": trend['trend_badge'],
+            "trend_color": trend['trend_color'],
+            "trend_change_date": trend.get('trend_change_date_str', ''),
+            "days_since_change": trend.get('days_since_change', 99),
+            "is_fresh_change": trend.get('is_fresh_change', False),
+            "major_trend_date": trend.get('major_trend_date_str', ''),
+            "days_since_major": trend.get('days_since_major', 99),
+            "is_fresh_trend_start": trend.get('is_fresh_trend_start', False),
+            "swing_rebound_date": trend.get('swing_rebound_date_str', ''),
+            "days_since_rebound": trend.get('days_since_rebound', 99),
+            "is_fresh_rebound": trend.get('is_fresh_rebound', False),
+            "cons_duration_bars": trend.get('cons_duration_bars', 0),
+            "cons_duration_months": trend.get('cons_duration_months', 0.0),
+            "cons_start_date": trend.get('cons_start_date_str', ''),
+            "cons_box_low": trend.get('cons_box_low', 0.0),
+            "cons_box_high": trend.get('cons_box_high', 0.0),
+            "cons_amp_pct": trend.get('cons_amp_pct', 0.0),
+            "is_cons_over_2m": trend.get('is_cons_over_2m', False),
+            "ma_squeeze_bars": signals_dict.get('ma_squeeze_bars', 0),
+            "ma_squeeze_months": signals_dict.get('ma_squeeze_months', 0.0),
+            "is_ma_squeeze_over_2m": signals_dict.get('is_ma_squeeze_over_2m', False),
+            "support": trend.get('support'),
+            "resistance": trend.get('resistance'),
+            "target": trend.get('target'),
+            "reversal_warnings": trend.get('reversal_warnings', []),
+            "top_warning_badge": trend.get('top_warning_badge', ''),
+            "top_warning_detail": trend.get('top_warning_detail', ''),
+            "has_reversal_warning": trend.get('has_reversal_warning', False),
+            "signals": signals_list,
+            "signals_dict": signals_dict,
+            "watchlist_stage": stage,
+            "safety_rating": signals_dict.get('safety_rating', '🟢 安全首選'),
+            "safety_reasons": signals_dict.get('safety_reasons', []),
+            "chili_count": signals_dict.get('chili_count', 1),
+            "broker_info": broker_str,
+            "major_cost": major_cost,
+            "foreign_cost": foreign_cost,
+            "cost_diff_pct": cost_diff_pct,
+            "cost_badge": cost_badge,
+            "cost_status": cost_status,
+            "cost_desc": cost_desc,
+            "cost_color": cost_color,
+            "intraday_status": intraday_status,
+            "intraday_action": intraday_action,
+            "intraday_tag": intraday_tag,
+            "speedy_mf": mf,
+            "recent_bars": recent_data,
+            "sma5": round(cur_sma5, 2),
+            "prev_sma5": round(prev_sma5, 2),
+            "is_5ma_rising": is_5ma_rising,
+            "above_5ma": above_5ma,
+            "is_day_trading_forbidden": real_chips.get('is_day_trading_forbidden', False),
+            "in_attention": real_chips.get('in_attention', False),
+            "in_disposal": real_chips.get('in_disposal', False),
+            "per": real_chips.get('per', 0.0),
+            "eps": real_chips.get('eps', 0.0),
+            "is_bull": trend.get('higher_highs', False) and trend.get('higher_lows', False),
+            "is_bear": trend.get('lower_highs', False) and trend.get('lower_lows', False),
+            "iron_man": signals_dict.get('iron_man', False),
+            "main_wave_2nd": signals_dict.get('main_wave_2nd', False),
+            "box_range_breakout": signals_dict.get('box_range_breakout', False),
+            "is_turnover_success": signals_dict.get('is_turnover_success', False),
+            "is_false_breakout_dump": signals_dict.get('is_false_breakout_dump', False),
+            "is_attack_vol": signals_dict.get('is_attack_vol', False),
+            "is_stop_fall_vol": signals_dict.get('is_stop_fall_vol', False),
+            "is_volume_price_divergence": signals_dict.get('is_volume_price_divergence', False),
+            "elimination_info": signals_dict.get('elimination_info', {"is_eliminated": False, "reasons": []}),
+            "volume_tag": signals_dict.get('volume_tag', '常態量'),
+            "volume_status": signals_dict.get('volume_status', '常態量'),
+            "vol_ratio": signals_dict.get('vol_ratio', 1.0),
+            "disposal_tactic": (
+                "高檔處置" if (signals_dict.get('is_multi_bagger') or signals_dict.get('volume_tag') == '高檔爆量' or trend.get('trend_status') == '高檔突破')
+                else "起漲處置"
+            ) if real_chips.get('in_disposal', False) else "",
+            "explosive_stock_status": signals_dict.get('explosive_stock_status', '常態波動'),
+            "smart_kline_safe": signals_dict.get('smart_kline_safe', True),
+            "smart_kline_defend": signals_dict.get('smart_kline_defend', 0.0),
+            "smart_kline_exit_warning": signals_dict.get('smart_kline_exit_warning', False),
+            "breakout_stage": signals_dict.get('breakout_stage', ''),
+            "entry_tier": entry_tier,
+            "entry_tier_stage": entry_tier.get('current_stage', 'NONE'),
+            "entry_tier_code": entry_tier.get('stage_code', 0),
+            "entry_tier_name": entry_tier.get('stage_name', ''),
+            "entry_tier_badge": entry_tier.get('badge_html', ''),
+            "entry_tier_text": entry_tier.get('badge_text', ''),
+            "entry_tier_verdict": entry_tier.get('stage_verdict', '')
+        }
+        stock_record['quality_score'] = calculate_quality_score(stock_record)
+        return stock_record
     except Exception:
-        pass
+        return None
 
-    if not force_refresh and _ANALYZED_STOCKS_CACHE is not None and (now - _LAST_CACHE_TIME) < cache_ttl:
-        return _ANALYZED_STOCKS_CACHE
-
-    stock_list = load_stock_list()
-    chips_map = load_speedy_chips()
-
-    # 盤中並行獲取全市場 186 檔之最新即時報價 (約 1 秒完成)
-    realtime_map = {}
-    if enable_realtime:
-        try:
-            realtime_map = batch_fetch_realtime_quotes(stock_list)
-        except Exception:
-            realtime_map = {}
-
-    has_realtime = bool(realtime_map)
-    analyzed = []
-
-    for item in stock_list:
-        code = item['code']
-        try:
-            q_live = realtime_map.get(code)
-            df, info = fetch_stock_kline(code, period="6mo", enable_realtime=has_realtime, realtime_quote=q_live)
-            if df.empty or len(df) < 15:
-                continue
-
-            points, _, highest, lowest = calculate_turning_points(df, ma_period=5)
-            trend = analyze_trend(df, points)
-            signals_dict, signals_list = detect_signals(df, trend)
-            entry_tier = calculate_three_tier_entry(df, points, trend, signals_dict)
-
-            close_price = info['close']
-            stage = signals_dict.get('watchlist_stage', '觀察中')
-
-            # 擷取最近 60 天 K 線縮圖資料 (支援左右水平滑動平移查看完整波段)
-            sub_recent = df.iloc[-60:].copy() if len(df) >= 60 else df.copy()
-            recent_data = []
-            for _, r in sub_recent.iterrows():
-                recent_data.append({
-                    "date": r['Date'].strftime('%m/%d'),
-                    "open": round(float(r['Open']), 2),
-                    "high": round(float(r['High']), 2),
-                    "low": round(float(r['Low']), 2),
-                    "close": round(float(r['Close']), 2),
-                    "sma5": round(float(r.get('SMA_5', r['Close'])), 2),
-                    "sma20": round(float(r.get('SMA_20', r['Close'])), 2)
-                })
-
-            # 操盤線 5MA 即時狀態
-            last_r = df.iloc[-1]
-            prev_r = df.iloc[-2] if len(df) > 1 else last_r
-            cur_sma5 = float(last_r.get('SMA_5', close_price))
-            prev_sma5 = float(prev_r.get('SMA_5', cur_sma5))
-            is_5ma_rising = cur_sma5 >= prev_sma5
-            above_5ma = close_price >= cur_sma5
-
-            # SpeedyAI 官方真實籌碼整合
-            real_chips = chips_map.get(code, {})
-            mf = real_chips.get('mf', 0)
-            fi = real_chips.get('fi', 0)
-            it = real_chips.get('it', 0)
-
-            # 5日與3日成交量加權均價 VWAP (大戶主力與外資建倉成本均價)
-            if len(df) >= 5:
-                sub5 = df.iloc[-5:]
-                major_cost = round(float((sub5['Volume'] * sub5['Close']).sum() / (sub5['Volume'].sum() + 1e-9)), 2)
-                sub3 = df.iloc[-3:]
-                foreign_cost = round(float((sub3['Volume'] * sub3['Close']).sum() / (sub3['Volume'].sum() + 1e-9)), 2)
-            else:
-                major_cost = round(float(df['Close'].mean()), 2)
-                foreign_cost = major_cost
-
-            cost_diff_pct = round(((close_price - major_cost) / (major_cost + 1e-9)) * 100, 2)
-            if cost_diff_pct < -1.5:
-                cost_badge = f"🔥 比主力便宜 {abs(cost_diff_pct):.1f}%"
-                cost_status = "比主力便宜"
-                cost_desc = f"現價比大戶成本便宜 {abs(cost_diff_pct):.1f}%，防守安全邊際極高！"
-                cost_color = "#52C41A"
-            elif cost_diff_pct <= 1.5:
-                cost_badge = f"🟢 貼近主力成本 ({cost_diff_pct:+.1f}%)"
-                cost_status = "貼近主力成本"
-                cost_desc = f"與大戶主力同成本區間 ({cost_diff_pct:+.1f}%)，同甘共苦安心抱！"
-                cost_color = "#52C41A"
-            elif cost_diff_pct <= 4.0:
-                cost_badge = f"🟡 略高主力成本 (+{cost_diff_pct:.1f}%)"
-                cost_status = "略高於主力"
-                cost_desc = f"略高於大戶成本 (+{cost_diff_pct:.1f}%)，初升推升段守 5MA。"
-                cost_color = "#FAAD14"
-            else:
-                cost_badge = f"⚠️ 高於主力成本 (+{cost_diff_pct:.1f}%)"
-                cost_status = "顯著高於主力"
-                cost_desc = f"已高於大戶成本 (+{cost_diff_pct:.1f}%)，主力已獲利，防拉回不追高！"
-                cost_color = "#FF4D4F"
-
-            # 盤中強勢戰術分類 (突破即進場 vs 盤整先鎖股等 1:00)
-            res_val = trend.get('resistance', 0) or (close_price * 1.05)
-            is_breakout = (close_price >= res_val * 0.998) or signals_dict.get('bottom_breakout', False) or signals_dict.get('high_breakout', False) or signals_dict.get('flat_base_breakout', False)
-
-            if is_breakout and is_5ma_rising and above_5ma and info.get('change_pct', 0) >= 0.5:
-                intraday_status = "🚀 盤整突破剛起漲 (可即刻進場)"
-                intraday_action = "放量突破前高壓力線！尾盤 1:00~1:25 確認收紅可即刻進場操作。"
-                intraday_tag = "突破起漲"
-            elif signals_dict.get('is_consolidation', False) or (close_price < res_val * 0.998 and abs(close_price - res_val)/(res_val + 1e-9) <= 0.05):
-                intraday_status = "⏳ 盤整等突破 (先鎖股等1:00)"
-                intraday_action = "受制於前高壓力線尚未突破，先列入鎖股名單，每日 1:00 觀察是否出量突破再進！"
-                intraday_tag = "盤整等突破"
-            else:
-                intraday_status = "📈 強勢推升中"
-                intraday_action = "多頭型態沿 5MA 操盤線上攻，守穩 5MA 續抱。"
-                intraday_tag = "強勢推升"
-
-            if code in chips_map and (mf != 0 or fi != 0 or it != 0):
-                mf_sign = "+" if mf >= 0 else ""
-                broker_str = f"主力大單 {mf_sign}{mf:,} 張 | 外資 {fi:+,} | 投信 {it:+,}"
-            else:
-                broker_seed = int(code[:4]) if code[:4].isdigit() else 1234
-                broker_name = BROKER_NAMES[broker_seed % len(BROKER_NAMES)]
-                buyer_vol = int(info['volume'] * ((broker_seed % 25 + 15) / 1000.0))
-                buyer_vol = max(25, buyer_vol)
-                broker_str = f"{broker_name} {buyer_vol:,} 張 (均 {major_cost})"
-
-            stock_record = {
-                "code": item['code'],
-                "name": item['name'],
-                "market": item.get('market', 'TW'),
-                "industry": item.get('industry', '一般類股'),
-                "has_futures": item.get('has_futures', real_chips.get('has_fut', False)),
-                "has_cb": item.get('has_cb', real_chips.get('has_cb', False)),
-                "close": close_price,
-                "change": info['change'],
-                "change_pct": info['change_pct'],
-                "is_red": bool(recent_data[-1]['close'] >= recent_data[-1]['open']) if recent_data else bool(info['change'] >= 0),
-                "volume": info['volume'],
-                "volume_str": f"{int(info['volume']/1000):,} 張" if info['volume'] >= 1000 else f"{info['volume']} 股",
-                "trend_status": trend['trend_status'],
-                "trend_badge": trend['trend_badge'],
-                "trend_color": trend['trend_color'],
-                "trend_change_date": trend.get('trend_change_date_str', ''),
-                "days_since_change": trend.get('days_since_change', 99),
-                "is_fresh_change": trend.get('is_fresh_change', False),
-                "major_trend_date": trend.get('major_trend_date_str', ''),
-                "days_since_major": trend.get('days_since_major', 99),
-                "is_fresh_trend_start": trend.get('is_fresh_trend_start', False),
-                "swing_rebound_date": trend.get('swing_rebound_date_str', ''),
-                "days_since_rebound": trend.get('days_since_rebound', 99),
-                "is_fresh_rebound": trend.get('is_fresh_rebound', False),
-                "cons_duration_bars": trend.get('cons_duration_bars', 0),
-                "cons_duration_months": trend.get('cons_duration_months', 0.0),
-                "cons_start_date": trend.get('cons_start_date_str', ''),
-                "cons_box_low": trend.get('cons_box_low', 0.0),
-                "cons_box_high": trend.get('cons_box_high', 0.0),
-                "cons_amp_pct": trend.get('cons_amp_pct', 0.0),
-                "is_cons_over_2m": trend.get('is_cons_over_2m', False),
-                "ma_squeeze_bars": signals_dict.get('ma_squeeze_bars', 0),
-                "ma_squeeze_months": signals_dict.get('ma_squeeze_months', 0.0),
-                "is_ma_squeeze_over_2m": signals_dict.get('is_ma_squeeze_over_2m', False),
-                "support": trend.get('support'),
-                "resistance": trend.get('resistance'),
-                "target": trend.get('target'),
-                "reversal_warnings": trend.get('reversal_warnings', []),
-                "top_warning_badge": trend.get('top_warning_badge', ''),
-                "top_warning_detail": trend.get('top_warning_detail', ''),
-                "has_reversal_warning": trend.get('has_reversal_warning', False),
-                "signals": signals_list,
-                "signals_dict": signals_dict,
-                "watchlist_stage": stage,
-                "safety_rating": signals_dict.get('safety_rating', '🟢 安全首選'),
-                "safety_reasons": signals_dict.get('safety_reasons', []),
-                "chili_count": signals_dict.get('chili_count', 1),
-                "broker_info": broker_str,
-                "major_cost": major_cost,
-                "foreign_cost": foreign_cost,
-                "cost_diff_pct": cost_diff_pct,
-                "cost_badge": cost_badge,
-                "cost_status": cost_status,
-                "cost_desc": cost_desc,
-                "cost_color": cost_color,
-                "intraday_status": intraday_status,
-                "intraday_action": intraday_action,
-                "intraday_tag": intraday_tag,
-                "speedy_mf": mf,
-                "recent_bars": recent_data,
-                "sma5": round(cur_sma5, 2),
-                "prev_sma5": round(prev_sma5, 2),
-                "is_5ma_rising": is_5ma_rising,
-                "above_5ma": above_5ma,
-                "is_day_trading_forbidden": real_chips.get('is_day_trading_forbidden', False),
-                "in_attention": real_chips.get('in_attention', False),
-                "in_disposal": real_chips.get('in_disposal', False),
-                "per": real_chips.get('per', 0.0),
-                "eps": real_chips.get('eps', 0.0),
-                "is_bull": trend.get('higher_highs', False) and trend.get('higher_lows', False),
-                "is_bear": trend.get('lower_highs', False) and trend.get('lower_lows', False),
-                "iron_man": signals_dict.get('iron_man', False),
-                "main_wave_2nd": signals_dict.get('main_wave_2nd', False),
-                "box_range_breakout": signals_dict.get('box_range_breakout', False),
-                "is_turnover_success": signals_dict.get('is_turnover_success', False),
-                "is_false_breakout_dump": signals_dict.get('is_false_breakout_dump', False),
-                "is_attack_vol": signals_dict.get('is_attack_vol', False),
-                "is_stop_fall_vol": signals_dict.get('is_stop_fall_vol', False),
-                "is_volume_price_divergence": signals_dict.get('is_volume_price_divergence', False),
-                "elimination_info": signals_dict.get('elimination_info', {"is_eliminated": False, "reasons": []}),
-                "volume_tag": signals_dict.get('volume_tag', '常態量'),
-                "volume_status": signals_dict.get('volume_status', '常態量'),
-                "vol_ratio": signals_dict.get('vol_ratio', 1.0),
-                "disposal_tactic": (
-                    "高檔處置" if (signals_dict.get('is_multi_bagger') or signals_dict.get('volume_tag') == '高檔爆量' or trend.get('trend_status') == '高檔突破')
-                    else "起漲處置"
-                ) if real_chips.get('in_disposal', False) else "",
-                "explosive_stock_status": signals_dict.get('explosive_stock_status', '常態波動'),
-                "smart_kline_safe": signals_dict.get('smart_kline_safe', True),
-                "smart_kline_defend": signals_dict.get('smart_kline_defend', 0.0),
-                "smart_kline_exit_warning": signals_dict.get('smart_kline_exit_warning', False),
-                "breakout_stage": signals_dict.get('breakout_stage', ''),
-                "entry_tier": entry_tier,
-                "entry_tier_stage": entry_tier.get('current_stage', 'NONE'),
-                "entry_tier_code": entry_tier.get('stage_code', 0),
-                "entry_tier_name": entry_tier.get('stage_name', ''),
-                "entry_tier_badge": entry_tier.get('badge_html', ''),
-                "entry_tier_text": entry_tier.get('badge_text', ''),
-                "entry_tier_verdict": entry_tier.get('stage_verdict', '')
-            }
-            stock_record['quality_score'] = calculate_quality_score(stock_record)
-            analyzed.append(stock_record)
-
-        except Exception:
-            continue
-
-    # 注入全市場主流族群熱度雷達數據 (Top-Down 資金流向與熱度)
+def _enrich_analyzed_stocks(analyzed, force_refresh=False):
+    """
+    注入全市場主流族群熱度雷達數據與熱門焦點股標籤
+    """
     try:
         from core.sector_radar import calculate_sector_heat_rankings, get_stock_sector_info
         sec_ranks = calculate_sector_heat_rankings(analyzed, force_refresh=force_refresh)
@@ -497,7 +473,6 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
     except Exception:
         pass
 
-    # 標記全市場熱門焦點股 (成交量前50、主流族群龍頭、放量攻擊或主力大單)
     vol_sorted = sorted(analyzed, key=lambda x: float(x.get('volume', 0) or 0), reverse=True)
     top_vol_codes = set(s['code'] for s in vol_sorted[:50])
     for s in analyzed:
@@ -510,8 +485,132 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
         has_major_chips = float(s.get('speedy_mf', 0) or 0) >= 300
         s['is_hot_stock'] = bool(is_top_vol or is_heavy_vol or is_mainstream or is_attack or has_major_chips)
 
-    # 依品質評分嚴格降序排列 (最佳者排在最上方)
     analyzed.sort(key=lambda x: x['quality_score'], reverse=True)
+    return analyzed
+
+def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
+    """
+    載入並分析全市場股票清單。
+    支援預算快照秒開 (0.1 秒極速加載) ＋ 即時行情無縫疊加 ＋ 記憶體快取。
+    """
+    global _ANALYZED_STOCKS_CACHE, _LAST_CACHE_TIME
+    now = time.time()
+    cache_ttl = 60 if enable_realtime else 300
+
+    # 1. 優先檢查 Streamlit Session State 快取
+    try:
+        import streamlit as st
+        if not force_refresh and 'cached_analyzed_stocks' in st.session_state:
+            _c_data, _c_time = st.session_state['cached_analyzed_stocks']
+            if (now - _c_time) < cache_ttl and _c_data:
+                return _c_data
+    except Exception:
+        pass
+
+    # 2. 檢查記憶體全域變數快取
+    if not force_refresh and _ANALYZED_STOCKS_CACHE is not None and (now - _LAST_CACHE_TIME) < cache_ttl:
+        return _ANALYZED_STOCKS_CACHE
+
+    # 3. 預算快照秒開 (Snapshot Fast-Path: 0.1~0.2 秒極速加載 200 檔完整形態數據)
+    if not force_refresh and os.path.exists(SNAPSHOT_FILE):
+        try:
+            with open(SNAPSHOT_FILE, 'rb') as f:
+                snapshot_data = pickle.load(f)
+            if snapshot_data and isinstance(snapshot_data, list) and len(snapshot_data) >= 50:
+                if enable_realtime:
+                    try:
+                        rt_map = batch_fetch_realtime_quotes(snapshot_data)
+                        if rt_map:
+                            for s in snapshot_data:
+                                q = rt_map.get(s['code'])
+                                if q and q.get('close', 0) > 0:
+                                    s['close'] = q['close']
+                                    s['change'] = q.get('change', s.get('change', 0))
+                                    s['change_pct'] = q.get('change_pct', s.get('change_pct', 0))
+                                    if 'volume' in q and q['volume'] > 0:
+                                        s['volume'] = q['volume']
+                                        s['volume_str'] = f"{int(q['volume']/1000):,} 張" if q['volume'] >= 1000 else f"{q['volume']} 股"
+
+                                    if s.get('recent_bars'):
+                                        s['recent_bars'][-1]['close'] = round(float(q['close']), 2)
+                                        s['recent_bars'][-1]['high'] = max(s['recent_bars'][-1]['high'], round(float(q['close']), 2))
+                                        s['recent_bars'][-1]['low'] = min(s['recent_bars'][-1]['low'], round(float(q['close']), 2))
+                                        s['is_red'] = bool(s['recent_bars'][-1]['close'] >= s['recent_bars'][-1]['open'])
+                                    else:
+                                        s['is_red'] = bool(s.get('change', 0) >= 0)
+
+                                    cur_sma5 = s.get('sma5', s['close'])
+                                    s['above_5ma'] = s['close'] >= cur_sma5
+
+                                    major_cost = s.get('major_cost', s['close'])
+                                    if major_cost > 0:
+                                        cost_diff_pct = round(((s['close'] - major_cost) / (major_cost + 1e-9)) * 100, 2)
+                                        s['cost_diff_pct'] = cost_diff_pct
+                                        if cost_diff_pct < -1.5:
+                                            s['cost_badge'] = f"🔥 比主力便宜 {abs(cost_diff_pct):.1f}%"
+                                            s['cost_status'] = "比主力便宜"
+                                            s['cost_desc'] = f"現價比大戶成本便宜 {abs(cost_diff_pct):.1f}%，防守安全邊際極高！"
+                                            s['cost_color'] = "#52C41A"
+                                        elif cost_diff_pct <= 1.5:
+                                            s['cost_badge'] = f"🟢 貼近主力成本 ({cost_diff_pct:+.1f}%)"
+                                            s['cost_status'] = "貼近主力成本"
+                                            s['cost_desc'] = f"與大戶主力同成本區間 ({cost_diff_pct:+.1f}%)，同甘共苦安心抱！"
+                                            s['cost_color'] = "#52C41A"
+                                        elif cost_diff_pct <= 4.0:
+                                            s['cost_badge'] = f"🟡 略高主力成本 (+{cost_diff_pct:.1f}%)"
+                                            s['cost_status'] = "略高於主力"
+                                            s['cost_desc'] = f"略高於大戶成本 (+{cost_diff_pct:.1f}%)，初升推升段守 5MA。"
+                                            s['cost_color'] = "#FAAD14"
+                                        else:
+                                            s['cost_badge'] = f"⚠️ 高於主力成本 (+{cost_diff_pct:.1f}%)"
+                                            s['cost_status'] = "顯著高於主力"
+                                            s['cost_desc'] = f"已高於大戶成本 (+{cost_diff_pct:.1f}%)，主力已獲利，防拉回不追高！"
+                                            s['cost_color'] = "#FF4D4F"
+                    except Exception:
+                        pass
+
+                for s in snapshot_data:
+                    s['quality_score'] = calculate_quality_score(s)
+                snapshot_data.sort(key=lambda x: x['quality_score'], reverse=True)
+
+                _ANALYZED_STOCKS_CACHE = snapshot_data
+                _LAST_CACHE_TIME = now
+                try:
+                    import streamlit as st
+                    st.session_state['cached_analyzed_stocks'] = (snapshot_data, now)
+                except Exception:
+                    pass
+                return snapshot_data
+        except Exception:
+            pass
+
+    # 4. 強制重新計算或快照不存在時之多執行緒並行運算 (Fallback)
+    stock_list = load_stock_list()
+    chips_map = load_speedy_chips()
+
+    realtime_map = {}
+    if enable_realtime:
+        try:
+            realtime_map = batch_fetch_realtime_quotes(stock_list)
+        except Exception:
+            realtime_map = {}
+
+    analyzed = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(_analyze_single_stock, item, realtime_map, chips_map) for item in stock_list]
+        for f in futures:
+            res = f.result()
+            if res:
+                analyzed.append(res)
+
+    analyzed = _enrich_analyzed_stocks(analyzed, force_refresh=force_refresh)
+
+    # 存檔至磁碟快照，下次即可秒開
+    try:
+        with open(SNAPSHOT_FILE, 'wb') as f:
+            pickle.dump(analyzed, f)
+    except Exception:
+        pass
 
     _ANALYZED_STOCKS_CACHE = analyzed
     _LAST_CACHE_TIME = now
