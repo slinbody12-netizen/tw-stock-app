@@ -1535,7 +1535,7 @@ def get_market_condition():
                 reason = f"大盤已連續 {up_days} 日收紅且站穩月線之上，5MA 正乖離達 {diff_5ma:+.2f}%！多頭趨勢極強但短線領先龍頭累積漲幅已大，盤面資金開始向外擴散外溢。"
                 rec_badge = "🛰️ 首選：滯後補漲雷達"
                 rec_title = f"大盤連漲 {up_days} 天 (乖離 {diff_5ma:+.2f}%) · 今日首選【滯後補漲雷達】撿便宜"
-                rec_desc = f"加權指數連漲 {up_days} 天（5MA 乖離 {diff_5ma:+.2f}%），第一棒領頭羊（如台積電/高價權值股）短線漲多隨時可能震盪拉回。實戰最高勝率法門：**「不追高漲多龍頭，看大哥買小弟！」** 鎖定與大盤同步率 > 70% 但漲幅滯後之優質股，低風險享受資金外溢補漲利潤！"
+                rec_desc = f"加權指數連漲 {up_days} 天（5MA 乖離 {diff_5ma:+.2f}%），第一棒領頭羊（如台積電/高價權值股）短線漲多隨時可能震盪拉回。實戰最高勝率法門：<b>「不追高漲多龍頭，看大哥買小弟！」</b> 鎖定與大盤同步率 > 70% 但漲幅滯後之優質股，低風險享受資金外溢補漲利潤！"
                 rec_target_mode = "🛰️ 大盤同步·滯後補漲雷達 (低風險撿便宜·看大哥買小弟)"
                 rec_target_strat = None
                 rec_direction = "多"
@@ -1661,56 +1661,35 @@ def render_market_strategy_compass(mkt: dict):
     streak_text = f"🔥 連續 {up_days} 日上漲" if up_days > 1 else (f"❄️ 連續 {down_days} 日下跌" if down_days > 1 else "⚖️ 多空平盤拉鋸")
     streak_color = "#F87171" if up_days > 1 else ("#4ADE80" if down_days > 1 else "#94A3B8")
 
-    st.markdown(
-        f"""
-        <div style="background: linear-gradient(135deg, #131722 0%, #1A2234 50%, #161B26 100%);
-                    border: 1.5px solid #3B82F6; border-radius: 12px; padding: 16px 20px;
-                    margin-top: 10px; margin-bottom: 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.4);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 1.22rem; font-weight: 800; color: #FFFFFF;">🧭 今日大盤作戰指針 · 實戰選股推薦</span>
-                    <span style="background: rgba(59, 130, 246, 0.2); border: 1px solid #3B82F6; color: #93C5FD;
-                                 padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 700;">
-                        AI 自動診斷
-                    </span>
-                </div>
-                <div style="font-size: 0.8rem; color: #94A3B8;">
-                    基準指數：加權指數 (^TWII) {date_str}{q_time}
-                </div>
-            </div>
-
-            <!-- 大盤數據 5 欄儀表板 -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">
-                    <div style="color: #94A3B8; font-size: 0.74rem;">加權指數最新點位</div>
-                    <div style="color: #FFFFFF; font-size: 1.15rem; font-weight: 800;">{c:,.2f}</div>
-                    <div style="color: {chg_color}; font-size: 0.78rem; font-weight: 700;">{chg_sign}{chg:,.2f} ({chg_sign}{chg_pct:.2f}%)</div>
-                </div>
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">
-                    <div style="color: #94A3B8; font-size: 0.74rem;">近期連續波段</div>
-                    <div style="color: {streak_color}; font-size: 1.15rem; font-weight: 800;">{streak_text}</div>
-                    <div style="color: #94A3B8; font-size: 0.78rem;">短線趨勢慣性</div>
-                </div>
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">
-                    <div style="color: #94A3B8; font-size: 0.74rem;">5MA 均線乖離</div>
-                    <div style="color: {diff_5_color}; font-size: 1.15rem; font-weight: 800;">{diff_5ma:+.2f}%</div>
-                    <div style="color: #94A3B8; font-size: 0.78rem;">短線 5 日均線位階</div>
-                </div>
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">
-                    <div style="color: #94A3B8; font-size: 0.74rem;">月線 20MA 乖離</div>
-                    <div style="color: {diff_20_color}; font-size: 1.15rem; font-weight: 800;">{diff_20ma:+.2f}%</div>
-                    <div style="color: #94A3B8; font-size: 0.78rem;">生命線中期支撐</div>
-                </div>
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">
-                    <div style="color: #94A3B8; font-size: 0.74rem;">建議總持股水位</div>
-                    <div style="color: #FCD34D; font-size: 1.15rem; font-weight: 800;">{int(ratio * 100)}% 水位</div>
-                    <div style="color: #94A3B8; font-size: 0.78rem;">保留 {int((1 - ratio) * 100)}% 防守現金</div>
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
+    compass_html = (
+        f'<div style="background: linear-gradient(135deg, #131722 0%, #1A2234 50%, #161B26 100%); border: 1.5px solid #3B82F6; border-radius: 12px; padding: 16px 20px; margin-top: 10px; margin-bottom: 14px; box-shadow: 0 6px 24px rgba(0,0,0,0.4);">'
+        f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">'
+        f'<div style="display: flex; align-items: center; gap: 10px;">'
+        f'<span style="font-size: 1.22rem; font-weight: 800; color: #FFFFFF;">🧭 今日大盤作戰指針 · 實戰選股推薦</span>'
+        f'<span style="background: rgba(59, 130, 246, 0.2); border: 1px solid #3B82F6; color: #93C5FD; padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 700;">AI 自動診斷</span>'
+        f'</div>'
+        f'<div style="font-size: 0.8rem; color: #94A3B8;">基準指數：加權指數 (^TWII) {date_str}{q_time}</div>'
+        f'</div>'
+        f'<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 4px;">'
+        f'<div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">'
+        f'<div style="color: #94A3B8; font-size: 0.74rem;">加權指數最新點位</div><div style="color: #FFFFFF; font-size: 1.15rem; font-weight: 800;">{c:,.2f}</div><div style="color: {chg_color}; font-size: 0.78rem; font-weight: 700;">{chg_sign}{chg:,.2f} ({chg_sign}{chg_pct:.2f}%)</div>'
+        f'</div>'
+        f'<div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">'
+        f'<div style="color: #94A3B8; font-size: 0.74rem;">近期連續波段</div><div style="color: {streak_color}; font-size: 1.15rem; font-weight: 800;">{streak_text}</div><div style="color: #94A3B8; font-size: 0.78rem;">短線趨勢慣性</div>'
+        f'</div>'
+        f'<div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">'
+        f'<div style="color: #94A3B8; font-size: 0.74rem;">5MA 均線乖離</div><div style="color: {diff_5_color}; font-size: 1.15rem; font-weight: 800;">{diff_5ma:+.2f}%</div><div style="color: #94A3B8; font-size: 0.78rem;">短線 5 日均線位階</div>'
+        f'</div>'
+        f'<div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">'
+        f'<div style="color: #94A3B8; font-size: 0.74rem;">月線 20MA 乖離</div><div style="color: {diff_20_color}; font-size: 1.15rem; font-weight: 800;">{diff_20ma:+.2f}%</div><div style="color: #94A3B8; font-size: 0.78rem;">生命線中期支撐</div>'
+        f'</div>'
+        f'<div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">'
+        f'<div style="color: #94A3B8; font-size: 0.74rem;">建議總持股水位</div><div style="color: #FCD34D; font-size: 1.15rem; font-weight: 800;">{int(ratio * 100)}% 水位</div><div style="color: #94A3B8; font-size: 0.78rem;">保留 {int((1 - ratio) * 100)}% 防守現金</div>'
+        f'</div>'
+        f'</div>'
+        f'</div>'
     )
+    st.markdown(compass_html, unsafe_allow_html=True)
 
     with st.container(border=True):
         c_desc, c_btn = st.columns([3.5, 1.5])
