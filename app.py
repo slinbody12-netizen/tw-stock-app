@@ -1157,6 +1157,7 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         )
 
     # 渲染極簡 3 秒決策精簡卡片
+    rt_badge = " <span style='background:rgba(34,197,94,0.18); color:#22C55E; border:1px solid rgba(34,197,94,0.35); font-size:0.70rem; padding:1px 5px; border-radius:3px; font-weight:bold; vertical-align:middle;'>🟢 即時</span>" if item.get('is_realtime') else ""
     card_html = (
         f'<div style="background:#181A26; border:1px solid #2E334D; border-radius:10px; padding:12px 14px; margin-bottom:6px; box-shadow:0 3px 10px rgba(0,0,0,0.25);">'
         f'<div style="display:flex; justify-content:space-between; align-items:center;">'
@@ -1164,7 +1165,7 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         f'<span style="color:#94A3B8; font-size:0.88rem; margin-left:4px;">{item["code"]}</span>'
         f'<span style="margin-left:8px;">{core_badge_html}</span></div>'
         f'<div style="text-align:right;"><span style="font-size:1.25rem; font-weight:bold; color:{c_color};">{item["close"]:.2f}</span>'
-        f'<span style="font-size:0.85rem; font-weight:bold; color:{c_color}; margin-left:4px;">{sign}{item["change"]:.2f} ({sign}{item["change_pct"]:.2f}%)</span></div>'
+        f'<span style="font-size:0.85rem; font-weight:bold; color:{c_color}; margin-left:4px;">{sign}{item["change"]:.2f} ({sign}{item["change_pct"]:.2f}%)</span>{rt_badge}</div>'
         f'</div>'
         f'<div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#94A3B8; margin:5px 0 8px 0; border-bottom:1px solid #232738; padding-bottom:6px;">'
         f'<div>產業：<b style="color:#E2E8F0;">{item["industry"]}</b> ｜ 成交量：<b style="color:#E2E8F0;">{item["volume_str"]}</b>{per_str}</div>'

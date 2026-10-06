@@ -86,7 +86,7 @@ def calculate_sector_heat_rankings(stocks_data: list = None, force_refresh=False
     if stocks_data is None:
         try:
             from core.screener import get_all_analyzed_stocks
-            stocks_data = get_all_analyzed_stocks(enable_realtime=False)
+            stocks_data = get_all_analyzed_stocks(enable_realtime=True)
         except Exception:
             stocks_data = []
 

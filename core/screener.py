@@ -15,11 +15,12 @@
 
 import os
 import time
+import copy
 import pickle
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import numpy as np
-from core.data_fetcher import load_stock_list, fetch_stock_kline, batch_fetch_realtime_quotes
+from core.data_fetcher import load_stock_list, fetch_stock_kline, batch_fetch_realtime_quotes, get_tw_now
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
@@ -32,6 +33,10 @@ BROKER_NAMES = ["台灣摩根", "凱基台北", "元大", "富邦", "國泰敦�
 
 _ANALYZED_STOCKS_CACHE = None
 _LAST_CACHE_TIME = 0
+_REALTIME_STOCKS_CACHE = None
+_REALTIME_CACHE_TIME = 0
+_SNAPSHOT_STOCKS_CACHE = None
+_SNAPSHOT_CACHE_TIME = 0
 _SPEEDY_CHIPS_CACHE = None
 _SPEEDY_CHIPS_TIME = 0
 
@@ -488,35 +493,73 @@ def _enrich_analyzed_stocks(analyzed, force_refresh=False):
     analyzed.sort(key=lambda x: x['quality_score'], reverse=True)
     return analyzed
 
-def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
+def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True, rebuild_full=False):
     """
     載入並分析全市場股票清單。
-    支援預算快照秒開 (0.1 秒極速加載) ＋ 即時行情無縫疊加 ＋ 記憶體快取。
+    支援預算快照秒開 (0.05 秒極速加載) ＋ 盤中即時行情無縫疊加 ＋ 記憶體/Session 雙層防污染快取。
+    - force_refresh: 強制刷新盤中即時行情 (或快照)
+    - enable_realtime: 是否疊加盤中即時行情 (預設 True)
+    - rebuild_full: 是否從頭重新計算所有日K線與形態 (耗時，僅供離線建檔使用)
     """
     global _ANALYZED_STOCKS_CACHE, _LAST_CACHE_TIME
+    global _REALTIME_STOCKS_CACHE, _REALTIME_CACHE_TIME
+    global _SNAPSHOT_STOCKS_CACHE, _SNAPSHOT_CACHE_TIME
     now = time.time()
-    cache_ttl = 60 if enable_realtime else 300
+    tw_now = get_tw_now()
+    is_weekday = tw_now.weekday() < 5
+    is_trading_hour = is_weekday and (8 <= tw_now.hour < 14 or (tw_now.hour == 14 and tw_now.minute < 30))
 
-    # 1. 優先檢查 Streamlit Session State 快取
-    try:
-        import streamlit as st
-        if not force_refresh and 'cached_analyzed_stocks' in st.session_state:
-            _c_data, _c_time = st.session_state['cached_analyzed_stocks']
-            if (now - _c_time) < cache_ttl and _c_data:
-                return _c_data
-    except Exception:
-        pass
+    today_9am_ts = tw_now.replace(hour=9, minute=0, second=0, microsecond=0).timestamp()
 
-    # 2. 檢查記憶體全域變數快取
-    if not force_refresh and _ANALYZED_STOCKS_CACHE is not None and (now - _LAST_CACHE_TIME) < cache_ttl:
-        return _ANALYZED_STOCKS_CACHE
-
-    # 3. 預算快照秒開 (Snapshot Fast-Path: 0.1~0.2 秒極速加載 200 檔完整形態數據)
-    if not force_refresh and os.path.exists(SNAPSHOT_FILE):
+    # 1. 優先檢查即時快取 (當 enable_realtime=True)
+    if enable_realtime:
+        realtime_ttl = 15 if is_trading_hour else 120
+        # 1.1 檢查 Streamlit Session State 即時快取
         try:
-            with open(SNAPSHOT_FILE, 'rb') as f:
-                snapshot_data = pickle.load(f)
-            if snapshot_data and isinstance(snapshot_data, list) and len(snapshot_data) >= 50:
+            import streamlit as st
+            if not force_refresh and 'cached_realtime_stocks' in st.session_state:
+                _c_data, _c_time = st.session_state['cached_realtime_stocks']
+                is_stale_premarket = is_weekday and (tw_now.hour >= 9) and (_c_time < today_9am_ts)
+                if not is_stale_premarket and (now - _c_time) < realtime_ttl and _c_data:
+                    return _c_data
+        except Exception:
+            pass
+
+        # 1.2 檢查記憶體全域即時快取
+        if not force_refresh and _REALTIME_STOCKS_CACHE is not None:
+            is_stale_premarket = is_weekday and (tw_now.hour >= 9) and (_REALTIME_CACHE_TIME < today_9am_ts)
+            if not is_stale_premarket and (now - _REALTIME_CACHE_TIME) < realtime_ttl:
+                return _REALTIME_STOCKS_CACHE
+    else:
+        # 非即時模式：檢查純快照快取 (杜絕污染即時快取)
+        snapshot_ttl = 300
+        try:
+            import streamlit as st
+            if not force_refresh and 'cached_snapshot_stocks' in st.session_state:
+                _c_data, _c_time = st.session_state['cached_snapshot_stocks']
+                if (now - _c_time) < snapshot_ttl and _c_data:
+                    return _c_data
+        except Exception:
+            pass
+        if not force_refresh and _SNAPSHOT_STOCKS_CACHE is not None and (now - _SNAPSHOT_CACHE_TIME) < snapshot_ttl:
+            return _SNAPSHOT_STOCKS_CACHE
+
+    # 2. 預算快照秒開 (Snapshot Fast-Path: 0.05 秒極速加載 200 檔完整形態數據)
+    if not rebuild_full and os.path.exists(SNAPSHOT_FILE):
+        try:
+            if _SNAPSHOT_STOCKS_CACHE is not None and len(_SNAPSHOT_STOCKS_CACHE) >= 50:
+                snapshot_data = copy.deepcopy(_SNAPSHOT_STOCKS_CACHE)
+            else:
+                with open(SNAPSHOT_FILE, 'rb') as f:
+                    raw_snapshot = pickle.load(f)
+                if raw_snapshot and isinstance(raw_snapshot, list) and len(raw_snapshot) >= 50:
+                    _SNAPSHOT_STOCKS_CACHE = raw_snapshot
+                    _SNAPSHOT_CACHE_TIME = now
+                    snapshot_data = copy.deepcopy(raw_snapshot)
+                else:
+                    snapshot_data = None
+
+            if snapshot_data:
                 if enable_realtime:
                     try:
                         rt_map = batch_fetch_realtime_quotes(snapshot_data)
@@ -531,11 +574,44 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                                         s['volume'] = q['volume']
                                         s['volume_str'] = f"{int(q['volume']/1000):,} 張" if q['volume'] >= 1000 else f"{q['volume']} 股"
 
-                                    if s.get('recent_bars'):
-                                        s['recent_bars'][-1]['close'] = round(float(q['close']), 2)
-                                        s['recent_bars'][-1]['high'] = max(s['recent_bars'][-1]['high'], round(float(q['close']), 2))
-                                        s['recent_bars'][-1]['low'] = min(s['recent_bars'][-1]['low'], round(float(q['close']), 2))
-                                        s['is_red'] = bool(s['recent_bars'][-1]['close'] >= s['recent_bars'][-1]['open'])
+                                    s['quote_time'] = q.get('time', '')
+                                    s['quote_date'] = q.get('date_str', '')
+                                    s['is_realtime'] = True
+
+                                    # 即時 K 線更新：判斷當日 K 線
+                                    q_open = q.get('open', q['close'])
+                                    q_high = max(q.get('high', q['close']), q['close'])
+                                    q_low = min(q.get('low', q['close']), q['close'])
+                                    q_close = q['close']
+                                    q_date_str = str(q.get('date_str', ''))
+                                    bar_date = (q_date_str[-5:].replace('-', '/') if len(q_date_str) >= 5 else '')
+
+                                    if s.get('recent_bars') and len(s['recent_bars']) > 0:
+                                        last_bar = s['recent_bars'][-1]
+                                        if bar_date and last_bar.get('date') == bar_date:
+                                            last_bar['close'] = round(float(q_close), 2)
+                                            last_bar['high'] = max(last_bar.get('high', q_close), round(float(q_high), 2))
+                                            last_bar['low'] = min(last_bar.get('low', q_close), round(float(q_low), 2))
+                                            last_bar['open'] = round(float(q_open), 2)
+                                        elif bar_date:
+                                            # 今日為新開盤日，推入今日即時 K 棒並計算 5MA
+                                            prev_closes = [b.get('close', q_close) for b in s['recent_bars'][-4:]]
+                                            cur_5ma = round((sum(prev_closes) + q_close) / (len(prev_closes) + 1), 2)
+                                            s['recent_bars'].append({
+                                                'date': bar_date,
+                                                'open': round(float(q_open), 2),
+                                                'high': round(float(q_high), 2),
+                                                'low': round(float(q_low), 2),
+                                                'close': round(float(q_close), 2),
+                                                'sma5': cur_5ma
+                                            })
+                                            s['sma5'] = cur_5ma
+                                        else:
+                                            last_bar['close'] = round(float(q_close), 2)
+                                            last_bar['high'] = max(last_bar.get('high', q_close), round(float(q_high), 2))
+                                            last_bar['low'] = min(last_bar.get('low', q_close), round(float(q_low), 2))
+
+                                        s['is_red'] = bool(q_close >= q_open)
                                     else:
                                         s['is_red'] = bool(s.get('change', 0) >= 0)
 
@@ -566,25 +642,40 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
                                             s['cost_status'] = "顯著高於主力"
                                             s['cost_desc'] = f"已高於大戶成本 (+{cost_diff_pct:.1f}%)，主力已獲利，防拉回不追高！"
                                             s['cost_color'] = "#FF4D4F"
+                    except Exception as e:
+                        print(f"[SCREENER] batch_fetch_realtime_quotes error: {e}")
+
+                    # 重新計算成交量排序與主流標籤
+                    snapshot_data = _enrich_analyzed_stocks(snapshot_data, force_refresh=force_refresh)
+                    for s in snapshot_data:
+                        s['quality_score'] = calculate_quality_score(s)
+                    snapshot_data.sort(key=lambda x: x['quality_score'], reverse=True)
+
+                    _REALTIME_STOCKS_CACHE = snapshot_data
+                    _REALTIME_CACHE_TIME = now
+                    _ANALYZED_STOCKS_CACHE = snapshot_data
+                    _LAST_CACHE_TIME = now
+                    try:
+                        import streamlit as st
+                        st.session_state['cached_realtime_stocks'] = (snapshot_data, now)
+                        st.session_state['cached_analyzed_stocks'] = (snapshot_data, now)
                     except Exception:
                         pass
+                    return snapshot_data
+                else:
+                    # 非即時模式，直接回傳快照
+                    _SNAPSHOT_STOCKS_CACHE = snapshot_data
+                    _SNAPSHOT_CACHE_TIME = now
+                    try:
+                        import streamlit as st
+                        st.session_state['cached_snapshot_stocks'] = (snapshot_data, now)
+                    except Exception:
+                        pass
+                    return snapshot_data
+        except Exception as e:
+            print(f"[SCREENER] snapshot loading error: {e}")
 
-                for s in snapshot_data:
-                    s['quality_score'] = calculate_quality_score(s)
-                snapshot_data.sort(key=lambda x: x['quality_score'], reverse=True)
-
-                _ANALYZED_STOCKS_CACHE = snapshot_data
-                _LAST_CACHE_TIME = now
-                try:
-                    import streamlit as st
-                    st.session_state['cached_analyzed_stocks'] = (snapshot_data, now)
-                except Exception:
-                    pass
-                return snapshot_data
-        except Exception:
-            pass
-
-    # 4. 強制重新計算或快照不存在時之多執行緒並行運算 (Fallback)
+    # 3. 快照不存在或指定 rebuild_full 時之多執行緒全市場運算 (Fallback)
     stock_list = load_stock_list()
     chips_map = load_speedy_chips()
 
@@ -612,10 +703,16 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True):
     except Exception:
         pass
 
+    _REALTIME_STOCKS_CACHE = analyzed
+    _REALTIME_CACHE_TIME = now
+    _SNAPSHOT_STOCKS_CACHE = analyzed
+    _SNAPSHOT_CACHE_TIME = now
     _ANALYZED_STOCKS_CACHE = analyzed
     _LAST_CACHE_TIME = now
     try:
         import streamlit as st
+        st.session_state['cached_realtime_stocks'] = (analyzed, now)
+        st.session_state['cached_snapshot_stocks'] = (analyzed, now)
         st.session_state['cached_analyzed_stocks'] = (analyzed, now)
     except Exception:
         pass
