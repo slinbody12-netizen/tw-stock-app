@@ -1457,44 +1457,147 @@ def render_strategy_signals_dashboard(signals_list: list, signals_dict: dict, tr
 
 def get_market_condition():
     """
-    動態研判台股大盤 (加權指數) 走勢與建議持股水位 (實戰量化心法)
+    動態研判台股大盤 (加權指數) 走勢與建議持股水位、連續漲跌、均線乖離與今日最佳選股策略導引 (實戰量化心法)
     """
     try:
-        df_tw, info_tw = fetch_stock_kline("^TWII", period="3mo")
-        if not df_tw.empty and len(df_tw) >= 20:
+        from core.market_sync import get_market_benchmark
+        df_tw, info_tw = get_market_benchmark(period="6mo")
+        if df_tw is None or df_tw.empty or len(df_tw) < 20:
+            df_tw, info_tw = fetch_stock_kline("^TWII", period="3mo")
+        
+        if df_tw is not None and not df_tw.empty and len(df_tw) >= 20:
             last_row = df_tw.iloc[-1]
             c = float(last_row['Close'])
-            sma20 = float(last_row['SMA_20'])
-            prev_sma20 = float(df_tw.iloc[-3]['SMA_20'])
+            prev_c = float(df_tw.iloc[-2]['Close']) if len(df_tw) >= 2 else c
+            change = float(info_tw.get("change", c - prev_c)) if info_tw else (c - prev_c)
+            change_pct = float(info_tw.get("change_pct", (change / prev_c) * 100)) if info_tw else ((change / prev_c) * 100)
+            
+            sma5 = float(info_tw.get("sma5", 0.0)) if info_tw else 0.0
+            if sma5 <= 0:
+                sma5 = float(df_tw['SMA_5'].iloc[-1]) if 'SMA_5' in df_tw.columns else float(df_tw['Close'].tail(5).mean())
+                
+            sma20 = float(info_tw.get("sma20", 0.0)) if info_tw else 0.0
+            if sma20 <= 0:
+                sma20 = float(df_tw['SMA_20'].iloc[-1]) if 'SMA_20' in df_tw.columns else float(df_tw['Close'].tail(20).mean())
+
+            sma60 = float(info_tw.get("sma60", 0.0)) if info_tw else 0.0
+            if sma60 <= 0 and 'SMA_60' in df_tw.columns:
+                sma60 = float(df_tw['SMA_60'].iloc[-1])
+            
+            prev_sma20 = float(df_tw.iloc[-3]['SMA_20']) if 'SMA_20' in df_tw.columns and len(df_tw) >= 3 else sma20
             slope = sma20 - prev_sma20
             
+            diff_5ma = ((c - sma5) / sma5) * 100 if sma5 > 0 else 0.0
+            diff_20ma = ((c - sma20) / sma20) * 100 if sma20 > 0 else 0.0
+
+            # 計算連續上漲或下跌天數
+            closes = df_tw['Close'].values
+            up_days = 0
+            down_days = 0
+            for i in range(len(closes) - 1, 0, -1):
+                diff = closes[i] - closes[i - 1]
+                if diff > 0:
+                    if down_days > 0:
+                        break
+                    up_days += 1
+                elif diff < 0:
+                    if up_days > 0:
+                        break
+                    down_days += 1
+                else:
+                    break
+
             # 檢查是否跌破前波波段低點 (多頭回檔破前低)
             past15_low = float(df_tw.iloc[-15:-1]['Low'].min()) if len(df_tw) >= 15 else c
             broke_prev_low = c < past15_low * 0.999
             
+            date_str = last_row['Date'].strftime('%Y-%m-%d') if hasattr(last_row['Date'], 'strftime') else str(last_row['Date'])
+            quote_time = info_tw.get("quote_time", "") if info_tw else ""
+
+            # ----------------------------------------------------
+            # 策略導引與推薦模式判斷 (實戰量化思維)
+            # ----------------------------------------------------
             if broke_prev_low or (c < sma20 and slope < 0):
                 status = "🔴 大盤轉弱破前低 (多頭回檔破前低，趨勢改變不再是多頭！)"
-                ratio = 0.30  # 建議 3 成以下或空手防守
+                ratio = 0.30
                 reason = "大盤跌破前波低點與月線，多頭結構已被破壞！實戰鐵律：「多頭回檔破前低，不再做多！」建議持股降至 3 成以下或空手觀望，保留 70%~100% 現金防守，靜待打出第二隻腳 (底底高) 再行佈局。"
+                rec_badge = "🛡️ 現金防守"
+                rec_title = "大盤走弱跌破月線 · 建議保留 7~10 成現金防守"
+                rec_desc = "覆巢之下無完卵！大盤跌破月線生命線且月線下彎，絕不可逆勢盲目做多或攤平。今日最佳策略為【現金防守觀望】，或僅限極小資金順勢尋找空方破線標的。"
+                rec_target_mode = "⚡ 操盤手極簡起漲模式 (推薦·3鍵抓起漲賺錢股)"
+                rec_target_strat = "📉 剛轉空頭破線 (頭低底低·初跌段起跌)"
+                rec_direction = "空"
+                btn_short_label = "空方防守策略"
+            elif c >= sma20 and (up_days >= 4 or diff_5ma >= 1.8):
+                # 連續大漲多日或乖離過大 -> 推薦滯後補漲雷達
+                status = "🔥 大盤連續強攻·正乖離擴大 (多頭氣勢如虹，短線進入高檔震盪輪動)"
+                ratio = 0.70
+                reason = f"大盤已連續 {up_days} 日收紅且站穩月線之上，5MA 正乖離達 {diff_5ma:+.2f}%！多頭趨勢極強但短線領先龍頭累積漲幅已大，盤面資金開始向外擴散外溢。"
+                rec_badge = "🛰️ 首選：滯後補漲雷達"
+                rec_title = f"大盤連漲 {up_days} 天 (乖離 {diff_5ma:+.2f}%) · 今日首選【滯後補漲雷達】撿便宜"
+                rec_desc = f"加權指數連漲 {up_days} 天（5MA 乖離 {diff_5ma:+.2f}%），第一棒領頭羊（如台積電/高價權值股）短線漲多隨時可能震盪拉回。實戰最高勝率法門：**「不追高漲多龍頭，看大哥買小弟！」** 鎖定與大盤同步率 > 70% 但漲幅滯後之優質股，低風險享受資金外溢補漲利潤！"
+                rec_target_mode = "🛰️ 大盤同步·滯後補漲雷達 (低風險撿便宜·看大哥買小弟)"
+                rec_target_strat = None
+                rec_direction = "多"
+                btn_short_label = "滯後補漲雷達 (低風險撿便宜)"
             elif c >= sma20 and slope >= 0:
+                # 多頭健康剛發動/回測後剛轉強
                 status = "🟢 大盤多頭強勢 (指數在月線之上且月線走升)"
-                ratio = 0.75  # 建議 7~8 成
+                ratio = 0.75
                 reason = "大盤多頭結構健康，指數穩居月線之上！實戰操盤心法：多頭環境積極做多，建議持股 7~8 成，保留 25% 現金應對突發震盪。"
+                rec_badge = "👑 首選：無敵鐵金剛"
+                rec_title = "多頭攻擊波發動 · 今日首選【無敵鐵金剛】強攻起漲股"
+                rec_desc = "大盤雙線翻揚穩健推升，處於最佳做多攻擊期！買進首選勝率 7~8 成的【無敵鐵金剛】（轉折多頭型態＋5MA/20MA雙線翻揚＋紅K站穩5MA），順勢搭乘多頭主升段！"
+                rec_target_mode = "⚡ 操盤手極簡起漲模式 (推薦·3鍵抓起漲賺錢股)"
+                rec_target_strat = "👑 無敵鐵金剛 (三線合一·勝率7~8成黃金起漲)"
+                rec_direction = "多"
+                btn_short_label = "無敵鐵金剛 (強攻起漲第一根)"
             elif abs(c - sma20) / sma20 <= 0.018 or (c < sma20 and slope >= 0):
                 status = "🟡 大盤震盪整理 (指數在月線附近糾結整理)"
-                ratio = 0.50  # 建議 5 成
+                ratio = 0.50
                 reason = "大盤處於箱型震盪或回測月線，多空拉鋸！實戰操盤心法：持股降至 5 成，精選剛突破型態股，保留 50% 現金觀望。"
+                rec_badge = "🔄 首選：剛轉多 / 尾盤一點鐘"
+                rec_title = "大盤區間震盪整理 · 今日首選【剛轉多起漲】或【尾盤一點鐘】"
+                rec_desc = "大盤在月線附近洗盤拉鋸，容易出現假突破與盤中甩轎。操作應精選打底 2 個月剛破繭翻多的【剛轉多起漲】，或於 12:40~13:30 觀察【尾盤一點鐘買點】確認站穩再進場！"
+                rec_target_mode = "⚡ 操盤手極簡起漲模式 (推薦·3鍵抓起漲賺錢股)"
+                rec_target_strat = "🚀 剛轉多起漲 (盤整逾2月/四線糾結大突破)"
+                rec_direction = "多"
+                btn_short_label = "剛轉多起漲 (打底突破)"
             else:
                 status = "🔴 大盤轉弱走空 (指數跌破月線且月線下彎)"
-                ratio = 0.35  # 建議 3~4 成
+                ratio = 0.35
                 reason = "大盤走弱跌破生命線，覆巢之下無完卵！實戰操盤心法：嚴控持股在 3~4 成以下或空手觀望，嚴禁盲目加碼攤平！"
+                rec_badge = "🛡️ 保守防守"
+                rec_title = "大盤走弱破線 · 嚴控持股 3~4 成或空手"
+                rec_desc = "指數跌破月線且均線下彎，個股破線機率高。請將資金水位降至 35% 以下，保留大額現金等待落底訊號。"
+                rec_target_mode = "⚡ 操盤手極簡起漲模式 (推薦·3鍵抓起漲賺錢股)"
+                rec_target_strat = "📉 剛轉空頭破線 (頭低底低·初跌段起跌)"
+                rec_direction = "空"
+                btn_short_label = "空方防守策略"
+
             return {
                 "status": status,
                 "ratio": ratio,
                 "reason": reason,
                 "close": c,
+                "change": change,
+                "change_pct": change_pct,
+                "sma5": sma5,
                 "sma20": sma20,
-                "date": last_row['Date'].strftime('%Y-%m-%d')
+                "sma60": sma60,
+                "diff_5ma": diff_5ma,
+                "diff_20ma": diff_20ma,
+                "up_days": up_days,
+                "down_days": down_days,
+                "date": date_str,
+                "quote_time": quote_time,
+                "rec_badge": rec_badge,
+                "rec_title": rec_title,
+                "rec_desc": rec_desc,
+                "rec_target_mode": rec_target_mode,
+                "rec_target_strat": rec_target_strat,
+                "rec_direction": rec_direction,
+                "btn_short_label": btn_short_label
             }
     except Exception:
         pass
@@ -1504,9 +1607,752 @@ def get_market_condition():
         "ratio": 0.75,
         "reason": "大盤多頭趨勢良好，實戰操盤心法建議持股 7~8 成，保留 2~3 成現金防守。",
         "close": 23000,
+        "change": 0.0,
+        "change_pct": 0.0,
+        "sma5": 22900,
         "sma20": 22800,
-        "date": "最新交易日"
+        "sma60": 22500,
+        "diff_5ma": 0.43,
+        "diff_20ma": 0.88,
+        "up_days": 1,
+        "down_days": 0,
+        "date": "最新交易日",
+        "quote_time": "",
+        "rec_badge": "👑 首選：無敵鐵金剛",
+        "rec_title": "多頭攻擊波發動 · 今日首選【無敵鐵金剛】強攻起漲股",
+        "rec_desc": "大盤多頭趨勢良好，買進首選勝率 7~8 成的【無敵鐵金剛】！",
+        "rec_target_mode": "⚡ 操盤手極簡起漲模式 (推薦·3鍵抓起漲賺錢股)",
+        "rec_target_strat": "👑 無敵鐵金剛 (三線合一·勝率7~8成黃金起漲)",
+        "rec_direction": "多",
+        "btn_short_label": "無敵鐵金剛 (強攻起漲第一根)"
     }
+
+
+def render_market_strategy_compass(mkt: dict):
+    """
+    今日大盤作戰指針與實戰選股推薦導航 (Top-Down Market Compass)
+    依大盤走勢、連續漲跌天數、5MA/20MA乖離與結構，智慧推薦今日最佳作戰策略與一鍵套用按鈕
+    """
+    if not mkt:
+        return
+
+    c = mkt.get("close", 0.0)
+    chg = mkt.get("change", 0.0)
+    chg_pct = mkt.get("change_pct", 0.0)
+    diff_5ma = mkt.get("diff_5ma", 0.0)
+    diff_20ma = mkt.get("diff_20ma", 0.0)
+    up_days = mkt.get("up_days", 0)
+    down_days = mkt.get("down_days", 0)
+    ratio = mkt.get("ratio", 0.7)
+    rec_badge = mkt.get("rec_badge", "👑 今日首選")
+    rec_title = mkt.get("rec_title", "")
+    rec_desc = mkt.get("rec_desc", "")
+    rec_target_mode = mkt.get("rec_target_mode", "")
+    rec_target_strat = mkt.get("rec_target_strat", None)
+    btn_short_label = mkt.get("btn_short_label", "今日推薦策略")
+    q_time = f" ({mkt.get('quote_time')})" if mkt.get("quote_time") else ""
+    date_str = mkt.get("date", "")
+
+    chg_color = "#EF4444" if chg >= 0 else "#22C55E"
+    chg_sign = "+" if chg >= 0 else ""
+    diff_5_color = "#EF4444" if diff_5ma >= 0 else "#22C55E"
+    diff_20_color = "#EF4444" if diff_20ma >= 0 else "#22C55E"
+
+    streak_text = f"🔥 連續 {up_days} 日上漲" if up_days > 1 else (f"❄️ 連續 {down_days} 日下跌" if down_days > 1 else "⚖️ 多空平盤拉鋸")
+    streak_color = "#F87171" if up_days > 1 else ("#4ADE80" if down_days > 1 else "#94A3B8")
+
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, #131722 0%, #1A2234 50%, #161B26 100%);
+                    border: 1.5px solid #3B82F6; border-radius: 12px; padding: 16px 20px;
+                    margin-top: 10px; margin-bottom: 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.4);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.22rem; font-weight: 800; color: #FFFFFF;">🧭 今日大盤作戰指針 · 實戰選股推薦</span>
+                    <span style="background: rgba(59, 130, 246, 0.2); border: 1px solid #3B82F6; color: #93C5FD;
+                                 padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 700;">
+                        AI 自動診斷
+                    </span>
+                </div>
+                <div style="font-size: 0.8rem; color: #94A3B8;">
+                    基準指數：加權指數 (^TWII) {date_str}{q_time}
+                </div>
+            </div>
+
+            <!-- 大盤數據 5 欄儀表板 -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">
+                    <div style="color: #94A3B8; font-size: 0.74rem;">加權指數最新點位</div>
+                    <div style="color: #FFFFFF; font-size: 1.15rem; font-weight: 800;">{c:,.2f}</div>
+                    <div style="color: {chg_color}; font-size: 0.78rem; font-weight: 700;">{chg_sign}{chg:,.2f} ({chg_sign}{chg_pct:.2f}%)</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">
+                    <div style="color: #94A3B8; font-size: 0.74rem;">近期連續波段</div>
+                    <div style="color: {streak_color}; font-size: 1.15rem; font-weight: 800;">{streak_text}</div>
+                    <div style="color: #94A3B8; font-size: 0.78rem;">短線趨勢慣性</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">
+                    <div style="color: #94A3B8; font-size: 0.74rem;">5MA 均線乖離</div>
+                    <div style="color: {diff_5_color}; font-size: 1.15rem; font-weight: 800;">{diff_5ma:+.2f}%</div>
+                    <div style="color: #94A3B8; font-size: 0.78rem;">短線 5 日均線位階</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">
+                    <div style="color: #94A3B8; font-size: 0.74rem;">月線 20MA 乖離</div>
+                    <div style="color: {diff_20_color}; font-size: 1.15rem; font-weight: 800;">{diff_20ma:+.2f}%</div>
+                    <div style="color: #94A3B8; font-size: 0.78rem;">生命線中期支撐</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px;">
+                    <div style="color: #94A3B8; font-size: 0.74rem;">建議總持股水位</div>
+                    <div style="color: #FCD34D; font-size: 1.15rem; font-weight: 800;">{int(ratio * 100)}% 水位</div>
+                    <div style="color: #94A3B8; font-size: 0.78rem;">保留 {int((1 - ratio) * 100)}% 防守現金</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    with st.container(border=True):
+        c_desc, c_btn = st.columns([3.5, 1.5])
+        with c_desc:
+            st.markdown(
+                f"""
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span style="background: #1E3A8A; color: #60A5FA; border: 1px solid #3B82F6; font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 6px;">{rec_badge}</span>
+                    <span style="font-size: 1.05rem; font-weight: 800; color: #FFFFFF;">{rec_title}</span>
+                </div>
+                <div style="color: #CBD5E1; font-size: 0.88rem; line-height: 1.6;">
+                    {rec_desc}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        with c_btn:
+            st.write("")
+            is_already_selected = (st.session_state.get("scr_mode_tabs") == rec_target_mode)
+            if is_already_selected:
+                st.markdown(
+                    f"""
+                    <div style="background: rgba(16, 185, 129, 0.15); border: 1.5px solid #10B981; border-radius: 8px; padding: 10px 14px; text-align: center;">
+                        <span style="color: #34D399; font-weight: 800; font-size: 0.92rem;">✅ 已套用今日首選</span><br>
+                        <span style="color: #CBD5E1; font-size: 0.75rem;">{btn_short_label}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            else:
+                if st.button(f"⚡ 一鍵套用：{btn_short_label}", type="primary", use_container_width=True, key="btn_apply_today_mkt_rec"):
+                    st.session_state.scr_mode_tabs = rec_target_mode
+                    if rec_target_strat:
+                        st.session_state.scr_simp_strat_long = rec_target_strat
+                    st.rerun()
+
+
+def render_market_sync_radar(from_screener: bool = False):
+    """
+    大盤同步 · 滯後補漲雷達 (Market Sync & Catch-Up Radar)
+    可在選股池分頁與獨立分頁共用
+    """
+    if from_screener:
+        st.subheader("🛰️ 大盤同步 · 滯後補漲雷達 (低風險撿便宜·看大哥買小弟)")
+    else:
+        st.header("🛰️ 大盤同步 · 滯後補漲雷達")
+    st.caption("🎯 **量化策略核心**：在大盤處於多頭或波段反彈浪潮時，追蹤走勢波形與大盤高度同步（相似度 > 70%），但漲勢節奏落後大盤、尚未全面發作的主流熱門股。藉由資金板塊輪動外溢效益，精準掌握低風險、高風報比的『**滯後補漲發動波**』！")
+
+    # 大盤即時環境健檢 (確保盤中與證交所即時行情無縫對齊)
+    df_mkt, info_mkt = get_market_benchmark(period="6mo")
+    if df_mkt is not None and not df_mkt.empty:
+        with st.container(border=True):
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            m_close = info_mkt.get("close", 0.0)
+            m_chg = info_mkt.get("change_pct", 0.0)
+            m_diff = info_mkt.get("change", 0.0)
+            m_r5 = info_mkt.get("return_5d", 0.0)
+            m_r20 = info_mkt.get("return_20d", 0.0)
+            
+            # 雙重防護：若 info_mkt 內未計算，直接由 df_mkt 現場計算
+            if m_diff == 0.0 and len(df_mkt) >= 2:
+                m_diff = round(float(df_mkt['Close'].iloc[-1]) - float(df_mkt['Close'].iloc[-2]), 2)
+            if m_r5 == 0.0 and len(df_mkt) >= 6:
+                p_now = float(df_mkt['Close'].iloc[-1])
+                p_5 = float(df_mkt['Close'].iloc[-6])
+                m_r5 = round(((p_now - p_5) / p_5) * 100, 2)
+            if m_r20 == 0.0 and len(df_mkt) >= 21:
+                p_now = float(df_mkt['Close'].iloc[-1])
+                p_20 = float(df_mkt['Close'].iloc[-21])
+                m_r20 = round(((p_now - p_20) / p_20) * 100, 2)
+
+            m_sma5 = info_mkt.get("sma5", 0.0) or float(df_mkt['SMA_5'].iloc[-1] if 'SMA_5' in df_mkt.columns else m_close)
+            m_sma20 = info_mkt.get("sma20", 0.0) or float(df_mkt['SMA_20'].iloc[-1] if 'SMA_20' in df_mkt.columns else m_close)
+            m_sma60 = info_mkt.get("sma60", 0.0) or float(df_mkt['SMA_60'].iloc[-1] if 'SMA_60' in df_mkt.columns else m_sma20)
+
+            m_time_str = f" ({info_mkt.get('quote_time')})" if info_mkt.get('quote_time') else ""
+            delta_str = f"{m_diff:+,.2f} 點 ({m_chg:+.2f}%)"
+            col_m1.metric(f"加權指數 (^TWII){m_time_str}", f"{m_close:,.2f}", delta_str, delta_color="inverse")
+            col_m2.metric("大盤 5 日累積動能", f"{m_r5:+.2f}%", help="大盤近 5 個交易日之累積漲跌幅")
+            col_m3.metric("大盤 20 日波段動能", f"{m_r20:+.2f}%", help="大盤近 20 個交易日月線級別波段漲跌幅")
+            
+            # 大盤技術格局判斷
+            if m_close >= m_sma5 and m_sma5 >= m_sma20:
+                m_status = "🔥 多頭強勢發動 (站穩5MA/20MA)"
+                m_s_color = "#FF4D4F"
+            elif m_close >= m_sma20:
+                m_status = "🟢 守穩月線整理 (伺機攻堅)"
+                m_s_color = "#52C41A"
+            else:
+                m_status = "⚠️ 跌破月線震盪 (需嚴控持股水位)"
+                m_s_color = "#FAAD14"
+            col_m4.markdown(f"<div style='font-size:0.85rem; color:#888; margin-top:4px;'>大盤技術位階</div><div style='font-size:1.05rem; font-weight:bold; color:{m_s_color}; margin-top:2px;'>{m_status}</div>", unsafe_allow_html=True)
+
+            # 大盤短中長關鍵防守與壓力位階面板 (在同一個框框內部，以優雅分隔線融合)
+            diff_5ma = ((m_close - m_sma5) / m_sma5) * 100
+            diff_20ma = ((m_close - m_sma20) / m_sma20) * 100
+            diff_60ma = ((m_close - m_sma60) / m_sma60) * 100
+
+            c_5_color = "#FF4D4F" if m_close >= m_sma5 else "#52C41A"
+            c_20_color = "#FF4D4F" if m_close >= m_sma20 else "#FAAD14"
+            c_60_color = "#FF4D4F" if m_close >= m_sma60 else "#FAAD14"
+
+            st.markdown(f"""
+            <div style="border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 14px; padding-top: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; font-size: 0.88rem;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="color:#94A3B8; font-weight:600;">📌 關鍵防線定位：</span>
+                </div>
+                <div>
+                    <span style="color:#94A3B8;">上方短壓 (5MA)：</span>
+                    <span style="font-weight:bold; color:{c_5_color};">{m_sma5:,.2f}</span>
+                    <span style="font-size:0.75rem; color:#94A3B8;">({diff_5ma:+.2f}%)</span>
+                </div>
+                <div>
+                    <span style="color:#94A3B8;">短線防守 (20MA月線)：</span>
+                    <span style="font-weight:bold; color:{c_20_color};">{m_sma20:,.2f}</span>
+                    <span style="font-size:0.75rem; color:#94A3B8;">({diff_20ma:+.2f}%)</span>
+                </div>
+                <div>
+                    <span style="color:#94A3B8;">中長線生命線 (60MA季線)：</span>
+                    <span style="font-weight:bold; color:{c_60_color};">{m_sma60:,.2f}</span>
+                    <span style="font-size:0.75rem; color:#94A3B8;">({diff_60ma:+.2f}%)</span>
+                </div>
+                <div>
+                    <span style="color:#94A3B8;">波段型態前底：</span>
+                    <span style="font-weight:bold; color:#38BDF8;">45,398 點</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # 雙分頁架構：1. 個股 vs 大盤同步滯後 / 2. 族群龍頭外溢·看大哥買小弟
+    sync_tabs = st.tabs([
+        "🌐 大盤同步·個股滯後補漲 (個股 vs 加權指數)",
+        "👥 族群龍頭外溢·看大哥買小弟 (族群連動比價)"
+    ])
+
+    with sync_tabs[0]:
+        # 策略教學說明與三道濾網提示
+        with st.expander("💡 助教操盤手札：滯後補漲戰法的勝率關鍵與三道防禦濾網", expanded=False):
+            st.markdown(
+                """
+                ### 📌 什麼是「大盤同步·滯後補漲」戰法？
+                - **同向同構**：個股的走勢、高低轉折波與大盤加權指數高度重疊（形狀相似度 >= 70%），代表該標的受全市場總體資金與多頭氛圍強烈共振。
+                - **時鐘慢半拍**：大盤已經領先向上攻堅或創波段高，而此類個股仍在底部或頸線附近蓄勢（近 5 日累積漲幅落後大盤 1% ~ 8%）。
+                - **補漲啟動**：在多頭趨勢確立後，資金會由最先發動的第一梯隊權值股外溢至同型態二線主流股，形成「落後補漲」的主升推升段！
+
+                ### 🛡️ 官方助教「三道安全濾網」（防範破底假補漲）：
+                1. **嚴禁空排破線**：若個股遠低於月線（20MA）或破底創新低，屬於「弱者恆弱、主力棄守」，絕非健康補漲，系統已強制自動剔除。
+                2. **避開大盤噴出末端**：若大盤已急漲 5~7 天處於過熱高檔，此時進場滯後股易遭遇大盤回檔而「補跌不補漲」。最佳進場契機為**大盤轉折起漲第 1~3 天**。
+                3. **大盤破線即防守**：以大盤跌破 5MA 或個股自身跌破打底低點/20MA 為最高出場紀律，守住獲利絕不凹單。
+                """
+            )
+
+        # 控制項設定
+        st.markdown("---")
+        ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4, ctrl_c5 = st.columns([1.1, 0.85, 0.85, 0.95, 0.75])
+        with ctrl_c1:
+            scan_mode = st.selectbox(
+                "篩選目標策略",
+                ["🔥 強烈滯後補漲 (相似度>70% 且 漲幅落後大盤)", "⚡ 大盤高度同步 (相似度>75% 同步推升)", "🌐 全部同步候選名單"],
+                index=0
+            )
+        with ctrl_c2:
+            min_shape_sim = st.slider("最低波形相似度 (%)", min_value=60, max_value=90, value=70, step=5)
+        with ctrl_c3:
+            pool_choice = st.selectbox("監控股池", ["🔥 主流熱門與活躍股", "💎 精選波段觀察股", "📋 全部自選名冊"], index=0)
+        with ctrl_c4:
+            safety_filter = st.selectbox("安全燈號篩選", ["全部評級", "🟢 僅安全首選", "🟢/🟡 排除嚴禁追高/淘汰"], index=0)
+        with ctrl_c5:
+            st.write("")
+            st.write("")
+            do_rescan = st.button("🔄 重新掃描", use_container_width=True)
+
+        filter_mode_val = "lagging_only" if "強烈滯後" in scan_mode else ("all_sync" if "大盤高度同步" in scan_mode else "all")
+
+        # 執行掃描 (使用 session state 快取，避免切換個股或按鈕時重複大量連線抓取)
+        cache_key = f"market_sync_results_{filter_mode_val}_{min_shape_sim}_{pool_choice}"
+        if do_rescan or cache_key not in st.session_state:
+            with st.spinner("🛰️ 正在比對主流股與大盤加權指數之波形相似度與滯後缺口..."):
+                all_stk = load_stock_list()
+                if "主流熱門" in pool_choice:
+                    scan_universe = all_stk[:65]
+                elif "精選" in pool_choice:
+                    scan_universe = all_stk[:40]
+                else:
+                    scan_universe = all_stk[:100]
+
+                sync_candidates = scan_market_sync_candidates(
+                    stock_list=scan_universe,
+                    filter_mode=filter_mode_val,
+                    min_shape_corr=float(min_shape_sim),
+                    top_n=25,
+                    force_refresh=do_rescan
+                )
+                st.session_state[cache_key] = sync_candidates
+        else:
+            sync_candidates = st.session_state[cache_key]
+
+        # 安全燈號次級篩選
+        if safety_filter == "🟢 僅安全首選":
+            display_candidates = [c for c in sync_candidates if "安全首選" in c.get('safety_rating', '')]
+        elif "排除" in safety_filter:
+            display_candidates = [c for c in sync_candidates if "嚴禁" not in c.get('safety_rating', '') and "淘汰" not in c.get('safety_rating', '')]
+        else:
+            display_candidates = sync_candidates
+
+        if len(display_candidates) != len(sync_candidates):
+            st.markdown(f"**掃描結果：符合燈號標的 `{len(display_candidates)}` 檔** (雷達庫存共 `{len(sync_candidates)}` 檔)")
+        else:
+            st.markdown(f"**掃描結果：共發現 `{len(display_candidates)}` 檔符合波形同步與滯後補漲條件之標的**")
+
+        if not display_candidates:
+            st.info("目前條件下暫無符合標的，您可以將「安全燈號篩選」切換為「全部評級」或調降「最低波形相似度」重新掃描。")
+        else:
+            # 分欄排版：左欄候選股列表與卡片 / 右欄大盤 vs 個股雙走勢及 K 線對照圖
+            left_col, right_col = st.columns([1.1, 1.4])
+
+            # 預設選中第一檔
+            if "selected_sync_stock" not in st.session_state or not any(s['code'] == st.session_state.selected_sync_stock for s in display_candidates):
+                st.session_state.selected_sync_stock = display_candidates[0]['code']
+
+            with left_col:
+                st.subheader("📋 滯後補漲熱門候選清單")
+                for idx, c_item in enumerate(display_candidates):
+                    code = c_item['code']
+                    name = c_item['name']
+                    is_selected = (code == st.session_state.selected_sync_stock)
+                    is_up = c_item.get('is_up', True)
+                    chg_val = c_item.get('change', 0.0)
+                    chg_pct = c_item.get('change_pct', 0.0)
+
+                    # 漲跌顏色與符號 (台股紅漲綠跌)
+                    if chg_pct > 0:
+                        chg_color = "#FF4D4F"
+                        chg_text = f"▲ +{chg_val} (+{chg_pct}%)"
+                    elif chg_pct < 0:
+                        chg_color = "#52C41A"
+                        chg_text = f"▼ {chg_val} ({chg_pct}%)"
+                    else:
+                        chg_color = "#E0E6ED"
+                        chg_text = "0.0 (0.00%)"
+
+                    # 安全評級燈號標籤
+                    safety_rat = c_item.get('safety_rating', '🟢 安全首選')
+                    if "安全首選" in safety_rat:
+                        safety_badge = "<span style='background:rgba(82, 196, 26, 0.18); border:1px solid #52C41A; color:#52C41A; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px; margin-right:4px;'>🟢 安全首選</span>"
+                    elif "警訊" in safety_rat:
+                        safety_badge = "<span style='background:rgba(250, 173, 20, 0.18); border:1px solid #FAAD14; color:#FAAD14; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px; margin-right:4px;'>🟡 警訊注意</span>"
+                    else:
+                        safety_badge = f"<span style='background:rgba(255, 77, 79, 0.18); border:1px solid #FF4D4F; color:#FF4D4F; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px; margin-right:4px;'>{safety_rat}</span>"
+
+                    # 趨勢卡 (操盤線狀態：無敵鐵金剛 / 5MA走勢與站上)
+                    if c_item.get('iron_man', False):
+                        trend_card_html = "<span style='background:linear-gradient(90deg, #D97706, #B45309); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.75rem; margin-right:4px; box-shadow:0 0 6px rgba(217,119,6,0.5);'>🏆 無敵鐵金剛</span>"
+                    else:
+                        if c_item.get('is_5ma_rising', True):
+                            ma_up_html = "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>📈 5MA走升</span>"
+                        else:
+                            ma_up_html = "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>↘️ 5MA下彎</span>"
+                        if c_item.get('above_5ma', True):
+                            above_html = "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:4px;'>站上5MA</span>"
+                        else:
+                            above_html = "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:4px;'>破5MA</span>"
+                        trend_card_html = ma_up_html + above_html
+
+                    # 動能辣椒 (收紅紅椒 / 收黑綠椒)
+                    chili_cnt = c_item.get('chili_count', 1)
+                    if is_up:
+                        chili_html = "<span style='font-size:0.85rem; margin-left:3px; vertical-align:middle;'>" + ("🌶️" * chili_cnt) + "</span>"
+                    else:
+                        chili_html = "<span style='filter: hue-rotate(95deg) saturate(2); display:inline-block; font-size:0.85rem; margin-left:3px; vertical-align:middle;'>" + ("🌶️" * chili_cnt) + "</span>"
+
+                    # 伏兵提示 (收黑但安全)
+                    ambush_html = ""
+                    if not is_up and "安全首選" in safety_rat:
+                        ambush_html = "<div style='background:rgba(5, 150, 105, 0.16); border-left:3px solid #10B981; border-radius:4px; padding:4px 8px; margin:5px 0; color:#A7F3D0; font-size:0.78rem; line-height:1.4;'>💎 <b>拉回量縮伏兵</b>：安全綠燈且多頭結構無虞，回測守穩等轉折紅K即是絕佳佈局點！</div>"
+
+                    # 助教把關警訊提示
+                    safety_reasons = c_item.get('safety_reasons', [])
+                    warn_html = ""
+                    if safety_reasons and ("警訊" in safety_rat or "嚴禁" in safety_rat or "淘汰" in safety_rat):
+                        warn_text = " | ".join(safety_reasons[:2])
+                        warn_html = f"<div style='font-size:0.75rem; color:#E0A82E; margin-top:3px;'>⚠️ <b>助教把關</b>：{warn_text}</div>"
+
+                    # 醒目標示外框
+                    border_style = "2px solid #13C2C2; background: #16202C;" if is_selected else "1px solid #2B3145; background: #181C28;"
+
+                    card_html = (
+                        f"<div style='{border_style} border-radius: 8px; padding: 11px 14px; margin-bottom: 8px;'>"
+                        f"<div style='display: flex; justify-content: space-between; align-items: center;'>"
+                        f"<div>"
+                        f"<span style='font-size: 1.12rem; font-weight: bold; color: white;'>{name}</span>"
+                        f"<span style='color: #8892B0; font-size: 0.88rem; margin-left: 4px;'>({code})</span>"
+                        f"<span style='background: #1F2438; border: 1px solid {c_item['status_color']}; color: {c_item['status_color']}; font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; margin-left: 6px;'>{c_item['status_badge']}</span>"
+                        f"</div>"
+                        f"<div style='text-align: right;'>"
+                        f"<span style='font-size: 1.15rem; font-weight: bold; color: #FFF;'>{c_item['close']}</span> 元 "
+                        f"<span style='font-size: 0.8rem; color: {chg_color}; font-weight: bold; margin-left: 4px;'>{chg_text}</span>"
+                        f"</div>"
+                        f"</div>"
+                        f"<div style='display: flex; align-items: center; flex-wrap: wrap; margin-top: 6px;'>"
+                        f"{safety_badge}{trend_card_html}<span style='color: #94A3B8; font-size: 0.75rem; margin-left: 4px;'>動能：</span>{chili_html}"
+                        f"</div>"
+                        f"{ambush_html}"
+                        f"{warn_html}"
+                        f"<div style='display: flex; justify-content: space-between; font-size: 0.82rem; color: #CBD5E1; margin-top: 6px;'>"
+                        f"<div>🌊 幾何相似度：<b style='color: #13C2C2;'>{c_item['shape_corr']}%</b> | 相關係數：<b>{c_item['corr_return']}%</b></div>"
+                        f"<div>⏳ 5日落後差距：<b style='color: #FF4D4F;'>+{c_item['lag_gap_5d']}%</b></div>"
+                        f"</div>"
+                        f"<div style='display: flex; justify-content: space-between; font-size: 0.8rem; color: #94A3B8; margin-top: 4px; border-top: 1px dashed #2B3145; padding-top: 4px;'>"
+                        f"<div>🎯 補漲目標：<b style='color: #52C41A;'>{c_item['catchup_target']} 元</b> (依大盤等比)</div>"
+                        f"<div>🛑 建議防守：<b style='color: #FF7875;'>{c_item['stop_loss']} 元</b> (風控 -{c_item['risk_pct']}%)</div>"
+                        f"</div>"
+                        f"</div>"
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
+
+                    b_c1, b_c2 = st.columns([1, 1])
+                    with b_c1:
+                        if st.button(f"📈 檢視雙走勢對照", key=f"btn_sync_view_{code}_{idx}", use_container_width=True):
+                            st.session_state.selected_sync_stock = code
+                            st.rerun()
+                    with b_c2:
+                        if st.button(f"📊 載入主圖分頁", key=f"btn_sync_chart_{code}_{idx}", use_container_width=True):
+                            st.session_state.selected_stock = code
+                            st.session_state.return_to_menu = "🎯 全攻略選股池 (多/空策略)" if from_screener else "🛰️ 大盤同步·滯後補漲雷達"
+                            st.session_state.goto_chart = True
+                            st.rerun()
+
+            with right_col:
+                # 取得當前選定個股資料
+                curr_code = st.session_state.selected_sync_stock
+                curr_item = next((s for s in display_candidates if s['code'] == curr_code), display_candidates[0])
+
+                st.subheader(f"📊 【{curr_item['name']} ({curr_item['code']})】vs 加權指數走勢對照")
+
+                with st.spinner(f"正在繪製 {curr_item['name']} 與大盤雙圖對照..."):
+                    df_curr, _ = fetch_stock_kline(curr_code, period="6mo")
+                    if df_curr is not None and not df_curr.empty:
+                        fig_sync = create_market_sync_comparison_figure(
+                            df_stock=df_curr,
+                            df_mkt=df_mkt,
+                            stock_code=curr_code,
+                            stock_name=curr_item['name'],
+                            sync_data=curr_item
+                        )
+                        if fig_sync:
+                            st.plotly_chart(fig_sync, use_container_width=True, key=f"plotly_sync_{curr_code}")
+                        else:
+                            st.warning("無法產生存量對照圖表，數據長度不足。")
+                    else:
+                        st.warning("無法取得個股歷史 K 線數據。")
+
+                # 實戰操作建議便條
+                curr_safety = curr_item.get('safety_rating', '🟢 安全首選')
+                curr_safety_color = "#52C41A" if "安全" in curr_safety else ("#FAAD14" if "警訊" in curr_safety else "#FF4D4F")
+
+                if curr_item.get('iron_man', False):
+                    trend_desc = "<b style='color:#F59E0B;'>🏆 無敵鐵金剛</b> (三線合一頂級波段戰法，大師勝率最高模式)"
+                else:
+                    m_up_str = "📈 5MA走升" if curr_item.get('is_5ma_rising', True) else "↘️ 5MA下彎"
+                    m_above_str = "站上5MA" if curr_item.get('above_5ma', True) else "跌破5MA"
+                    trend_desc = f"<b>{m_up_str} · {m_above_str}</b> (5MA為短線極致操盤線)"
+
+                curr_is_up = curr_item.get('is_up', True)
+                curr_chili = ("🌶️" * curr_item.get('chili_count', 1)) if curr_is_up else ("🟢🌶️(量縮測線) " * curr_item.get('chili_count', 1))
+
+                entry_strategy_guide = ""
+                if "安全首選" in curr_safety and curr_is_up and curr_item.get('above_5ma', True):
+                    entry_strategy_guide = "🌟 <b>【今日可買·強勢先鋒】</b>：安全綠燈且出量站穩 5MA，為今日第一時間跟隨大盤發動之補漲首選！尾盤 1:00~1:25 確認收紅即可依 SOP 進場。"
+                elif "安全首選" in curr_safety and not curr_is_up:
+                    entry_strategy_guide = "💎 <b>【拉回量縮伏兵】</b>：安全綠燈且中多結構完好，今日收黑屬健康回測洗盤，<b>今日切勿急追</b>！先列入鎖股名單，等次日出現轉折紅 K 站回 5MA 尾盤再行出手！"
+                elif "警訊" in curr_safety:
+                    reasons_sub = "；".join(curr_item.get('safety_reasons', ['上方有密集套牢賣壓或短線乖離']))
+                    entry_strategy_guide = f"⚠️ <b>【警訊注意·暫緩追高】</b>：{reasons_sub}。宜耐心等待量縮回測 5MA/20MA 守穩再行評估。"
+                else:
+                    entry_strategy_guide = "🛑 <b>【嚴禁追價·結構轉弱】</b>：線型已觸發防守警戒，暫不宜作為補漲標的介入，請另選安全綠燈標的。"
+
+                guide_html = (
+                    f"<div style='background: #141724; border-left: 4px solid #13C2C2; border-radius: 6px; padding: 12px 16px; margin-top: 10px; font-size: 0.88rem; line-height: 1.6; color: #E0E6ED;'>"
+                    f"<div style='font-size: 0.95rem; font-weight: bold; color: #13C2C2; margin-bottom: 6px;'>🎯 助教實戰操盤指引【{curr_item['name']} ({curr_item['code']})】：</div>"
+                    f"• <b>安全評級</b>：<span style='color:{curr_safety_color}; font-weight:bold;'>{curr_safety}</span><br>"
+                    f"• <b>操盤線趨勢</b>：{trend_desc}<br>"
+                    f"• <b>動能位階</b>：<b>{curr_chili}</b><br>"
+                    f"• <b>走勢同構度</b>：幾何波形相似度達 <b>{curr_item['shape_corr']}%</b>，高低轉折波與大盤同頻共振。<br>"
+                    f"• <b>落後大盤差距</b>：近 5 個交易日大盤累計走勢比該股超前 <b>+{curr_item['lag_gap_5d']}%</b>，金色與青色間的陰影即為「<b>補漲缺口 (Lag Spread)</b>」！<br>"
+                    f"• <b>補漲預期目標</b>：<b>{curr_item['catchup_target']} 元</b> (若追平大盤漲幅)。<br>"
+                    f"• <b>風控防守價位</b>：<b>{curr_item['stop_loss']} 元</b> (守月線或前低，預估下檔最大風險僅 <b>-{curr_item['risk_pct']}%</b>)。<br>"
+                    f"• <b>實戰進場策略</b>：<br>"
+                    f"<div style='background:rgba(255,255,255,0.04); border-radius:4px; padding:8px 10px; margin-top:4px;'>{entry_strategy_guide}</div>"
+                    f"</div>"
+                )
+                st.markdown(guide_html, unsafe_allow_html=True)
+
+
+    with sync_tabs[1]:
+        st.markdown(
+            "<div style='background:rgba(19, 194, 194, 0.08); border-left:4px solid #13C2C2; border-radius:6px; padding:10px 14px; margin-bottom:12px; font-size:0.88rem; line-height:1.5; color:#E0E6ED;'>"
+            "👥 <b>族群外溢·看大哥買小弟戰法</b>：資本市場資金以族群為單位進駐，當指標龍頭大哥（如南亞、廣達、世界）放量發動後，"
+            "後續資金會迅速向同族群內『走勢高度相關、但漲幅滯後 2%~10%』之安全小弟（如台塑、緯創、聯電）外溢！"
+            "透過動態剪刀差與老朱技術濾網，搶先在小弟補漲起跑前精準卡位！"
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+        with st.expander("💡 助教操盤手札：族群龍頭外溢與小弟挑選三大鐵律", expanded=False):
+            st.markdown(
+                """
+                ### 📌 什麼是「族群龍頭外溢·看大哥買小弟」戰法？
+                - **錨定龍頭（大哥 Leader）**：在同一產業或集團艦隊中，市值最大、流動性最高、或當天率先放量突破 5MA 領漲的指標股。
+                - **外溢剪刀差（Spillover Gap）**：大哥漲勢拉開後，同族群優質小弟尚未跟上，兩者 5 日累積動能產生 $2\\% \\sim 10\\%$ 的動能落差（剪刀差），具備極高均值回歸補漲動能。
+                - **買小弟賺價差**：買在小弟起漲前或回測月線有守處，享受大哥帶動的板塊抬轎行情！
+
+                ### 🛡️ 官方助教「精選小弟三大防禦濾網」（防止選到病貓）：
+                1. **基因高度相關**：小弟與大哥的幾何價格走勢波形相似度（Shape Correlation）必須 $\\ge 60\\%$，證明平時確實同頻共振，非掛名假同族。
+                2. **月線結構完好**：小弟股價必須在月線 (20MA) 附近打底，且未破 20 日低點。若跌破前低底底低，屬於「惡性破線」直接淘汰，絕不盲目猜底。
+                3. **老朱尾盤驗鈔**：早盤看大哥臉色，尾盤 12:45~13:15 確認小弟是否收出飽滿紅 K 站上 5MA，尾盤進場安心享受隔日續攻！
+                """
+            )
+
+        # 族群外溢控制項
+        st.markdown("---")
+        sec_c1, sec_c2, sec_c3, sec_c4 = st.columns([1.2, 0.9, 0.9, 0.7])
+        with sec_c1:
+            fleet_options = ["🔥 全部發動族群 (按活躍度排序)"] + [f"{f['icon']} {f['name']}" for f in SECTOR_FLEETS]
+            selected_fleet_filter = st.selectbox("選擇族群艦隊", fleet_options, index=0, key="sec_fleet_filter")
+        with sec_c2:
+            leader_status_filter = st.selectbox(
+                "大哥動態",
+                ["全部狀態", "🔥 僅看大哥發動中 (漲幅>1% 或 5D>2%)"],
+                index=0,
+                key="sec_leader_status_filter"
+            )
+        with sec_c3:
+            follower_safety_filter = st.selectbox(
+                "小弟安全燈號",
+                ["🟢/🟡 實戰推薦 (排除破底淘汰股)", "🟢 僅安全接棒 (結構完好)", "🌐 全部候選 (含淘汰警示)"],
+                index=0,
+                key="sec_follower_safety_filter"
+            )
+        with sec_c4:
+            st.write("")
+            st.write("")
+            do_sector_rescan = st.button("🔄 重新掃描族群", use_container_width=True, key="btn_rescan_sector")
+
+        # 執行掃描與快取
+        sec_cache_key = "sector_spillover_candidates_cache"
+        if do_sector_rescan or sec_cache_key not in st.session_state:
+            with st.spinner("👥 正在比對各核心族群艦隊之領頭大哥動能與接棒小弟剪刀差..."):
+                sector_results = scan_sector_spillover_candidates(force_refresh=do_sector_rescan)
+                st.session_state[sec_cache_key] = sector_results
+        else:
+            sector_results = st.session_state[sec_cache_key]
+
+        # 族群過濾
+        filtered_fleets = []
+        for fleet_data in sector_results:
+            if "全部發動族群" not in selected_fleet_filter:
+                f_name = fleet_data['fleet_name']
+                if f_name not in selected_fleet_filter:
+                    continue
+
+            if "僅看大哥發動中" in leader_status_filter and not fleet_data['leader'].get('is_active', False):
+                continue
+
+            f_followers = fleet_data['followers']
+            if "僅安全接棒" in follower_safety_filter:
+                valid_followers = [f for f in f_followers if "安全" in f.get('safety_rating', '')]
+            elif "實戰推薦" in follower_safety_filter or "排除" in follower_safety_filter:
+                valid_followers = [f for f in f_followers if "淘汰" not in f.get('safety_rating', '') and "嚴禁" not in f.get('safety_rating', '')]
+            else:
+                valid_followers = f_followers
+
+            if valid_followers:
+                fleet_copy = dict(fleet_data)
+                fleet_copy['followers'] = valid_followers
+                filtered_fleets.append(fleet_copy)
+
+        st.markdown(f"**掃描結果：共發現 `{len(filtered_fleets)}` 個族群艦隊具備領先外溢與補漲剪刀差機會！**")
+
+        if not filtered_fleets:
+            st.info("目前條件下暫無符合族群，請切換「小弟安全燈號」為『全部評級』或選擇『全部發動族群』查看。")
+        else:
+            if "selected_pair_follower" not in st.session_state:
+                st.session_state.selected_pair_follower = filtered_fleets[0]['followers'][0]['code']
+                st.session_state.selected_pair_leader = filtered_fleets[0]['leader']['code']
+
+            sec_left_col, sec_right_col = st.columns([1.1, 1.4])
+
+            with sec_left_col:
+                st.subheader("📋 族群艦隊外溢補漲清單")
+                for f_idx, fleet_item in enumerate(filtered_fleets):
+                    f_icon = fleet_item['fleet_icon']
+                    f_name = fleet_item['fleet_name']
+                    ldr = fleet_item['leader']
+                    followers_list = fleet_item['followers']
+
+                    with st.container(border=True):
+                        ldr_chg = ldr['change_pct']
+                        ldr_chg_color = "#FF4D4F" if ldr_chg > 0 else ("#52C41A" if ldr_chg < 0 else "#E0E6ED")
+                        ldr_sign = "+" if ldr_chg > 0 else ""
+                        ldr_badge = "<span style='background:linear-gradient(90deg, #FF4D4F, #D9363E); color:white; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px;'>🔥 大哥發動中</span>" if ldr['is_active'] else "<span style='background:#2B2312; color:#FAAD14; font-size:0.75rem; padding:2px 7px; border-radius:4px;'>💤 蓄勢整理</span>"
+
+                        st.markdown(f"""
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <span style="font-size:1.05rem; font-weight:bold; color:#F8FAFC;">{f_icon} {f_name}</span>
+                            {ldr_badge}
+                        </div>
+                        <div style="background:rgba(255, 107, 107, 0.1); border-left:3px solid #FF6B6B; border-radius:4px; padding:6px 10px; margin-bottom:10px; font-size:0.85rem;">
+                            👑 <b>領頭大哥</b>：<b style="color:#FFF;">{ldr['name']} ({ldr['code']})</b> · 收盤 <b style="color:#FFF;">{ldr['close']}</b> · 今日 <b style="color:{ldr_chg_color};">{ldr_sign}{ldr_chg}%</b> · 5D動能 <b style="color:{ldr_chg_color};">+{ldr['pct_5d']}%</b>
+                        </div>
+                        <div style="font-size:0.85rem; font-weight:600; color:#94A3B8; margin-bottom:6px;">🎯 接棒補漲小弟 ({len(followers_list)} 檔)：</div>
+                        """, unsafe_allow_html=True)
+
+                        for fol_idx, fol in enumerate(followers_list):
+                            f_code = fol['code']
+                            f_name = fol['name']
+                            is_pair_selected = (f_code == st.session_state.selected_pair_follower and ldr['code'] == st.session_state.selected_pair_leader)
+                            
+                            f_chg = fol['change_pct']
+                            f_chg_color = "#FF4D4F" if f_chg > 0 else ("#52C41A" if f_chg < 0 else "#E0E6ED")
+                            f_sign = "+" if f_chg > 0 else ""
+
+                            fol_safety = fol.get('safety_rating', '🟢 安全接棒')
+                            if "安全" in fol_safety:
+                                fol_badge = "<span style='background:rgba(82, 196, 26, 0.18); border:1px solid #52C41A; color:#52C41A; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>🟢 安全接棒</span>"
+                            elif "守線" in fol_safety or "警訊" in fol_safety:
+                                fol_badge = "<span style='background:rgba(250, 173, 20, 0.18); border:1px solid #FAAD14; color:#FAAD14; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>🟡 守線觀察</span>"
+                            else:
+                                fol_badge = f"<span style='background:rgba(255, 77, 79, 0.18); border:1px solid #FF4D4F; color:#FF4D4F; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>{fol_safety}</span>"
+
+                            if fol.get('iron_man', False):
+                                ma_status_html = "<span style='background:#D97706; color:white; font-size:0.72rem; padding:2px 5px; border-radius:3px;'>🏆 無敵鐵金剛</span>"
+                            else:
+                                if fol.get('above_5ma', True):
+                                    ma_status_html = "<span style='background:#1D392E; color:#52C41A; font-size:0.72rem; padding:2px 5px; border-radius:3px;'>站上5MA</span>"
+                                else:
+                                    ma_status_html = "<span style='background:#3C1F24; color:#FF7875; font-size:0.72rem; padding:2px 5px; border-radius:3px;'>破5MA</span>"
+
+                            selected_border = "border: 2px solid #13C2C2; background: rgba(19, 194, 194, 0.08);" if is_pair_selected else "border: 1px solid rgba(148, 163, 184, 0.15); background: rgba(15, 23, 42, 0.4);"
+
+                            st.markdown(f"""
+                            <div style="{selected_border} border-radius:6px; padding:8px 10px; margin-bottom:8px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div>
+                                        <b style="font-size:0.95rem; color:#FFF;">{f_name} ({f_code})</b>
+                                        <span style="font-size:0.85rem; color:{f_chg_color}; font-weight:bold; margin-left:6px;">{fol['close']} ({f_sign}{f_chg}%)</span>
+                                    </div>
+                                    <div>
+                                        {fol_badge}
+                                        {ma_status_html}
+                                    </div>
+                                </div>
+                                <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:0.8rem; color:#94A3B8; margin-top:5px;">
+                                    <span>✂️ 剪刀差：<b style="color:#13C2C2;">落後 +{fol['spillover_gap']}%</b></span>
+                                    <span>🧬 與大哥相似度：<b style="color:#FFF;">{fol['corr_with_leader']}%</b></span>
+                                    <span>🎯 補漲目標：<b style="color:#52C41A;">{fol['catchup_target']}</b></span>
+                                    <span>🛑 防守：<b style="color:#FF7875;">{fol['stop_loss']}</b> (風暴比 {fol['risk_pct']}%)</span>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            b_c1, b_c2 = st.columns([1, 1])
+                            with b_c1:
+                                if st.button(f"📈 檢視雙雄對照", key=f"btn_sec_view_{f_code}_{f_idx}_{fol_idx}", use_container_width=True):
+                                    st.session_state.selected_pair_follower = f_code
+                                    st.session_state.selected_pair_leader = ldr['code']
+                                    st.rerun()
+                            with b_c2:
+                                if st.button(f"📊 載入主圖分頁", key=f"btn_sec_chart_{f_code}_{f_idx}_{fol_idx}", use_container_width=True):
+                                    st.session_state.selected_stock = f_code
+                                    st.session_state.return_to_menu = "🎯 全攻略選股池 (多/空策略)" if from_screener else "🛰️ 大盤同步·滯後補漲雷達"
+                                    st.session_state.goto_chart = True
+                                    st.rerun()
+
+            with sec_right_col:
+                curr_fol_code = st.session_state.get("selected_pair_follower", filtered_fleets[0]['followers'][0]['code'])
+                curr_ldr_code = st.session_state.get("selected_pair_leader", filtered_fleets[0]['leader']['code'])
+
+                found_fol = None
+                found_ldr = None
+                for f_item in filtered_fleets:
+                    if f_item['leader']['code'] == curr_ldr_code:
+                        for fol in f_item['followers']:
+                            if fol['code'] == curr_fol_code:
+                                found_fol = fol
+                                found_ldr = f_item['leader']
+                                break
+                    if found_fol:
+                        break
+
+                if not found_fol:
+                    found_fol = filtered_fleets[0]['followers'][0]
+                    found_ldr = filtered_fleets[0]['leader']
+                    curr_fol_code = found_fol['code']
+                    curr_ldr_code = found_ldr['code']
+
+                st.subheader(f"📊 【{found_fol['name']} ({curr_fol_code})】vs 👑 大哥【{found_ldr['name']} ({curr_ldr_code})】走勢對照")
+
+                with st.spinner(f"正在繪製 {found_fol['name']} vs {found_ldr['name']} 剪刀差圖表..."):
+                    df_fol, _ = fetch_stock_kline(curr_fol_code, period="6mo")
+                    df_ldr, _ = fetch_stock_kline(curr_ldr_code, period="6mo")
+
+                    if df_fol is not None and df_ldr is not None and not df_fol.empty and not df_ldr.empty:
+                        fig_pair = create_pair_sync_comparison_figure(
+                            df_follower=df_fol,
+                            df_leader=df_ldr,
+                            follower_name=found_fol['name'],
+                            follower_code=curr_fol_code,
+                            leader_name=found_ldr['name'],
+                            leader_code=curr_ldr_code,
+                            follower_data=found_fol
+                        )
+                        if fig_pair:
+                            st.plotly_chart(fig_pair, use_container_width=True, key=f"plotly_pair_{curr_fol_code}_{curr_ldr_code}")
+                        else:
+                            st.warning("無法產生雙雄對照圖表，數據長度不足。")
+                    else:
+                        st.warning("無法獲取雙雄歷史 K 線數據。")
+
+                sec_safety = found_fol.get('safety_rating', '🟢 安全首選')
+                sec_safety_color = "#52C41A" if "安全" in sec_safety else ("#FAAD14" if "警訊" in sec_safety else "#FF4D4F")
+
+                sec_guide_html = (
+                    f"<div style='background: #141724; border-left: 4px solid #13C2C2; border-radius: 6px; padding: 12px 16px; margin-top: 10px; font-size: 0.88rem; line-height: 1.6; color: #E0E6ED;'>"
+                    f"<div style='font-size: 0.95rem; font-weight: bold; color: #13C2C2; margin-bottom: 6px;'>🎯 族群比價實戰操盤指引【{found_fol['name']} ({curr_fol_code})】：</div>"
+                    f"• <b>領頭旗艦</b>：👑 <b>{found_ldr['name']} ({curr_ldr_code})</b> 今日收盤 <b>{found_ldr['close']}</b>，5 日累積動能 <b>+{found_ldr['pct_5d']}%</b>，為族群多頭主力先鋒。<br>"
+                    f"• <b>落後剪刀差</b>：小弟目前 5 日動能落後大哥 <b>+{found_fol['spillover_gap']}%</b>，珊瑚紅與青色間的陰影即為「<b>外溢補漲空間</b>」！<br>"
+                    f"• <b>與大哥波形同步率</b>：高達 <b>{found_fol['corr_with_leader']}%</b>，證明兩者同動性極強，大哥起跑小弟勢必跟隨。<br>"
+                    f"• <b>安全評級</b>：<span style='color:{sec_safety_color}; font-weight:bold;'>{sec_safety}</span><br>"
+                    f"• <b>補漲預期目標</b>：<b>{found_fol['catchup_target']} 元</b> (若追平大哥動能)。<br>"
+                    f"• <b>風控防守價位</b>：<b>{found_fol['stop_loss']} 元</b> (守月線 20MA 或打底低點，下檔風險僅 <b>-{found_fol['risk_pct']}%</b>)。<br>"
+                    f"• <b>老朱實戰進場 SOP</b>：<br>"
+                    f"<div style='background:rgba(255,255,255,0.04); border-radius:4px; padding:8px 10px; margin-top:4px;'>"
+                    f"早上 9:00~9:30 先觀察大哥 <b>{found_ldr['name']}</b> 是否維持強勢收紅；若大哥強勢，於 <b>12:45~13:15 尾盤</b> 確認 <b>{found_fol['name']}</b> 守穩月線並站上 5MA，尾盤直接進場，享受大哥拉開後的補漲外溢波段利潤！"
+                    f"</div>"
+                    f"</div>"
+                )
+                st.markdown(sec_guide_html, unsafe_allow_html=True)
+
+
+# ----------------------------------------------------
+
 
 is_guest = st.session_state.get("is_guest_8888", False)
 
@@ -1662,6 +2508,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             ret_label = "👁️ 鎖股池"
         elif "問答" in return_source:
             ret_label = "🧑‍🏫 AI 助教問答"
+        elif "滯後補漲" in return_source or "大盤同步" in return_source:
+            ret_label = "🛰️ 滯後補漲雷達"
         else:
             ret_label = "🎯 全攻略選股池"
     target_menu = return_source if return_source else "🎯 全攻略選股池 (多/空策略)"
@@ -3600,6 +4448,14 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         render_app_guideline()
 
     # ----------------------------------------------------
+    # 🧭 今日大盤作戰指針與策略導引 (Top-Down Market Compass & One-Click Strategy Match)
+    # ----------------------------------------------------
+    mkt_compass = get_market_condition()
+    if "scr_mode_tabs" not in st.session_state:
+        st.session_state.scr_mode_tabs = mkt_compass.get("rec_target_mode", "⚡ 操盤手極簡起漲模式 (推薦·3鍵抓起漲賺錢股)")
+    render_market_strategy_compass(mkt_compass)
+
+    # ----------------------------------------------------
     # 🔥 全市場主流族群即時熱度雷達 (Top-Down 資金流向與熱門板塊 - 快取保護)
     # ----------------------------------------------------
     hot_sectors = []
@@ -3679,1257 +4535,673 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             df_sec = pd.DataFrame(sec_table_data)
             st.dataframe(df_sec, use_container_width=True, hide_index=True)
 
-    # 頂部控制列：模式切換 (極簡模式 vs 專家進階模式)
+    # 頂部控制列：模式切換 (極簡模式 vs 滯後補漲雷達 vs 專家進階模式)
     scr_mode_tabs = st.radio(
         "🎯 選股模式切換",
-        ["⚡ 操盤手極簡起漲模式 (推薦·3鍵抓起漲賺錢股)", "🛠️ 專家自訂進階模式 (完整展開17大子策略/79族群/自訂條件)"],
+        [
+            "⚡ 操盤手極簡起漲模式 (推薦·3鍵抓起漲賺錢股)",
+            "🛰️ 大盤同步·滯後補漲雷達 (低風險撿便宜·看大哥買小弟)",
+            "🛠️ 專家自訂進階模式 (完整展開17大子策略/79族群/自訂條件)"
+        ],
         horizontal=True,
         key="scr_mode_tabs"
     )
-    is_simple_mode = "極簡" in scr_mode_tabs
 
-    selected_sector_filter = "全部"
-    hot_sub_type = "綜合熱門"
-    target_strategy = "無敵鐵金剛"
-    scope_val = "熱門優先"
-    price_val = "全部"
-    dir_val = "多"
-    direction = "🔴 做多 (Long)"
+    if "滯後補漲" in scr_mode_tabs:
+        render_market_sync_radar(from_screener=True)
+    else:
+        is_simple_mode = "極簡" in scr_mode_tabs
 
-    if is_simple_mode:
-        col_s1, col_s2 = st.columns([1.5, 3.5])
-        with col_s1:
-            simple_dir = st.radio("操作方向", ["🔴 做多起漲 (Long)", "🟢 做空起跌 (Short)"], horizontal=True, key="scr_simp_dir")
-            dir_val = "多" if "做多" in simple_dir else "空"
-            direction = "🔴 做多 (Long)" if dir_val == "多" else "🟢 做空 (Short)"
-        with col_s2:
-            if dir_val == "多":
-                simp_strat = st.radio(
-                    "👑 老朱起漲王牌策略 (聚焦新鮮起漲第 1 根)",
-                    [
-                        "👑 無敵鐵金剛 (三線合一·勝率7~8成黃金起漲)",
-                        "🚀 剛轉多起漲 (盤整逾2月/四線糾結大突破)",
-                        "⏰ 尾盤一點鐘買點 (短線 3 至 5 天價差首選)",
-                        "🌊 資金風口主流龍頭 (Top 5 族群領頭羊)"
-                    ],
-                    horizontal=True,
-                    key="scr_simp_strat_long"
-                )
-                if "無敵鐵金剛" in simp_strat:
-                    target_strategy = "無敵鐵金剛"
-                    main_mode = "📈 波段策略 (起漲關鍵)"
-                    st.caption("💡 **無敵鐵金剛**：勝率 7~8 成旗艦戰法！轉折多頭確立（底底高＋頭頭高）＋ 5MA/20MA雙線翻揚 ＋ 今日紅K站穩5MA！")
-                elif "剛轉多" in simp_strat:
-                    target_strategy = "剛變多頭"
-                    dir_val = "翻轉"
-                    direction = "🔄 剛變多頭起漲"
-                    main_mode = "🔄 趨勢翻轉雷達 (近4日結構改變)"
-                    st.caption("💡 **剛轉多起漲**：專門抓取打底逾 2 個月破繭翻多、或四線黏合糾結一箭穿心之初升段起漲第一根！")
-                elif "尾盤一點鐘" in simp_strat:
-                    target_strategy = "一點鐘"
-                    main_mode = "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)"
-                    st.caption("💡 **尾盤一點鐘買點**：盤中量縮整理守均線，12:40~13:30 出攻擊量確認站穩進場，防當沖甩轎！")
+
+        selected_sector_filter = "全部"
+        hot_sub_type = "綜合熱門"
+        target_strategy = "無敵鐵金剛"
+        scope_val = "熱門優先"
+        price_val = "全部"
+        dir_val = "多"
+        direction = "🔴 做多 (Long)"
+
+        if is_simple_mode:
+            col_s1, col_s2 = st.columns([1.5, 3.5])
+            with col_s1:
+                simple_dir = st.radio("操作方向", ["🔴 做多起漲 (Long)", "🟢 做空起跌 (Short)"], horizontal=True, key="scr_simp_dir")
+                dir_val = "多" if "做多" in simple_dir else "空"
+                direction = "🔴 做多 (Long)" if dir_val == "多" else "🟢 做空 (Short)"
+            with col_s2:
+                if dir_val == "多":
+                    simp_strat = st.radio(
+                        "👑 老朱起漲王牌策略 (聚焦新鮮起漲第 1 根)",
+                        [
+                            "👑 無敵鐵金剛 (三線合一·勝率7~8成黃金起漲)",
+                            "🚀 剛轉多起漲 (盤整逾2月/四線糾結大突破)",
+                            "⏰ 尾盤一點鐘買點 (短線 3 至 5 天價差首選)",
+                            "🌊 資金風口主流龍頭 (Top 5 族群領頭羊)"
+                        ],
+                        horizontal=True,
+                        key="scr_simp_strat_long"
+                    )
+                    if "無敵鐵金剛" in simp_strat:
+                        target_strategy = "無敵鐵金剛"
+                        main_mode = "📈 波段策略 (起漲關鍵)"
+                        st.caption("💡 **無敵鐵金剛**：勝率 7~8 成旗艦戰法！轉折多頭確立（底底高＋頭頭高）＋ 5MA/20MA雙線翻揚 ＋ 今日紅K站穩5MA！")
+                    elif "剛轉多" in simp_strat:
+                        target_strategy = "剛變多頭"
+                        dir_val = "翻轉"
+                        direction = "🔄 剛變多頭起漲"
+                        main_mode = "🔄 趨勢翻轉雷達 (近4日結構改變)"
+                        st.caption("💡 **剛轉多起漲**：專門抓取打底逾 2 個月破繭翻多、或四線黏合糾結一箭穿心之初升段起漲第一根！")
+                    elif "尾盤一點鐘" in simp_strat:
+                        target_strategy = "一點鐘"
+                        main_mode = "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)"
+                        st.caption("💡 **尾盤一點鐘買點**：盤中量縮整理守均線，12:40~13:30 出攻擊量確認站穩進場，防當沖甩轎！")
+                    else:
+                        target_strategy = "主流族群"
+                        main_mode = "🌊 主流族群飆股 (資金風口龍頭)"
+                        hot_sub_type = "TOP5_SECTOR"
+                        st.caption("💡 **資金風口主流龍頭**：全市場資金最集中的 Top 5 族群中，當日出量收紅站穩 5MA 之領漲龍頭！")
                 else:
-                    target_strategy = "主流族群"
-                    main_mode = "🌊 主流族群飆股 (資金風口龍頭)"
+                    simp_strat = st.radio(
+                        "📉 空方起跌核心策略",
+                        [
+                            "📉 剛轉空頭破線 (頭低底低·初跌段起跌)",
+                            "⚡ 盤中弱勢跌破 (跌破帶量)",
+                            "⏰ 尾盤一點鐘放空 (放空首選)"
+                        ],
+                        horizontal=True,
+                        key="scr_simp_strat_short"
+                    )
+                    if "剛轉空頭" in simp_strat:
+                        target_strategy = "剛變空頭"
+                        dir_val = "翻轉"
+                        direction = "🔄 剛變空頭破線"
+                        main_mode = "🔄 趨勢翻轉雷達 (近4日結構改變)"
+                    elif "盤中弱勢" in simp_strat:
+                        target_strategy = "盤中弱勢"
+                        main_mode = "⚡ 盤中弱勢 (跌破帶量)"
+                    else:
+                        target_strategy = "一點鐘"
+                        main_mode = "⏰ 12:40 - 13:30 尾盤一點鐘 (放空首選)"
+        else:
+            # 🛠️ 專家自訂進階模式 (保留完整細部篩選)
+            col_u0, col_t1, col_t2 = st.columns([1.3, 1.8, 3.1])
+            with col_u0:
+                pool_scope = st.radio(
+                    "🎯 篩選母體範圍",
+                    ["🌐 全市場股票", "🔥 熱門優先 (量大/主流族群)"],
+                    horizontal=True,
+                    key="scr_pool_scope"
+                )
+                scope_val = "熱門優先" if "熱門" in pool_scope else "全市場"
+            with col_t1:
+                direction = st.radio("操作方向", ["🔴 做多 (Long)", "🟢 做空 (Short)", "🔄 趨勢翻轉 (剛變盤/多/空)"], horizontal=True, key="scr_direction")
+                if "做多" in direction:
+                    dir_val = "多"
+                elif "做空" in direction:
+                    dir_val = "空"
+                else:
+                    dir_val = "翻轉"
+            with col_t2:
+                if dir_val == "多":
+                    main_mode = st.radio(
+                        "選股大類",
+                        [
+                            "📈 波段策略 (起漲關鍵)",
+                            "🌊 主流族群飆股 (資金風口龍頭)",
+                            "🔥 量排行 (位置決定命運)",
+                            "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)",
+                            "⚡ 盤中強勢 (量價齊揚)",
+                            "💎 長抱標的 (長期多排)"
+                        ],
+                        horizontal=True,
+                        key="scr_main_mode"
+                    )
+                elif dir_val == "空":
+                    main_mode = st.radio(
+                        "選股大類 (做空)",
+                        [
+                            "📉 波段策略 (起跌關鍵)",
+                            "⚡ 盤中弱勢 (跌破帶量)",
+                            "📊 盤中排行 (跌幅排行)",
+                            "🔥 量排行",
+                            "⏰ 12:40 - 13:30 尾盤一點鐘 (放空首選)"
+                        ],
+                        horizontal=True,
+                        key="scr_main_mode_short"
+                    )
+                else:
+                    main_mode = st.radio(
+                        "🔄 趨勢翻轉雷達 (近4日結構改變)",
+                        [
+                            "🔄 全部趨勢翻轉 (剛變多+剛變空+剛變盤整)",
+                            "🌀 剛變多頭 (四線糾結逾2月 · 老朱翻倍飆股)",
+                            "🔥 剛變多頭 (盤整逾2月 · 老朱戰法·翻倍潛力)",
+                            "🚀 剛變多頭 (反轉轉多 · 突破前高/起漲)",
+                            "⚠️ 多頭轉弱預警 (頭未過高/逼近前低/破月線)",
+                            "🟡 剛變盤整 (空頭反彈過前高 / 多頭跌破整理)",
+                            "📉 剛變空頭 (反轉轉空 · 跌破前低/破線)"
+                        ],
+                        horizontal=True,
+                        key="scr_main_mode_flip"
+                    )
+
+        if not is_simple_mode and scope_val == "熱門優先":
+            # 建立熱門子維度與 79 個細分產業族群選單
+            sector_options = [
+                "🔥 綜合熱門 (量大前50 + 主流風口 + 主力大買)",
+                "🌊 資金風口 Top 5 主流族群",
+                "🚀 今日成交量暴衝 (前 30 大人氣股)",
+                "💼 主力法人搶進 (外資/投信/大戶建倉)"
+            ]
+            if hot_sectors:
+                sec_items = [f"📊 {s['sector']} (Top {s['rank']} · {s['heat_score']}分)" for s in hot_sectors]
+                sector_options.extend(sec_items)
+
+            col_hot_a, col_hot_b = st.columns([2.5, 3.5])
+            with col_hot_a:
+                chosen_hot = st.selectbox(
+                    "🔥 請選擇熱門類型 / 79個細分產業族群：",
+                    sector_options,
+                    index=0,
+                    key="scr_chosen_hot_sector"
+                )
+            with col_hot_b:
+                if "綜合熱門" in chosen_hot:
+                    hot_sub_type = "綜合熱門"
+                    st.info("💡 **【綜合熱門】**：鎖定全市場成交量前 50 大、主流板塊強勢龍頭、爆量攻擊與主力大單進駐之焦點，再按下方技術策略進行精準篩選！")
+                elif "Top 5" in chosen_hot:
                     hot_sub_type = "TOP5_SECTOR"
-                    st.caption("💡 **資金風口主流龍頭**：全市場資金最集中的 Top 5 族群中，當日出量收紅站穩 5MA 之領漲龍頭！")
-            else:
-                simp_strat = st.radio(
-                    "📉 空方起跌核心策略",
-                    [
-                        "📉 剛轉空頭破線 (頭低底低·初跌段起跌)",
-                        "⚡ 盤中弱勢跌破 (跌破帶量)",
-                        "⏰ 尾盤一點鐘放空 (放空首選)"
-                    ],
-                    horizontal=True,
-                    key="scr_simp_strat_short"
-                )
-                if "剛轉空頭" in simp_strat:
+                    top5_str = "、".join([s['sector'] for s in hot_sectors[:5]]) if hot_sectors else "計算中"
+                    st.info(f"🌊 **【資金風口 Top 5 主流族群】**：鎖定當前資金最集中之 5 大板塊（{top5_str}），再按下方技術策略進行精準篩選！")
+                elif "成交量" in chosen_hot:
+                    hot_sub_type = "TOP_VOLUME"
+                    st.info("🚀 **【成交量前 30 大】**：鎖定今日市場換手最劇烈、成交量最大的 30 檔人氣焦點，再按下方技術策略進行精準篩選！")
+                elif "主力法人" in chosen_hot:
+                    hot_sub_type = "CHIPS_BUY"
+                    st.info("💼 **【主力法人大買】**：鎖定獲得外資、投信或主力大單積極買超建倉之個股，再按下方技術策略進行精準篩選！")
+                else:
+                    hot_sub_type = "SPECIFIC_SECTOR"
+                    clean_sec = chosen_hot.replace("📊", "").split("(")[0].strip()
+                    selected_sector_filter = clean_sec
+                    sec_match = next((s for s in hot_sectors if s['sector'] == clean_sec), None)
+                    if sec_match:
+                        lead_txt = "、".join(sec_match.get('leader_names', [])[:4])
+                        st.success(f"🎯 **已鎖定【{clean_sec}】族群**：熱度 {sec_match['heat_score']}分 ({sec_match['badge']})｜資金佔比 {sec_match['turnover_share']}%｜均漲 {'+' if sec_match['avg_chg']>=0 else ''}{sec_match['avg_chg']}%｜代表股：{lead_txt}。請於下方挑選技術戰法！")
+                    else:
+                        st.success(f"🎯 **已鎖定【{clean_sec}】族群**，請於下方挑選技術戰法！")
+
+
+        if not is_simple_mode:
+            target_strategy = "全部"
+            if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode or "轉弱" in main_mode:
+                if "四線糾結" in main_mode:
+                    target_strategy = "剛變多頭 (四線糾結逾2月)"
+                    st.caption("🌀 **【老朱神技 · 四線糾結逾 2 個月大爆發】**：朱家泓老師經典心法：『**5/10/20/60MA 四線在低檔平躺糾結超過 2 個月，均線成本高度合一，放量一箭穿心突破，大漲且持續很久！**』專門抓取各週期主力成本一致洗盤極致、即將展開超級大多頭主升段的起漲第一根標的！")
+                elif "盤整逾2月" in main_mode or "老朱戰法" in main_mode:
+                    target_strategy = "剛變多頭 (盤整逾2月)"
+                    st.caption("🔥 **【老朱戰法 · 盤整超過2個月突然變多頭】**：老朱名言『**橫有多長，豎有多高！**』專門鎖定前段歷經 **2 個月以上（>=40 個交易日）** 密集箱型打底洗盤，近 4 日內**首度破繭突破翻轉為多頭架構**之翻倍潛力標的！籌碼極度沉澱、爆發續航力驚人！")
+                elif "轉弱預警" in main_mode:
+                    target_strategy = "多頭轉弱預警"
+                    st.caption("💡 **【⚠️ 多頭轉弱預警 (頭未過高 / 逼近前低 / 破月線)】**：多頭行進間提前捕捉破綻與風險！包含：反彈高點未過前高（轉盤整前兆）、股價逼近前低關鍵支撐、收盤跌破月線或高檔爆量長黑，協助您提早防守停利、避開回檔與趨勢翻轉！")
+                elif "剛變盤整" in main_mode:
+                    target_strategy = "剛變盤整"
+                    st.caption("💡 **【🟡 剛變盤整 (結構破壞整理)】**：鎖定近 4 個交易日內，原空頭架構被反彈突破前高破壞（如智邦 2345），或原多頭架構被回檔跌破前低破壞的個股！趨勢改變為盤整，代表舊趨勢告一段落，進入新一輪洗盤與方向醞釀！")
+                elif "剛變多頭" in main_mode:
+                    target_strategy = "剛變多頭"
+                    st.caption("💡 **【🚀 剛變多頭 (反轉轉多 · 突破起漲)】**：鎖定近 4 個交易日內，首度走出「**頭頭高、底底高**」完整多頭架構的起漲個股！為大波段多頭行情的初升段黃金發動點！")
+                elif "剛變空頭" in main_mode:
                     target_strategy = "剛變空頭"
-                    dir_val = "翻轉"
-                    direction = "🔄 剛變空頭破線"
-                    main_mode = "🔄 趨勢翻轉雷達 (近4日結構改變)"
-                elif "盤中弱勢" in simp_strat:
-                    target_strategy = "盤中弱勢"
-                    main_mode = "⚡ 盤中弱勢 (跌破帶量)"
+                    st.caption("💡 **【📉 剛變空頭 (反轉轉空 · 破線下殺)】**：鎖定近 4 個交易日內，首度走出「**頭頭低、底底低**」完整空頭架構的初跌個股！多方持股者應提高警覺或紀律停損出場！")
                 else:
-                    target_strategy = "一點鐘"
-                    main_mode = "⏰ 12:40 - 13:30 尾盤一點鐘 (放空首選)"
-    else:
-        # 🛠️ 專家自訂進階模式 (保留完整細部篩選)
-        col_u0, col_t1, col_t2 = st.columns([1.3, 1.8, 3.1])
-        with col_u0:
-            pool_scope = st.radio(
-                "🎯 篩選母體範圍",
-                ["🌐 全市場股票", "🔥 熱門優先 (量大/主流族群)"],
-                horizontal=True,
-                key="scr_pool_scope"
-            )
-            scope_val = "熱門優先" if "熱門" in pool_scope else "全市場"
-        with col_t1:
-            direction = st.radio("操作方向", ["🔴 做多 (Long)", "🟢 做空 (Short)", "🔄 趨勢翻轉 (剛變盤/多/空)"], horizontal=True, key="scr_direction")
-            if "做多" in direction:
-                dir_val = "多"
-            elif "做空" in direction:
-                dir_val = "空"
-            else:
-                dir_val = "翻轉"
-        with col_t2:
-            if dir_val == "多":
-                main_mode = st.radio(
-                    "選股大類",
-                    [
-                        "📈 波段策略 (起漲關鍵)",
-                        "🌊 主流族群飆股 (資金風口龍頭)",
-                        "🔥 量排行 (位置決定命運)",
-                        "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)",
-                        "⚡ 盤中強勢 (量價齊揚)",
-                        "💎 長抱標的 (長期多排)"
-                    ],
-                    horizontal=True,
-                    key="scr_main_mode"
-                )
-            elif dir_val == "空":
-                main_mode = st.radio(
-                    "選股大類 (做空)",
-                    [
-                        "📉 波段策略 (起跌關鍵)",
-                        "⚡ 盤中弱勢 (跌破帶量)",
-                        "📊 盤中排行 (跌幅排行)",
-                        "🔥 量排行",
-                        "⏰ 12:40 - 13:30 尾盤一點鐘 (放空首選)"
-                    ],
-                    horizontal=True,
-                    key="scr_main_mode_short"
-                )
-            else:
-                main_mode = st.radio(
-                    "🔄 趨勢翻轉雷達 (近4日結構改變)",
-                    [
-                        "🔄 全部趨勢翻轉 (剛變多+剛變空+剛變盤整)",
-                        "🌀 剛變多頭 (四線糾結逾2月 · 老朱翻倍飆股)",
-                        "🔥 剛變多頭 (盤整逾2月 · 老朱戰法·翻倍潛力)",
-                        "🚀 剛變多頭 (反轉轉多 · 突破前高/起漲)",
-                        "⚠️ 多頭轉弱預警 (頭未過高/逼近前低/破月線)",
-                        "🟡 剛變盤整 (空頭反彈過前高 / 多頭跌破整理)",
-                        "📉 剛變空頭 (反轉轉空 · 跌破前低/破線)"
-                    ],
-                    horizontal=True,
-                    key="scr_main_mode_flip"
-                )
-
-    if not is_simple_mode and scope_val == "熱門優先":
-        # 建立熱門子維度與 79 個細分產業族群選單
-        sector_options = [
-            "🔥 綜合熱門 (量大前50 + 主流風口 + 主力大買)",
-            "🌊 資金風口 Top 5 主流族群",
-            "🚀 今日成交量暴衝 (前 30 大人氣股)",
-            "💼 主力法人搶進 (外資/投信/大戶建倉)"
-        ]
-        if hot_sectors:
-            sec_items = [f"📊 {s['sector']} (Top {s['rank']} · {s['heat_score']}分)" for s in hot_sectors]
-            sector_options.extend(sec_items)
-
-        col_hot_a, col_hot_b = st.columns([2.5, 3.5])
-        with col_hot_a:
-            chosen_hot = st.selectbox(
-                "🔥 請選擇熱門類型 / 79個細分產業族群：",
-                sector_options,
-                index=0,
-                key="scr_chosen_hot_sector"
-            )
-        with col_hot_b:
-            if "綜合熱門" in chosen_hot:
-                hot_sub_type = "綜合熱門"
-                st.info("💡 **【綜合熱門】**：鎖定全市場成交量前 50 大、主流板塊強勢龍頭、爆量攻擊與主力大單進駐之焦點，再按下方技術策略進行精準篩選！")
-            elif "Top 5" in chosen_hot:
-                hot_sub_type = "TOP5_SECTOR"
-                top5_str = "、".join([s['sector'] for s in hot_sectors[:5]]) if hot_sectors else "計算中"
-                st.info(f"🌊 **【資金風口 Top 5 主流族群】**：鎖定當前資金最集中之 5 大板塊（{top5_str}），再按下方技術策略進行精準篩選！")
-            elif "成交量" in chosen_hot:
-                hot_sub_type = "TOP_VOLUME"
-                st.info("🚀 **【成交量前 30 大】**：鎖定今日市場換手最劇烈、成交量最大的 30 檔人氣焦點，再按下方技術策略進行精準篩選！")
-            elif "主力法人" in chosen_hot:
-                hot_sub_type = "CHIPS_BUY"
-                st.info("💼 **【主力法人大買】**：鎖定獲得外資、投信或主力大單積極買超建倉之個股，再按下方技術策略進行精準篩選！")
-            else:
-                hot_sub_type = "SPECIFIC_SECTOR"
-                clean_sec = chosen_hot.replace("📊", "").split("(")[0].strip()
-                selected_sector_filter = clean_sec
-                sec_match = next((s for s in hot_sectors if s['sector'] == clean_sec), None)
-                if sec_match:
-                    lead_txt = "、".join(sec_match.get('leader_names', [])[:4])
-                    st.success(f"🎯 **已鎖定【{clean_sec}】族群**：熱度 {sec_match['heat_score']}分 ({sec_match['badge']})｜資金佔比 {sec_match['turnover_share']}%｜均漲 {'+' if sec_match['avg_chg']>=0 else ''}{sec_match['avg_chg']}%｜代表股：{lead_txt}。請於下方挑選技術戰法！")
+                    target_strategy = "全部趨勢翻轉"
+                    st.caption("💡 **【🔄 全部趨勢翻轉雷達】**：一次列出全市場近 4 個交易日內發生結構轉變（**剛變多頭、剛變空頭、剛變盤整**）之所有個股，讓您即時掌握關鍵轉折時間點！")
+            elif "波段" in main_mode:
+                if dir_val == "多":
+                    sub_strat = st.radio(
+                        "波段核心子策略分類：",
+                        [
+                            "🏆 無敵鐵金剛 (三線合一·高勝率旗艦)",
+                            "🚀 主升段第二波 (鎖一做二·飆股再發動)",
+                            "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)",
+                            "🔥 換手成功強勢股 (高檔爆量再創新高)",
+                            "⚡ 突破大量黑K高點 (飆股換手·突破起漲)",
+                            "📐 突破ABC修正切線 (短空做頭失敗反手多)",
+                            "📊 K線橫盤突破 (3天橫盤放量突破)",
+                            "🚀 突破上升軌道線 (多頭加速噴出)",
+                            "🐅 飆股智慧K線 (未破昨低續抱)",
+                            "👑 頭高底高 (六字訣多頭確認)",
+                            "🎯 回後準進場 (拉回測線有守·短線買點)",
+                            "🌀 均線糾結突破 (四線糾結起漲第一根)",
+                            "📦 一字底放量突破 (60天糾結·飆股第一根)",
+                            "🥣 圓弧底放量突破 (U型底慢火打底)",
+                            "🌱 底部起漲 (綜合底型突破)",
+                            "🚀 高檔起漲 (多頭突破再創高)",
+                            "⚔️ 雙線翻揚 (5MA/20MA 向上翻揚)"
+                        ],
+                        horizontal=True,
+                        key="scr_sub_strat"
+                    )
+                    if "無敵鐵金剛" in sub_strat:
+                        target_strategy = "無敵鐵金剛"
+                        st.caption("💡 **無敵鐵金剛（三線合一）**：官方 App 勝率最高（7～8成）旗艦戰法！同時滿足「**轉折多頭確立（底底高＋頭頭高）** + **5MA/20MA雙線金叉翻揚** + **今日紅K站穩5MA**」。操盤紀律：**買進後守穩 5MA 一路續抱，跌破 5MA 立即紀律停利出場！**")
+                    elif "主升段第二波" in sub_strat:
+                        target_strategy = "主升段第二波"
+                        st.caption("💡 **【主升段第二波戰法】鎖第一波，做第二波 (強勢飆股波段)**：鎖定第一波連噴 15%~30% 的市場龍頭，拉回洗盤跌破 5MA 但守穩月線 (20MA)，今日出放量紅K過昨高站回 5MA，為第二波主升段絕佳買點！")
+                    elif "箱型整理大突破" in sub_strat or "箱型" in sub_strat:
+                        target_strategy = "箱型整理大突破"
+                        st.caption("💡 **【箱型整理大突破 (一棒過頂)】**：股價在 12~35 天箱型區間（振幅 12%~25%）反覆洗盤震盪蓄勢後，今日以**實體長紅放量一棒摜破過去一個月的箱頂壓力線**！主力洗盤換手完畢，上方無套牢賣壓，通常為**新一波波段主升段起漲第一根**！")
+                    elif "換手成功" in sub_strat:
+                        target_strategy = "換手成功"
+                        st.caption("💡 **【高檔爆量換手成功】**：高檔爆大量黑K或變盤線後 3 天內，強勢收盤突破該爆量K棒最高點！主力洗盤換手完畢，新主力籌碼進駐續噴主升段！")
+                    elif "突破大量黑K高點" in sub_strat:
+                        target_strategy = "突破大量黑K高點"
+                        st.caption("💡 **【突破大量黑K最高點 (飆股換手突破起漲)】**：強勢飆股在短線急漲後拉出巨量黑K棒洗盤，但主力籌碼極強，1~3天內立刻拉出大量紅K收盤實質突破該黑K最高點！這代表盤面籌碼被新主力全數接走換手成功，常展開大波段噴出行情！")
+                    elif "突破ABC修正切線" in sub_strat:
+                        target_strategy = "突破ABC修正切線"
+                        st.caption("💡 **【突破 ABC 修正下降切線 (短空做頭失敗反手多)】**：多頭走勢中出現 20 天以內的 A-B-C 旗型向下修正（月線維持翻揚助漲），今日放量紅K收盤實質突破下降切線！短空做頭失敗，多頭趨勢重啟，可依 A-B 振幅計算等距波段目標價 D'！")
+                    elif "K線橫盤突破" in sub_strat:
+                        target_strategy = "K線橫盤突破"
+                        st.caption("💡 **【K線橫盤突破 (3天橫盤放量突破)】**：連續 3 天收盤價皆未跌破第 1 天母K棒低點、亦未突破其高點（極狹幅震盪整理），第 4 天（或今日）放量紅K強勢突破該 3 天最高點並站穩 5MA！微觀結構轉折確立，為短線高勝率發動點！")
+                    elif "突破上升軌道線" in sub_strat:
+                        target_strategy = "突破上升軌道線"
+                        st.caption("💡 **【突破上升軌道線 (多頭加速噴出)】**：股價沿著上升切線與平行軌道線穩健走多，今日帶量大紅K強勢衝破上升軌道線上緣！代表多頭力道暴增，由常態通道轉為主升段加速噴出！")
+                    elif "智慧K線" in sub_strat:
+                        target_strategy = "智慧K線續抱"
+                        st.caption("💡 **【飆股智慧 K 線交易法 (未破昨低續抱)】**：鎖定強勢大漲股，只要每日收盤未跌破前一日最低價即一路抱牢奔跑！每日 13:20 檢視，若確認跌破前一日最低價則果斷賣出，讓利潤最大化同時嚴控回檔風險！")
+                    elif "頭高底高" in sub_strat:
+                        target_strategy = "頭高底高"
+                        st.caption("💡 **選股 vs 鎖股分工**：此處【👑 頭高底高】是「**六字訣多頭確立、5MA走升且站穩5MA**」之強勢多頭名單。")
+                    elif "回後準進場" in sub_strat:
+                        target_strategy = "回後準進場"
+                        st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
+                    elif "均線糾結突破" in sub_strat:
+                        target_strategy = "均線糾結突破"
+                        st.caption("💡 **【四線高度糾結突破】**：5MA、10MA、20MA、60MA 四線在低檔平躺糾結 1~3 個月後，首度放量長紅一口氣突破四線！**大師實戰心法**：糾結突破爆發力極大（常翻 2~3 倍），第一天沒買到沒關係，**次日若未漲停鎖死，開平或小漲趕快買進**！")
+                    elif "一字底" in sub_strat:
+                        target_strategy = "一字底"
+                        st.caption("💡 **【一字底放量突破 (60天糾結·飆股第一根)】**：股價在 30~60 天極狹幅區間（振幅 <= 12%~15%）內反覆洗盤，5/10/20/60MA 四線平躺糾結，今日長紅放量一棒摜破箱頂頸線！上方浮額洗淨、萬里無雲，通常為大波段翻倍飆股的主升第一根！")
+                    elif "圓弧底" in sub_strat:
+                        target_strategy = "圓弧底"
+                        st.caption("💡 **【圓弧底慢火打底 (U型底·突破或翻揚)】**：左側緩跌量縮、中央平坦打底（洗淨浮額）、右側溫和量增推升，形成對稱 U 型弧線。包含兩大實戰買點：(1) **放量過頸線起漲**（帶量突破左右水平頸線，等距對稱波發動）；(2) **慢火打底右側翻揚**（凹槽打底完成，脫離底部 3%~5% 站上 5MA/20MA 走平翻揚起步）！")
+                    elif "底部起漲" in sub_strat:
+                        target_strategy = "底部起漲"
+                    elif "高檔起漲" in sub_strat:
+                        target_strategy = "高檔起漲"
+                    elif "雙線翻揚" in sub_strat:
+                        target_strategy = "雙線翻揚"
                 else:
-                    st.success(f"🎯 **已鎖定【{clean_sec}】族群**，請於下方挑選技術戰法！")
-
-
-    if not is_simple_mode:
-        target_strategy = "全部"
-        if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode or "轉弱" in main_mode:
-            if "四線糾結" in main_mode:
-                target_strategy = "剛變多頭 (四線糾結逾2月)"
-                st.caption("🌀 **【老朱神技 · 四線糾結逾 2 個月大爆發】**：朱家泓老師經典心法：『**5/10/20/60MA 四線在低檔平躺糾結超過 2 個月，均線成本高度合一，放量一箭穿心突破，大漲且持續很久！**』專門抓取各週期主力成本一致洗盤極致、即將展開超級大多頭主升段的起漲第一根標的！")
-            elif "盤整逾2月" in main_mode or "老朱戰法" in main_mode:
-                target_strategy = "剛變多頭 (盤整逾2月)"
-                st.caption("🔥 **【老朱戰法 · 盤整超過2個月突然變多頭】**：老朱名言『**橫有多長，豎有多高！**』專門鎖定前段歷經 **2 個月以上（>=40 個交易日）** 密集箱型打底洗盤，近 4 日內**首度破繭突破翻轉為多頭架構**之翻倍潛力標的！籌碼極度沉澱、爆發續航力驚人！")
-            elif "轉弱預警" in main_mode:
-                target_strategy = "多頭轉弱預警"
-                st.caption("💡 **【⚠️ 多頭轉弱預警 (頭未過高 / 逼近前低 / 破月線)】**：多頭行進間提前捕捉破綻與風險！包含：反彈高點未過前高（轉盤整前兆）、股價逼近前低關鍵支撐、收盤跌破月線或高檔爆量長黑，協助您提早防守停利、避開回檔與趨勢翻轉！")
-            elif "剛變盤整" in main_mode:
-                target_strategy = "剛變盤整"
-                st.caption("💡 **【🟡 剛變盤整 (結構破壞整理)】**：鎖定近 4 個交易日內，原空頭架構被反彈突破前高破壞（如智邦 2345），或原多頭架構被回檔跌破前低破壞的個股！趨勢改變為盤整，代表舊趨勢告一段落，進入新一輪洗盤與方向醞釀！")
-            elif "剛變多頭" in main_mode:
-                target_strategy = "剛變多頭"
-                st.caption("💡 **【🚀 剛變多頭 (反轉轉多 · 突破起漲)】**：鎖定近 4 個交易日內，首度走出「**頭頭高、底底高**」完整多頭架構的起漲個股！為大波段多頭行情的初升段黃金發動點！")
-            elif "剛變空頭" in main_mode:
-                target_strategy = "剛變空頭"
-                st.caption("💡 **【📉 剛變空頭 (反轉轉空 · 破線下殺)】**：鎖定近 4 個交易日內，首度走出「**頭頭低、底底低**」完整空頭架構的初跌個股！多方持股者應提高警覺或紀律停損出場！")
-            else:
-                target_strategy = "全部趨勢翻轉"
-                st.caption("💡 **【🔄 全部趨勢翻轉雷達】**：一次列出全市場近 4 個交易日內發生結構轉變（**剛變多頭、剛變空頭、剛變盤整**）之所有個股，讓您即時掌握關鍵轉折時間點！")
-        elif "波段" in main_mode:
-            if dir_val == "多":
-                sub_strat = st.radio(
-                    "波段核心子策略分類：",
-                    [
-                        "🏆 無敵鐵金剛 (三線合一·高勝率旗艦)",
-                        "🚀 主升段第二波 (鎖一做二·飆股再發動)",
-                        "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)",
-                        "🔥 換手成功強勢股 (高檔爆量再創新高)",
-                        "⚡ 突破大量黑K高點 (飆股換手·突破起漲)",
-                        "📐 突破ABC修正切線 (短空做頭失敗反手多)",
-                        "📊 K線橫盤突破 (3天橫盤放量突破)",
-                        "🚀 突破上升軌道線 (多頭加速噴出)",
-                        "🐅 飆股智慧K線 (未破昨低續抱)",
-                        "👑 頭高底高 (六字訣多頭確認)",
-                        "🎯 回後準進場 (拉回測線有守·短線買點)",
-                        "🌀 均線糾結突破 (四線糾結起漲第一根)",
-                        "📦 一字底放量突破 (60天糾結·飆股第一根)",
-                        "🥣 圓弧底放量突破 (U型底慢火打底)",
-                        "🌱 底部起漲 (綜合底型突破)",
-                        "🚀 高檔起漲 (多頭突破再創高)",
-                        "⚔️ 雙線翻揚 (5MA/20MA 向上翻揚)"
-                    ],
-                    horizontal=True,
-                    key="scr_sub_strat"
-                )
-                if "無敵鐵金剛" in sub_strat:
-                    target_strategy = "無敵鐵金剛"
-                    st.caption("💡 **無敵鐵金剛（三線合一）**：官方 App 勝率最高（7～8成）旗艦戰法！同時滿足「**轉折多頭確立（底底高＋頭頭高）** + **5MA/20MA雙線金叉翻揚** + **今日紅K站穩5MA**」。操盤紀律：**買進後守穩 5MA 一路續抱，跌破 5MA 立即紀律停利出場！**")
-                elif "主升段第二波" in sub_strat:
-                    target_strategy = "主升段第二波"
-                    st.caption("💡 **【主升段第二波戰法】鎖第一波，做第二波 (強勢飆股波段)**：鎖定第一波連噴 15%~30% 的市場龍頭，拉回洗盤跌破 5MA 但守穩月線 (20MA)，今日出放量紅K過昨高站回 5MA，為第二波主升段絕佳買點！")
-                elif "箱型整理大突破" in sub_strat or "箱型" in sub_strat:
-                    target_strategy = "箱型整理大突破"
-                    st.caption("💡 **【箱型整理大突破 (一棒過頂)】**：股價在 12~35 天箱型區間（振幅 12%~25%）反覆洗盤震盪蓄勢後，今日以**實體長紅放量一棒摜破過去一個月的箱頂壓力線**！主力洗盤換手完畢，上方無套牢賣壓，通常為**新一波波段主升段起漲第一根**！")
-                elif "換手成功" in sub_strat:
-                    target_strategy = "換手成功"
-                    st.caption("💡 **【高檔爆量換手成功】**：高檔爆大量黑K或變盤線後 3 天內，強勢收盤突破該爆量K棒最高點！主力洗盤換手完畢，新主力籌碼進駐續噴主升段！")
-                elif "突破大量黑K高點" in sub_strat:
-                    target_strategy = "突破大量黑K高點"
-                    st.caption("💡 **【突破大量黑K最高點 (飆股換手突破起漲)】**：強勢飆股在短線急漲後拉出巨量黑K棒洗盤，但主力籌碼極強，1~3天內立刻拉出大量紅K收盤實質突破該黑K最高點！這代表盤面籌碼被新主力全數接走換手成功，常展開大波段噴出行情！")
-                elif "突破ABC修正切線" in sub_strat:
-                    target_strategy = "突破ABC修正切線"
-                    st.caption("💡 **【突破 ABC 修正下降切線 (短空做頭失敗反手多)】**：多頭走勢中出現 20 天以內的 A-B-C 旗型向下修正（月線維持翻揚助漲），今日放量紅K收盤實質突破下降切線！短空做頭失敗，多頭趨勢重啟，可依 A-B 振幅計算等距波段目標價 D'！")
-                elif "K線橫盤突破" in sub_strat:
-                    target_strategy = "K線橫盤突破"
-                    st.caption("💡 **【K線橫盤突破 (3天橫盤放量突破)】**：連續 3 天收盤價皆未跌破第 1 天母K棒低點、亦未突破其高點（極狹幅震盪整理），第 4 天（或今日）放量紅K強勢突破該 3 天最高點並站穩 5MA！微觀結構轉折確立，為短線高勝率發動點！")
-                elif "突破上升軌道線" in sub_strat:
-                    target_strategy = "突破上升軌道線"
-                    st.caption("💡 **【突破上升軌道線 (多頭加速噴出)】**：股價沿著上升切線與平行軌道線穩健走多，今日帶量大紅K強勢衝破上升軌道線上緣！代表多頭力道暴增，由常態通道轉為主升段加速噴出！")
-                elif "智慧K線" in sub_strat:
-                    target_strategy = "智慧K線續抱"
-                    st.caption("💡 **【飆股智慧 K 線交易法 (未破昨低續抱)】**：鎖定強勢大漲股，只要每日收盤未跌破前一日最低價即一路抱牢奔跑！每日 13:20 檢視，若確認跌破前一日最低價則果斷賣出，讓利潤最大化同時嚴控回檔風險！")
-                elif "頭高底高" in sub_strat:
-                    target_strategy = "頭高底高"
-                    st.caption("💡 **選股 vs 鎖股分工**：此處【👑 頭高底高】是「**六字訣多頭確立、5MA走升且站穩5MA**」之強勢多頭名單。")
-                elif "回後準進場" in sub_strat:
-                    target_strategy = "回後準進場"
-                    st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
-                elif "均線糾結突破" in sub_strat:
-                    target_strategy = "均線糾結突破"
-                    st.caption("💡 **【四線高度糾結突破】**：5MA、10MA、20MA、60MA 四線在低檔平躺糾結 1~3 個月後，首度放量長紅一口氣突破四線！**大師實戰心法**：糾結突破爆發力極大（常翻 2~3 倍），第一天沒買到沒關係，**次日若未漲停鎖死，開平或小漲趕快買進**！")
-                elif "一字底" in sub_strat:
-                    target_strategy = "一字底"
-                    st.caption("💡 **【一字底放量突破 (60天糾結·飆股第一根)】**：股價在 30~60 天極狹幅區間（振幅 <= 12%~15%）內反覆洗盤，5/10/20/60MA 四線平躺糾結，今日長紅放量一棒摜破箱頂頸線！上方浮額洗淨、萬里無雲，通常為大波段翻倍飆股的主升第一根！")
-                elif "圓弧底" in sub_strat:
-                    target_strategy = "圓弧底"
-                    st.caption("💡 **【圓弧底慢火打底 (U型底·突破或翻揚)】**：左側緩跌量縮、中央平坦打底（洗淨浮額）、右側溫和量增推升，形成對稱 U 型弧線。包含兩大實戰買點：(1) **放量過頸線起漲**（帶量突破左右水平頸線，等距對稱波發動）；(2) **慢火打底右側翻揚**（凹槽打底完成，脫離底部 3%~5% 站上 5MA/20MA 走平翻揚起步）！")
-                elif "底部起漲" in sub_strat:
-                    target_strategy = "底部起漲"
-                elif "高檔起漲" in sub_strat:
-                    target_strategy = "高檔起漲"
-                elif "雙線翻揚" in sub_strat:
-                    target_strategy = "雙線翻揚"
-            else:
-                sub_strat = st.radio(
-                    "空方波段核心子策略分類：",
-                    [
-                        "👑 頭低底低 (六字訣空頭確認)",
-                        "🎯 彈後準進場 (反彈測線無力·短線空點)",
-                        "⚡ 跌破大量紅K低點 (弱勢反彈破底)",
-                        "📐 跌破反彈ABC切線 (短多做底失敗反手空)",
-                        "📊 K線橫盤跌破 (3天橫盤長黑摜破)",
-                        "📉 跌破下降軌道線 (空頭加速趕底)",
-                        "🌀 均線糾結跌破 (四線空排初跌)",
-                        "🛑 頂部起跌 (高檔頭部成形·首度跌破)",
-                        "📉 低檔起跌 (破底續跌·弱勢續殺)",
-                        "⚔️ 雙線死亡交叉 (5MA/20MA 雙線下彎走空)"
-                    ],
-                    horizontal=True,
-                    key="scr_sub_strat_short"
-                )
-                st.caption("💡 **做空實戰心法**：【🎯 彈後準進場】是「**反彈測線無力、今日轉折黑K跌破5MA、12:40 - 13:30 可進場放空**」的黃金空點名單！")
-                if "頭低底低" in sub_strat:
-                    target_strategy = "頭低底低"
-                elif "彈後準進場" in sub_strat:
-                    target_strategy = "彈後準進場"
-                elif "跌破大量紅K低點" in sub_strat:
-                    target_strategy = "跌破大量紅K低點"
-                    st.caption("💡 **【跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱)】**：空頭下跌趨勢中出現爆量紅K弱勢反彈，隨後 1~3 天內即被長黑摜破該反彈紅K最低點！代表搶反彈浮額全面套牢，空頭慣性強勢重啟，為黃金空點！")
-                elif "跌破反彈ABC切線" in sub_strat:
-                    target_strategy = "跌破反彈ABC切線"
-                    st.caption("💡 **【跌破反彈 ABC 上升切線 (短多做底失敗重回主跌)】**：空頭下跌中出現 20 天以內 A-B-C 三波弱勢反彈（受下彎月線壓制），今日放量黑K摜破上升切線與 B 點低點！短多做底失敗重回主跌段，可測等距下跌目標價！")
-                elif "K線橫盤跌破" in sub_strat:
-                    target_strategy = "K線橫盤跌破"
-                    st.caption("💡 **【K線橫盤跌破 (3天橫盤長黑摜破)】**：下跌行進中連續 3 天狹幅震盪未過高亦未破低，第 4 天長黑跌破橫盤最低點且 5MA 翻黑下彎！弱勢盤整表態，空方續殺發動！")
-                elif "跌破下降軌道線" in sub_strat:
-                    target_strategy = "跌破下降軌道線"
-                    st.caption("💡 **【跌破下降軌道線 (空頭加速趕底)】**：空頭沿下降軌道線緩步下跌，今日放量中長黑貫穿下軌道線！代表恐慌性拋補湧現，空頭轉強加速趕底！")
-                elif "均線糾結跌破" in sub_strat:
-                    target_strategy = "均線糾結跌破"
-                    st.caption("💡 **【均線糾結跌破 (四線空排)】**：高檔平台四線糾結後長黑摜破，均線全面展開呈現 5MA < 10MA < 20MA < 60MA 全數下彎（如講義波若威 3163 崩跌）！**操盤實戰心法**：波段做空守 20MA (月線) 一路抱到底，做多者必須立即全數清倉！")
-                elif "頂部起跌" in sub_strat:
-                    target_strategy = "頂部起跌"
-                elif "低檔起跌" in sub_strat:
-                    target_strategy = "低檔起跌"
-                elif "雙線死亡交叉" in sub_strat:
-                    target_strategy = "雙線死亡交叉"
-        elif "主流族群" in main_mode:
-            target_strategy = "主流族群"
-            st.caption("💡 **【全市場主流族群飆股】**：鎖定全市場資金佔比最高、板塊集體大漲的 **Top 5 主流族群**（如半導體/IC、航運業、AI硬體等），並優先精選其中具有**轉折起漲紅K、操盤線走升且站穩 5MA** 之領頭龍頭股！")
-        elif "長抱" in main_mode:
-            target_strategy = "長抱"
-        elif "強勢" in main_mode:
-            target_strategy = "盤中強勢"
-        elif "弱勢" in main_mode:
-            target_strategy = "盤中弱勢"
-        elif "一點鐘" in main_mode:
-            target_strategy = "一點鐘"
-        elif "盤中排行" in main_mode:
-            target_strategy = "盤中排行"
-        elif "量排行" in main_mode:
-            target_strategy = "量排行"
-            st.caption("💡 **量排行實戰心法（位置決定命運）**：成交量代表主力足跡。若在**低檔起漲放量出紅 K**，為主力建倉進場攻擊量；若在**波段高檔漲多後爆出天量**，為主力短線倒貨出場點，**嚴禁盲目追高**！")
+                    sub_strat = st.radio(
+                        "空方波段核心子策略分類：",
+                        [
+                            "👑 頭低底低 (六字訣空頭確認)",
+                            "🎯 彈後準進場 (反彈測線無力·短線空點)",
+                            "⚡ 跌破大量紅K低點 (弱勢反彈破底)",
+                            "📐 跌破反彈ABC切線 (短多做底失敗反手空)",
+                            "📊 K線橫盤跌破 (3天橫盤長黑摜破)",
+                            "📉 跌破下降軌道線 (空頭加速趕底)",
+                            "🌀 均線糾結跌破 (四線空排初跌)",
+                            "🛑 頂部起跌 (高檔頭部成形·首度跌破)",
+                            "📉 低檔起跌 (破底續跌·弱勢續殺)",
+                            "⚔️ 雙線死亡交叉 (5MA/20MA 雙線下彎走空)"
+                        ],
+                        horizontal=True,
+                        key="scr_sub_strat_short"
+                    )
+                    st.caption("💡 **做空實戰心法**：【🎯 彈後準進場】是「**反彈測線無力、今日轉折黑K跌破5MA、12:40 - 13:30 可進場放空**」的黃金空點名單！")
+                    if "頭低底低" in sub_strat:
+                        target_strategy = "頭低底低"
+                    elif "彈後準進場" in sub_strat:
+                        target_strategy = "彈後準進場"
+                    elif "跌破大量紅K低點" in sub_strat:
+                        target_strategy = "跌破大量紅K低點"
+                        st.caption("💡 **【跌破大量紅K低點 (弱勢反彈破底·空頭再轉弱)】**：空頭下跌趨勢中出現爆量紅K弱勢反彈，隨後 1~3 天內即被長黑摜破該反彈紅K最低點！代表搶反彈浮額全面套牢，空頭慣性強勢重啟，為黃金空點！")
+                    elif "跌破反彈ABC切線" in sub_strat:
+                        target_strategy = "跌破反彈ABC切線"
+                        st.caption("💡 **【跌破反彈 ABC 上升切線 (短多做底失敗重回主跌)】**：空頭下跌中出現 20 天以內 A-B-C 三波弱勢反彈（受下彎月線壓制），今日放量黑K摜破上升切線與 B 點低點！短多做底失敗重回主跌段，可測等距下跌目標價！")
+                    elif "K線橫盤跌破" in sub_strat:
+                        target_strategy = "K線橫盤跌破"
+                        st.caption("💡 **【K線橫盤跌破 (3天橫盤長黑摜破)】**：下跌行進中連續 3 天狹幅震盪未過高亦未破低，第 4 天長黑跌破橫盤最低點且 5MA 翻黑下彎！弱勢盤整表態，空方續殺發動！")
+                    elif "跌破下降軌道線" in sub_strat:
+                        target_strategy = "跌破下降軌道線"
+                        st.caption("💡 **【跌破下降軌道線 (空頭加速趕底)】**：空頭沿下降軌道線緩步下跌，今日放量中長黑貫穿下軌道線！代表恐慌性拋補湧現，空頭轉強加速趕底！")
+                    elif "均線糾結跌破" in sub_strat:
+                        target_strategy = "均線糾結跌破"
+                        st.caption("💡 **【均線糾結跌破 (四線空排)】**：高檔平台四線糾結後長黑摜破，均線全面展開呈現 5MA < 10MA < 20MA < 60MA 全數下彎（如講義波若威 3163 崩跌）！**操盤實戰心法**：波段做空守 20MA (月線) 一路抱到底，做多者必須立即全數清倉！")
+                    elif "頂部起跌" in sub_strat:
+                        target_strategy = "頂部起跌"
+                    elif "低檔起跌" in sub_strat:
+                        target_strategy = "低檔起跌"
+                    elif "雙線死亡交叉" in sub_strat:
+                        target_strategy = "雙線死亡交叉"
+            elif "主流族群" in main_mode:
+                target_strategy = "主流族群"
+                st.caption("💡 **【全市場主流族群飆股】**：鎖定全市場資金佔比最高、板塊集體大漲的 **Top 5 主流族群**（如半導體/IC、航運業、AI硬體等），並優先精選其中具有**轉折起漲紅K、操盤線走升且站穩 5MA** 之領頭龍頭股！")
+            elif "長抱" in main_mode:
+                target_strategy = "長抱"
+            elif "強勢" in main_mode:
+                target_strategy = "盤中強勢"
+            elif "弱勢" in main_mode:
+                target_strategy = "盤中弱勢"
+            elif "一點鐘" in main_mode:
+                target_strategy = "一點鐘"
+            elif "盤中排行" in main_mode:
+                target_strategy = "盤中排行"
+            elif "量排行" in main_mode:
+                target_strategy = "量排行"
+                st.caption("💡 **量排行實戰心法（位置決定命運）**：成交量代表主力足跡。若在**低檔起漲放量出紅 K**，為主力建倉進場攻擊量；若在**波段高檔漲多後爆出天量**，為主力短線倒貨出場點，**嚴禁盲目追高**！")
     
-        # 價格分級篩選
-        p_filter = st.radio("價格位階篩選", ["全部", "低價 (<30)", "中價 (30-100)", "高價 (100-300)", "超高 (>300)"], horizontal=True, key="scr_price_filter")
-        price_val = p_filter.split()[0]
+            # 價格分級篩選
+            p_filter = st.radio("價格位階篩選", ["全部", "低價 (<30)", "中價 (30-100)", "高價 (100-300)", "超高 (>300)"], horizontal=True, key="scr_price_filter")
+            price_val = p_filter.split()[0]
 
-    if scope_val == "熱門優先":
-        if selected_sector_filter != "全部":
-            scope_tag = f"🔥 熱門族群 · {selected_sector_filter}"
-        elif hot_sub_type == "TOP5_SECTOR":
-            scope_tag = "🌊 資金風口 Top 5 族群"
-        elif hot_sub_type == "TOP_VOLUME":
-            scope_tag = "🚀 成交量前 30 大"
-        elif hot_sub_type == "CHIPS_BUY":
-            scope_tag = "💼 主力法人搶進"
+        if scope_val == "熱門優先":
+            if selected_sector_filter != "全部":
+                scope_tag = f"🔥 熱門族群 · {selected_sector_filter}"
+            elif hot_sub_type == "TOP5_SECTOR":
+                scope_tag = "🌊 資金風口 Top 5 族群"
+            elif hot_sub_type == "TOP_VOLUME":
+                scope_tag = "🚀 成交量前 30 大"
+            elif hot_sub_type == "CHIPS_BUY":
+                scope_tag = "💼 主力法人搶進"
+            else:
+                scope_tag = "🔥 綜合熱門優先"
         else:
-            scope_tag = "🔥 綜合熱門優先"
-    else:
-        scope_tag = "🌐 全市場"
+            scope_tag = "🌐 全市場"
 
-    # 當前選擇的參數組合
-    current_params = {
-        "scope": scope_val,
-        "dir": dir_val,
-        "strategy": target_strategy,
-        "price": price_val,
-        "hot_type": hot_sub_type,
-        "sector": selected_sector_filter
-    }
+        # 當前選擇的參數組合
+        current_params = {
+            "scope": scope_val,
+            "dir": dir_val,
+            "strategy": target_strategy,
+            "price": price_val,
+            "hot_type": hot_sub_type,
+            "sector": selected_sector_filter
+        }
 
-    last_params = st.session_state.get('screener_last_params')
-    is_params_changed = (last_params is not None and current_params != last_params)
+        last_params = st.session_state.get('screener_last_params')
+        is_params_changed = (last_params is not None and current_params != last_params)
 
-    has_executed = ("screener_results" in st.session_state and st.session_state.screener_results is not None)
+        has_executed = ("screener_results" in st.session_state and st.session_state.screener_results is not None)
 
-    # 執行選股與即時刷新按鈕列 (等使用者選好三項連動條件後，再手動點擊執行)
-    col_btn_a, col_btn_b = st.columns([3.2, 1.2])
-    with col_btn_a:
-        if is_params_changed or not has_executed:
-            btn_text = f"🚀 開始執行選股 (套用新設定：{dir_val} · {target_strategy})"
+        # 執行選股與即時刷新按鈕列 (等使用者選好三項連動條件後，再手動點擊執行)
+        col_btn_a, col_btn_b = st.columns([3.2, 1.2])
+        with col_btn_a:
+            if is_params_changed or not has_executed:
+                btn_text = f"🚀 開始執行選股 (套用新設定：{dir_val} · {target_strategy})"
+            else:
+                btn_text = f"🚀 重新執行選股 (依當前設定：{dir_val} · {target_strategy})"
+            run_scan_btn = st.button(btn_text, type="primary", use_container_width=True, key="btn_run_screener_action", help="選好母體、方向與策略後，點擊此處立即執行篩選")
+
+        with col_btn_b:
+            refresh_btn = st.button("⚡ 刷新即時行情", use_container_width=True, key="btn_refresh_screener_action", help="立即向證交所批次請求全市場最新盤中價量並重新計算")
+
+        st.caption("🟢 **證交所官方盤中即時模式**：選好上方「母體範圍、操作方向、選股大類」後，點擊上方紅色的【🚀 開始執行選股】即可高速產出名單！")
+
+        # 判斷是否需要執行耗時的 scan_stocks (嚴格鎖定：唯有使用者主動點擊按鈕，才會觸發運算！)
+        need_scan = False
+        if run_scan_btn or refresh_btn:
+            need_scan = True
+
+        if need_scan:
+            with st.spinner(f"正在【{scope_tag}】中精確篩選【{target_strategy}】(證交所盤中即時模式)..."):
+                try:
+                    results = scan_stocks(
+                        strategy=target_strategy,
+                        direction=dir_val,
+                        price_filter=price_val,
+                        limit=50,
+                        force_refresh=bool(refresh_btn),
+                        enable_realtime=True,
+                        universe_scope=scope_val,
+                        hot_sub_type=hot_sub_type,
+                        sector_filter=selected_sector_filter
+                    )
+                except Exception:
+                    results = scan_stocks(
+                        strategy=target_strategy,
+                        direction=dir_val,
+                        price_filter=price_val,
+                        limit=50,
+                        force_refresh=False,
+                        enable_realtime=False,
+                        universe_scope=scope_val,
+                        hot_sub_type=hot_sub_type,
+                        sector_filter=selected_sector_filter
+                    )
+            st.session_state.screener_results = results
+            st.session_state.screener_last_params = current_params
+            st.session_state.screener_last_tag = scope_tag
+            st.session_state.screener_last_strat = target_strategy
         else:
-            btn_text = f"🚀 重新執行選股 (依當前設定：{dir_val} · {target_strategy})"
-        run_scan_btn = st.button(btn_text, type="primary", use_container_width=True, key="btn_run_screener_action", help="選好母體、方向與策略後，點擊此處立即執行篩選")
+            results = st.session_state.get('screener_results', None)
 
-    with col_btn_b:
-        refresh_btn = st.button("⚡ 刷新即時行情", use_container_width=True, key="btn_refresh_screener_action", help="立即向證交所批次請求全市場最新盤中價量並重新計算")
+        if results is None:
+            st.info(f"🎯 **尚未執行篩選**：您目前設定為【{scope_tag}】▸【{direction}】▸【{target_strategy}】（價格：{price_val}）。請確認條件後，點擊上方紅色的【🚀 開始執行選股】按鈕產出名單！")
+        else:
+            # 若使用者已切換選項但尚未點擊「開始執行選股」，以醒目提示告知使用者
+            if is_params_changed:
+                st.warning(f"⚠️ **篩選條件已變更（尚未執行）**：當前條件為【{scope_tag}】▸【{direction}】▸【{target_strategy}】（價格：{price_val}）。請點擊上方【🚀 開始執行選股】按鈕產出最新名單！", icon="🎯")
 
-    st.caption("🟢 **證交所官方盤中即時模式**：選好上方「母體範圍、操作方向、選股大類」後，點擊上方紅色的【🚀 開始執行選股】即可高速產出名單！")
+            # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
+            st.session_state.browsing_stock_list = [item['code'] for item in results]
+            st.session_state.browsing_stock_names = {item['code']: item['name'] for item in results}
 
-    # 判斷是否需要執行耗時的 scan_stocks (嚴格鎖定：唯有使用者主動點擊按鈕，才會觸發運算！)
-    need_scan = False
-    if run_scan_btn or refresh_btn:
-        need_scan = True
+            # 助教安全統計摘要與過濾器
+            safe_count = sum(1 for s in results if "安全" in s.get('safety_rating', ''))
+            caution_count = sum(1 for s in results if "警訊" in s.get('safety_rating', ''))
+            danger_count = sum(1 for s in results if "嚴禁" in s.get('safety_rating', ''))
 
-    if need_scan:
-        with st.spinner(f"正在【{scope_tag}】中精確篩選【{target_strategy}】(證交所盤中即時模式)..."):
-            try:
-                results = scan_stocks(
-                    strategy=target_strategy,
-                    direction=dir_val,
-                    price_filter=price_val,
-                    limit=50,
-                    force_refresh=bool(refresh_btn),
-                    enable_realtime=True,
-                    universe_scope=scope_val,
-                    hot_sub_type=hot_sub_type,
-                    sector_filter=selected_sector_filter
+            active_tag = st.session_state.get('screener_last_tag', scope_tag)
+            active_strat = st.session_state.get('screener_last_strat', target_strategy)
+
+            col_stat1, col_stat2, col_stat3 = st.columns([2.5, 1.3, 1.8])
+            with col_stat1:
+                st.markdown(f"**掃描結果（{active_tag}）：符合【{active_strat}】共 `{len(results)}` 檔標的**")
+                st.caption(f"💡 **助教安全把關**：🟢 安全首選 `{safe_count}` 檔 ｜ 🟡 警訊注意 `{caution_count}` 檔 ｜ 🔴 嚴禁追高/已淘汰 `{danger_count}` 檔")
+            with col_stat2:
+                filter_safe_only = st.toggle(
+                    "🛡️ 僅看【🟢 安全首選】",
+                    value=False,
+                    key=f"filter_safe_only_{target_strategy}",
+                    help="開啟後，系統會自動剔除被 14 大淘汰法淘汰、綠色辣椒或帶有警訊之標的，只保留純金首選！"
                 )
-            except Exception:
-                results = scan_stocks(
-                    strategy=target_strategy,
-                    direction=dir_val,
-                    price_filter=price_val,
-                    limit=50,
-                    force_refresh=False,
-                    enable_realtime=False,
-                    universe_scope=scope_val,
-                    hot_sub_type=hot_sub_type,
-                    sector_filter=selected_sector_filter
+            with col_stat3:
+                tier_filter_opt = st.selectbox(
+                    "🎯 依老朱進場階梯篩選：",
+                    ["全部階梯", "🟢 第 1 買點 (底部試單)", "🔥 第 2 買點 (標準多頭)", "🚀 第 3 買點 (加碼追價)", "🌱 第一腳反彈推升", "🛑 探底觀望期"],
+                    index=0,
+                    key=f"tier_filter_{target_strategy}"
                 )
-        st.session_state.screener_results = results
-        st.session_state.screener_last_params = current_params
-        st.session_state.screener_last_tag = scope_tag
-        st.session_state.screener_last_strat = target_strategy
-    else:
-        results = st.session_state.get('screener_results', None)
 
-    if results is None:
-        st.info(f"🎯 **尚未執行篩選**：您目前設定為【{scope_tag}】▸【{direction}】▸【{target_strategy}】（價格：{price_val}）。請確認條件後，點擊上方紅色的【🚀 開始執行選股】按鈕產出名單！")
-    else:
-        # 若使用者已切換選項但尚未點擊「開始執行選股」，以醒目提示告知使用者
-        if is_params_changed:
-            st.warning(f"⚠️ **篩選條件已變更（尚未執行）**：當前條件為【{scope_tag}】▸【{direction}】▸【{target_strategy}】（價格：{price_val}）。請點擊上方【🚀 開始執行選股】按鈕產出最新名單！", icon="🎯")
+            final_display = results
+            if filter_safe_only:
+                final_display = [s for s in results if "安全" in s.get('safety_rating', '')]
+                if not final_display:
+                    st.warning(f"在【{target_strategy}】中，目前暫無符合【🟢 安全首選】之完美標的（現有標的皆帶有淘汰瑕疵或警訊，建議空手觀望或切換其他策略）。")
 
-        # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
-        st.session_state.browsing_stock_list = [item['code'] for item in results]
-        st.session_state.browsing_stock_names = {item['code']: item['name'] for item in results}
+            if tier_filter_opt != "全部階梯":
+                if "第 1 買點" in tier_filter_opt:
+                    final_display = [s for s in final_display if s.get('entry_tier_stage') == 'TIER_1']
+                elif "第 2 買點" in tier_filter_opt:
+                    final_display = [s for s in final_display if s.get('entry_tier_stage') == 'TIER_2']
+                elif "第 3 買點" in tier_filter_opt:
+                    final_display = [s for s in final_display if s.get('entry_tier_stage') == 'TIER_3']
+                elif "第一腳反彈" in tier_filter_opt:
+                    final_display = [s for s in final_display if s.get('entry_tier_stage') == 'FIRST_LEG_RALLY']
+                elif "探底觀望" in tier_filter_opt:
+                    final_display = [s for s in final_display if s.get('entry_tier_stage') == 'BOTTOMING']
+                if not final_display:
+                    st.warning(f"在當前篩選下，暫無符合【{tier_filter_opt}】之標的。")
 
-        # 助教安全統計摘要與過濾器
-        safe_count = sum(1 for s in results if "安全" in s.get('safety_rating', ''))
-        caution_count = sum(1 for s in results if "警訊" in s.get('safety_rating', ''))
-        danger_count = sum(1 for s in results if "嚴禁" in s.get('safety_rating', ''))
+            # 操盤手 3 大作戰區塊分流 (三動態水庫)
+            gold_buys = []
+            aggressive_buys = []
+            ambush_stocks = []
+            hold_stocks = []
 
-        active_tag = st.session_state.get('screener_last_tag', scope_tag)
-        active_strat = st.session_state.get('screener_last_strat', target_strategy)
+            is_short_dir = (dir_val == "空")
 
-        col_stat1, col_stat2, col_stat3 = st.columns([2.5, 1.3, 1.8])
-        with col_stat1:
-            st.markdown(f"**掃描結果（{active_tag}）：符合【{active_strat}】共 `{len(results)}` 檔標的**")
-            st.caption(f"💡 **助教安全把關**：🟢 安全首選 `{safe_count}` 檔 ｜ 🟡 警訊注意 `{caution_count}` 檔 ｜ 🔴 嚴禁追高/已淘汰 `{danger_count}` 檔")
-        with col_stat2:
-            filter_safe_only = st.toggle(
-                "🛡️ 僅看【🟢 安全首選】",
-                value=False,
-                key=f"filter_safe_only_{target_strategy}",
-                help="開啟後，系統會自動剔除被 14 大淘汰法淘汰、綠色辣椒或帶有警訊之標的，只保留純金首選！"
-            )
-        with col_stat3:
-            tier_filter_opt = st.selectbox(
-                "🎯 依老朱進場階梯篩選：",
-                ["全部階梯", "🟢 第 1 買點 (底部試單)", "🔥 第 2 買點 (標準多頭)", "🚀 第 3 買點 (加碼追價)", "🌱 第一腳反彈推升", "🛑 探底觀望期"],
-                index=0,
-                key=f"tier_filter_{target_strategy}"
-            )
+            for item in final_display:
+                sig = item.get('signals_dict') or {}
+                is_up = item.get('change', 0) >= 0
+                is_red_k = bool(item.get('is_red', is_up))
+                safety_str = str(item.get('safety_rating', ''))
+                is_safe = ("安全" in safety_str)
+                is_caution = ("警訊" in safety_str)
+                is_danger = ("淘汰" in safety_str or "嚴禁" in safety_str)
+                vol = float(item.get('volume', 0) or 0)
+                close_p = float(item.get('close', 0) or 0)
+                has_enough_vol = (vol >= 1000) or (close_p >= 300 and vol >= 300)
 
-        final_display = results
-        if filter_safe_only:
-            final_display = [s for s in results if "安全" in s.get('safety_rating', '')]
-            if not final_display:
-                st.warning(f"在【{target_strategy}】中，目前暫無符合【🟢 安全首選】之完美標的（現有標的皆帶有淘汰瑕疵或警訊，建議空手觀望或切換其他策略）。")
+                et_st = item.get('entry_tier_stage') or ''
+                up_d = int(sig.get('up_days') or 0)
+                is_missed = (et_st == 'FIRST_LEG_RALLY') or (up_d >= 4)
+                above_5ma = item.get('above_5ma', close_p >= float(item.get('sma5', close_p)))
 
-        if tier_filter_opt != "全部階梯":
-            if "第 1 買點" in tier_filter_opt:
-                final_display = [s for s in final_display if s.get('entry_tier_stage') == 'TIER_1']
-            elif "第 2 買點" in tier_filter_opt:
-                final_display = [s for s in final_display if s.get('entry_tier_stage') == 'TIER_2']
-            elif "第 3 買點" in tier_filter_opt:
-                final_display = [s for s in final_display if s.get('entry_tier_stage') == 'TIER_3']
-            elif "第一腳反彈" in tier_filter_opt:
-                final_display = [s for s in final_display if s.get('entry_tier_stage') == 'FIRST_LEG_RALLY']
-            elif "探底觀望" in tier_filter_opt:
-                final_display = [s for s in final_display if s.get('entry_tier_stage') == 'BOTTOMING']
-            if not final_display:
-                st.warning(f"在當前篩選下，暫無符合【{tier_filter_opt}】之標的。")
+                is_fresh_trigger = (
+                    (et_st in ['TIER_1', 'TIER_2']) or
+                    sig.get('pullback_buy', False) or
+                    sig.get('bottom_breakout', False) or
+                    sig.get('ma_squeeze_breakout', False) or
+                    item.get('box_range_breakout', False) or
+                    item.get('is_fresh_trend_start', False) or
+                    (sig.get('iron_man', False) and not is_missed)
+                )
 
-        # 操盤手 3 大作戰區塊分流 (三動態水庫)
-        gold_buys = []
-        aggressive_buys = []
-        ambush_stocks = []
-        hold_stocks = []
-
-        is_short_dir = (dir_val == "空")
-
-        for item in final_display:
-            sig = item.get('signals_dict') or {}
-            is_up = item.get('change', 0) >= 0
-            is_red_k = bool(item.get('is_red', is_up))
-            safety_str = str(item.get('safety_rating', ''))
-            is_safe = ("安全" in safety_str)
-            is_caution = ("警訊" in safety_str)
-            is_danger = ("淘汰" in safety_str or "嚴禁" in safety_str)
-            vol = float(item.get('volume', 0) or 0)
-            close_p = float(item.get('close', 0) or 0)
-            has_enough_vol = (vol >= 1000) or (close_p >= 300 and vol >= 300)
-
-            et_st = item.get('entry_tier_stage') or ''
-            up_d = int(sig.get('up_days') or 0)
-            is_missed = (et_st == 'FIRST_LEG_RALLY') or (up_d >= 4)
-            above_5ma = item.get('above_5ma', close_p >= float(item.get('sma5', close_p)))
-
-            is_fresh_trigger = (
-                (et_st in ['TIER_1', 'TIER_2']) or
-                sig.get('pullback_buy', False) or
-                sig.get('bottom_breakout', False) or
-                sig.get('ma_squeeze_breakout', False) or
-                item.get('box_range_breakout', False) or
-                item.get('is_fresh_trend_start', False) or
-                (sig.get('iron_man', False) and not is_missed)
-            )
-
-            if not is_short_dir:
-                # 做多三區塊分流
-                # 梯隊一【👑 純金首選】：滿足實體紅K/平盤站穩 + 🟢安全首選 + 成交量充足 + 新鮮買點(未連漲4天/未錯過第一腳) + 無暴跌假突破警訊
-                if is_up and is_red_k and is_safe and has_enough_vol and not is_missed and is_fresh_trigger and not sig.get('is_drop_5pct_warning', False):
-                    gold_buys.append(item)
-                # 梯隊二【⚡ 強勢進攻】：實體紅K + 站穩5MA + 成交量充足 + 未連漲4天 + 非淘汰致命股，允許輕微警訊，放量攻擊表態
-                elif is_up and is_red_k and is_caution and above_5ma and has_enough_vol and not is_missed and not is_danger and not sig.get('is_drop_5pct_warning', False) and (item.get('change_pct', 0) >= 0.5 or sig.get('is_attack_vol', False)):
-                    aggressive_buys.append(item)
-                elif (not is_up or not is_red_k) and is_safe:
-                    # 區塊二【💎 明日鎖股追蹤】：結構健全之安全好股，今日拉回量縮(綠辣椒)或收黑測均線，今日不急買，列為明日優先鎖股！次日出轉折紅K過昨高即為買點！
-                    ambush_stocks.append(item)
+                if not is_short_dir:
+                    # 做多三區塊分流
+                    # 梯隊一【👑 純金首選】：滿足實體紅K/平盤站穩 + 🟢安全首選 + 成交量充足 + 新鮮買點(未連漲4天/未錯過第一腳) + 無暴跌假突破警訊
+                    if is_up and is_red_k and is_safe and has_enough_vol and not is_missed and is_fresh_trigger and not sig.get('is_drop_5pct_warning', False):
+                        gold_buys.append(item)
+                    # 梯隊二【⚡ 強勢進攻】：實體紅K + 站穩5MA + 成交量充足 + 未連漲4天 + 非淘汰致命股，允許輕微警訊，放量攻擊表態
+                    elif is_up and is_red_k and is_caution and above_5ma and has_enough_vol and not is_missed and not is_danger and not sig.get('is_drop_5pct_warning', False) and (item.get('change_pct', 0) >= 0.5 or sig.get('is_attack_vol', False)):
+                        aggressive_buys.append(item)
+                    elif (not is_up or not is_red_k) and is_safe:
+                        # 區塊二【💎 明日鎖股追蹤】：結構健全之安全好股，今日拉回量縮(綠辣椒)或收黑測均線，今日不急買，列為明日優先鎖股！次日出轉折紅K過昨高即為買點！
+                        ambush_stocks.append(item)
+                    else:
+                        # 區塊三【🚀 波段行進續抱】：持股者續抱守5MA，或已連漲多日/帶有淘汰警訊，空手者切勿追高！
+                        hold_stocks.append(item)
                 else:
-                    # 區塊三【🚀 波段行進續抱】：持股者續抱守5MA，或已連漲多日/帶有淘汰警訊，空手者切勿追高！
-                    hold_stocks.append(item)
-            else:
-                # 做空三區塊分流
-                is_black_k = not is_red_k or (item.get('change', 0) <= 0)
-                if is_black_k and is_safe and has_enough_vol:
-                    gold_buys.append(item)
-                elif is_black_k and is_caution and has_enough_vol and not is_danger:
-                    aggressive_buys.append(item)
-                elif (not is_black_k) and is_safe:
-                    ambush_stocks.append(item)
+                    # 做空三區塊分流
+                    is_black_k = not is_red_k or (item.get('change', 0) <= 0)
+                    if is_black_k and is_safe and has_enough_vol:
+                        gold_buys.append(item)
+                    elif is_black_k and is_caution and has_enough_vol and not is_danger:
+                        aggressive_buys.append(item)
+                    elif (not is_black_k) and is_safe:
+                        ambush_stocks.append(item)
+                    else:
+                        hold_stocks.append(item)
+
+            # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤 (優先排列純金與強勢買點)
+            priority_queue = gold_buys + aggressive_buys + ambush_stocks + hold_stocks
+            st.session_state.browsing_stock_list = [item['code'] for item in priority_queue]
+            st.session_state.browsing_stock_names = {item['code']: item['name'] for item in priority_queue}
+
+            total_actionable = len(gold_buys) + len(aggressive_buys)
+            tab_lbl1 = f"🏆 今日買進標的 ({total_actionable}檔 ｜ 純金{len(gold_buys)} · 強勢{len(aggressive_buys)})" if not is_short_dir else f"🏆 今日放空標的 ({total_actionable}檔 ｜ 純金{len(gold_buys)} · 強勢{len(aggressive_buys)})"
+            tab_lbl2 = f"💎 明日鎖股追蹤 · 伏兵蓄勢 ({len(ambush_stocks)})" if not is_short_dir else f"💎 明日放空鎖股 · 反彈測壓 ({len(ambush_stocks)})"
+            tab_lbl3 = f"🚀 波段行進續抱 · 切勿追高 ({len(hold_stocks)})" if not is_short_dir else f"📉 空方行進續抱 · 切勿抄底 ({len(hold_stocks)})"
+
+            t_gold, t_ambush, t_hold = st.tabs([tab_lbl1, tab_lbl2, tab_lbl3])
+
+            with t_gold:
+                if not is_short_dir:
+                    st.markdown(
+                        "<div style='background:rgba(16, 185, 129, 0.12); border-left:4px solid #10B981; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#A7F3D0;'>"
+                        "🎯 <b>【今日買進作戰區】</b>：為兼顧「極致勝率」與「飆股進攻彈性」，分流為兩大進場梯隊：<br>"
+                        "👑 <b>第一梯隊 · 純金首選</b>：零瑕疵綠燈 ＋ 剛在起漲第 1 根（回後買上漲/突破起漲）｜ 適合標準部位 60%~70% 或安心試單！<br>"
+                        "⚡ <b>第二梯隊 · 強勢進攻</b>：實體紅K放量攻擊 ＋ 站穩 5MA 操盤線 ＋ 多頭推升 ｜ 允許微幅正乖離，適合輕倉 20%~30% 順勢進攻！"
+                        "</div>", unsafe_allow_html=True
+                    )
                 else:
-                    hold_stocks.append(item)
+                    st.markdown(
+                        "<div style='background:rgba(239, 68, 68, 0.12); border-left:4px solid #EF4444; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#FECDD3;'>"
+                        "🎯 <b>【今日放空作戰區】</b>：滿足長黑摜破 ＋ 跌破 5MA 操盤線 ＋ 放量初跌。尾盤或次日開盤可直接放空！"
+                        "</div>", unsafe_allow_html=True
+                    )
 
-        # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤 (優先排列純金與強勢買點)
-        priority_queue = gold_buys + aggressive_buys + ambush_stocks + hold_stocks
-        st.session_state.browsing_stock_list = [item['code'] for item in priority_queue]
-        st.session_state.browsing_stock_names = {item['code']: item['name'] for item in priority_queue}
+                # 渲染第一梯隊：純金首選
+                if gold_buys:
+                    st.markdown(
+                        f"<div style='display:flex; align-items:center; margin:10px 0 8px 0;'>"
+                        f"<span style='background:linear-gradient(135deg, #10B981 0%, #059669 100%); color:white; padding:3px 10px; border-radius:5px; font-weight:bold; font-size:0.88rem;'>👑 第一梯隊 · 純金首選 ({len(gold_buys)} 檔)</span>"
+                        f"<span style='color:#94A3B8; font-size:0.8rem; margin-left:8px;'>🟢 零瑕疵安全綠燈 ｜ 剛起漲第 1 根 ｜ 安心重倉首選</span>"
+                        f"</div>", unsafe_allow_html=True
+                    )
+                    cols_gold = st.columns(2)
+                    for idx, item in enumerate(gold_buys):
+                        with cols_gold[idx % 2]:
+                            render_stock_card(item, key_prefix=f"gold_{target_strategy}_{idx}", current_strategy=target_strategy)
+                else:
+                    st.info("💡 今日在此條件下暫無完全零瑕疵之【👑 純金首選】標的。建議優先觀察下方【⚡ 強勢進攻】或【💎 明日鎖股追蹤】！")
 
-        total_actionable = len(gold_buys) + len(aggressive_buys)
-        tab_lbl1 = f"🏆 今日買進標的 ({total_actionable}檔 ｜ 純金{len(gold_buys)} · 強勢{len(aggressive_buys)})" if not is_short_dir else f"🏆 今日放空標的 ({total_actionable}檔 ｜ 純金{len(gold_buys)} · 強勢{len(aggressive_buys)})"
-        tab_lbl2 = f"💎 明日鎖股追蹤 · 伏兵蓄勢 ({len(ambush_stocks)})" if not is_short_dir else f"💎 明日放空鎖股 · 反彈測壓 ({len(ambush_stocks)})"
-        tab_lbl3 = f"🚀 波段行進續抱 · 切勿追高 ({len(hold_stocks)})" if not is_short_dir else f"📉 空方行進續抱 · 切勿抄底 ({len(hold_stocks)})"
+                # 渲染第二梯隊：強勢進攻
+                if aggressive_buys:
+                    st.markdown(
+                        f"<div style='display:flex; align-items:center; margin:18px 0 8px 0; border-top:1px dashed #2E334D; padding-top:12px;'>"
+                        f"<span style='background:linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color:white; padding:3px 10px; border-radius:5px; font-weight:bold; font-size:0.88rem;'>⚡ 第二梯隊 · 強勢進攻 ({len(aggressive_buys)} 檔)</span>"
+                        f"<span style='color:#94A3B8; font-size:0.8rem; margin-left:8px;'>🔥 實體紅K放量表態 ｜ 站穩 5MA 操盤線 ｜ 建議輕倉 20%~30% 順勢進攻</span>"
+                        f"</div>", unsafe_allow_html=True
+                    )
+                    cols_aggr = st.columns(2)
+                    for idx, item in enumerate(aggressive_buys):
+                        with cols_aggr[idx % 2]:
+                            render_stock_card(item, key_prefix=f"aggr_{target_strategy}_{idx}", current_strategy=target_strategy)
+                elif not gold_buys:
+                    st.info("💡 今日在此條件下暫無符合買進之標的。<br><b>老朱實戰心法：寧可錯過，不可做錯！</b> 建議空手耐心觀望，或切換至【💎 明日鎖股追蹤】觀察蓄勢伏兵！")
 
-        t_gold, t_ambush, t_hold = st.tabs([tab_lbl1, tab_lbl2, tab_lbl3])
+            with t_ambush:
+                if not is_short_dir:
+                    st.markdown(
+                        "<div style='background:rgba(13, 148, 136, 0.12); border-left:4px solid #14B8A6; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#99F6E4;'>"
+                        "💎 <b>【區塊二 · 明日鎖股追蹤】</b>：結構健全之優質好股，今日拉回量縮呈現「綠辣椒」或回測 5MA/20MA 守穩未破。<b>今日絕不盲目急買，列為明日第一優先鎖股！次日出現「轉折紅K」即為最佳切入點！</b>"
+                        "</div>", unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        "<div style='background:rgba(217, 119, 6, 0.12); border-left:4px solid #D97706; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#FDE68A;'>"
+                        "💎 <b>【區塊二 · 明日放空鎖股】</b>：弱勢空方股今日微幅反彈，但受下彎均線壓制。<b>今日不躁進，等次日反彈無力出轉折黑K即為最佳放空點！</b>"
+                        "</div>", unsafe_allow_html=True
+                    )
+                if ambush_stocks:
+                    cols = st.columns(2)
+                    for idx, item in enumerate(ambush_stocks):
+                        with cols[idx % 2]:
+                            render_stock_card(item, key_prefix=f"ambush_{target_strategy}_{idx}", current_strategy=target_strategy)
+                else:
+                    st.info("目前無處於拉回量縮守線階段之鎖股標的。")
 
-        with t_gold:
-            if not is_short_dir:
-                st.markdown(
-                    "<div style='background:rgba(16, 185, 129, 0.12); border-left:4px solid #10B981; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#A7F3D0;'>"
-                    "🎯 <b>【今日買進作戰區】</b>：為兼顧「極致勝率」與「飆股進攻彈性」，分流為兩大進場梯隊：<br>"
-                    "👑 <b>第一梯隊 · 純金首選</b>：零瑕疵綠燈 ＋ 剛在起漲第 1 根（回後買上漲/突破起漲）｜ 適合標準部位 60%~70% 或安心試單！<br>"
-                    "⚡ <b>第二梯隊 · 強勢進攻</b>：實體紅K放量攻擊 ＋ 站穩 5MA 操盤線 ＋ 多頭推升 ｜ 允許微幅正乖離，適合輕倉 20%~30% 順勢進攻！"
-                    "</div>", unsafe_allow_html=True
-                )
-            else:
-                st.markdown(
-                    "<div style='background:rgba(239, 68, 68, 0.12); border-left:4px solid #EF4444; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#FECDD3;'>"
-                    "🎯 <b>【今日放空作戰區】</b>：滿足長黑摜破 ＋ 跌破 5MA 操盤線 ＋ 放量初跌。尾盤或次日開盤可直接放空！"
-                    "</div>", unsafe_allow_html=True
-                )
-
-            # 渲染第一梯隊：純金首選
-            if gold_buys:
-                st.markdown(
-                    f"<div style='display:flex; align-items:center; margin:10px 0 8px 0;'>"
-                    f"<span style='background:linear-gradient(135deg, #10B981 0%, #059669 100%); color:white; padding:3px 10px; border-radius:5px; font-weight:bold; font-size:0.88rem;'>👑 第一梯隊 · 純金首選 ({len(gold_buys)} 檔)</span>"
-                    f"<span style='color:#94A3B8; font-size:0.8rem; margin-left:8px;'>🟢 零瑕疵安全綠燈 ｜ 剛起漲第 1 根 ｜ 安心重倉首選</span>"
-                    f"</div>", unsafe_allow_html=True
-                )
-                cols_gold = st.columns(2)
-                for idx, item in enumerate(gold_buys):
-                    with cols_gold[idx % 2]:
-                        render_stock_card(item, key_prefix=f"gold_{target_strategy}_{idx}", current_strategy=target_strategy)
-            else:
-                st.info("💡 今日在此條件下暫無完全零瑕疵之【👑 純金首選】標的。建議優先觀察下方【⚡ 強勢進攻】或【💎 明日鎖股追蹤】！")
-
-            # 渲染第二梯隊：強勢進攻
-            if aggressive_buys:
-                st.markdown(
-                    f"<div style='display:flex; align-items:center; margin:18px 0 8px 0; border-top:1px dashed #2E334D; padding-top:12px;'>"
-                    f"<span style='background:linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color:white; padding:3px 10px; border-radius:5px; font-weight:bold; font-size:0.88rem;'>⚡ 第二梯隊 · 強勢進攻 ({len(aggressive_buys)} 檔)</span>"
-                    f"<span style='color:#94A3B8; font-size:0.8rem; margin-left:8px;'>🔥 實體紅K放量表態 ｜ 站穩 5MA 操盤線 ｜ 建議輕倉 20%~30% 順勢進攻</span>"
-                    f"</div>", unsafe_allow_html=True
-                )
-                cols_aggr = st.columns(2)
-                for idx, item in enumerate(aggressive_buys):
-                    with cols_aggr[idx % 2]:
-                        render_stock_card(item, key_prefix=f"aggr_{target_strategy}_{idx}", current_strategy=target_strategy)
-            elif not gold_buys:
-                st.info("💡 今日在此條件下暫無符合買進之標的。<br><b>老朱實戰心法：寧可錯過，不可做錯！</b> 建議空手耐心觀望，或切換至【💎 明日鎖股追蹤】觀察蓄勢伏兵！")
-
-        with t_ambush:
-            if not is_short_dir:
-                st.markdown(
-                    "<div style='background:rgba(13, 148, 136, 0.12); border-left:4px solid #14B8A6; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#99F6E4;'>"
-                    "💎 <b>【區塊二 · 明日鎖股追蹤】</b>：結構健全之優質好股，今日拉回量縮呈現「綠辣椒」或回測 5MA/20MA 守穩未破。<b>今日絕不盲目急買，列為明日第一優先鎖股！次日出現「轉折紅K」即為最佳切入點！</b>"
-                    "</div>", unsafe_allow_html=True
-                )
-            else:
-                st.markdown(
-                    "<div style='background:rgba(217, 119, 6, 0.12); border-left:4px solid #D97706; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#FDE68A;'>"
-                    "💎 <b>【區塊二 · 明日放空鎖股】</b>：弱勢空方股今日微幅反彈，但受下彎均線壓制。<b>今日不躁進，等次日反彈無力出轉折黑K即為最佳放空點！</b>"
-                    "</div>", unsafe_allow_html=True
-                )
-            if ambush_stocks:
-                cols = st.columns(2)
-                for idx, item in enumerate(ambush_stocks):
-                    with cols[idx % 2]:
-                        render_stock_card(item, key_prefix=f"ambush_{target_strategy}_{idx}", current_strategy=target_strategy)
-            else:
-                st.info("目前無處於拉回量縮守線階段之鎖股標的。")
-
-        with t_hold:
-            if not is_short_dir:
-                st.markdown(
-                    "<div style='background:rgba(59, 130, 246, 0.12); border-left:4px solid #3B82F6; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#BFDBFE;'>"
-                    "🚀 <b>【區塊三 · 波段行進續抱】</b>：多頭架構行進中，但已連漲數日（買點已過）、或短線正乖離過大（帶有警訊）。<br>"
-                    "💼 <b>持股者指引</b>：手中有持股者安心續抱守 5MA 生命線，跌破 5MA 才停利；<br>"
-                    "🛒 <b>空手者指引</b>：<b>今日切勿追高</b>，耐心等待量縮拉回打腳後再進場！"
-                    "</div>", unsafe_allow_html=True
-                )
-            else:
-                st.markdown(
-                    "<div style='background:rgba(100, 116, 139, 0.12); border-left:4px solid #64748B; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#CBD5E1;'>"
-                    "📉 <b>【區塊三 · 空方行進續抱】</b>：空頭主跌段行進中。空單續抱守 5MA，多方切勿盲目猜底接刀！"
-                    "</div>", unsafe_allow_html=True
-                )
-            if hold_stocks:
-                cols = st.columns(2)
-                for idx, item in enumerate(hold_stocks):
-                    with cols[idx % 2]:
-                        render_stock_card(item, key_prefix=f"hold_{target_strategy}_{idx}", current_strategy=target_strategy)
-            else:
-                st.info("目前無處於波段行進續抱階段之標的。")
+            with t_hold:
+                if not is_short_dir:
+                    st.markdown(
+                        "<div style='background:rgba(59, 130, 246, 0.12); border-left:4px solid #3B82F6; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#BFDBFE;'>"
+                        "🚀 <b>【區塊三 · 波段行進續抱】</b>：多頭架構行進中，但已連漲數日（買點已過）、或短線正乖離過大（帶有警訊）。<br>"
+                        "💼 <b>持股者指引</b>：手中有持股者安心續抱守 5MA 生命線，跌破 5MA 才停利；<br>"
+                        "🛒 <b>空手者指引</b>：<b>今日切勿追高</b>，耐心等待量縮拉回打腳後再進場！"
+                        "</div>", unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        "<div style='background:rgba(100, 116, 139, 0.12); border-left:4px solid #64748B; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem; color:#CBD5E1;'>"
+                        "📉 <b>【區塊三 · 空方行進續抱】</b>：空頭主跌段行進中。空單續抱守 5MA，多方切勿盲目猜底接刀！"
+                        "</div>", unsafe_allow_html=True
+                    )
+                if hold_stocks:
+                    cols = st.columns(2)
+                    for idx, item in enumerate(hold_stocks):
+                        with cols[idx % 2]:
+                            render_stock_card(item, key_prefix=f"hold_{target_strategy}_{idx}", current_strategy=target_strategy)
+                else:
+                    st.info("目前無處於波段行進續抱階段之標的。")
 
 # ----------------------------------------------------
 # 功能分頁：大盤同步 · 滯後補漲雷達 (Market Sync & Catch-Up Radar)
 # ----------------------------------------------------
 elif "大盤同步" in menu or "滯後補漲" in menu:
-    st.header("🛰️ 大盤同步 · 滯後補漲雷達")
-    st.caption("🎯 **量化策略核心**：在大盤處於多頭或波段反彈浪潮時，追蹤走勢波形與大盤高度同步（相似度 > 70%），但漲勢節奏落後大盤、尚未全面發作的主流熱門股。藉由資金板塊輪動外溢效益，精準掌握低風險、高風報比的『**滯後補漲發動波**』！")
+    render_market_sync_radar(from_screener=False)
 
-    # 大盤即時環境健檢 (確保盤中與證交所即時行情無縫對齊)
-    df_mkt, info_mkt = get_market_benchmark(period="6mo")
-    if df_mkt is not None and not df_mkt.empty:
-        with st.container(border=True):
-            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-            m_close = info_mkt.get("close", 0.0)
-            m_chg = info_mkt.get("change_pct", 0.0)
-            m_diff = info_mkt.get("change", 0.0)
-            m_r5 = info_mkt.get("return_5d", 0.0)
-            m_r20 = info_mkt.get("return_20d", 0.0)
-            
-            # 雙重防護：若 info_mkt 內未計算，直接由 df_mkt 現場計算
-            if m_diff == 0.0 and len(df_mkt) >= 2:
-                m_diff = round(float(df_mkt['Close'].iloc[-1]) - float(df_mkt['Close'].iloc[-2]), 2)
-            if m_r5 == 0.0 and len(df_mkt) >= 6:
-                p_now = float(df_mkt['Close'].iloc[-1])
-                p_5 = float(df_mkt['Close'].iloc[-6])
-                m_r5 = round(((p_now - p_5) / p_5) * 100, 2)
-            if m_r20 == 0.0 and len(df_mkt) >= 21:
-                p_now = float(df_mkt['Close'].iloc[-1])
-                p_20 = float(df_mkt['Close'].iloc[-21])
-                m_r20 = round(((p_now - p_20) / p_20) * 100, 2)
 
-            m_sma5 = info_mkt.get("sma5", 0.0) or float(df_mkt['SMA_5'].iloc[-1] if 'SMA_5' in df_mkt.columns else m_close)
-            m_sma20 = info_mkt.get("sma20", 0.0) or float(df_mkt['SMA_20'].iloc[-1] if 'SMA_20' in df_mkt.columns else m_close)
-            m_sma60 = info_mkt.get("sma60", 0.0) or float(df_mkt['SMA_60'].iloc[-1] if 'SMA_60' in df_mkt.columns else m_sma20)
-
-            m_time_str = f" ({info_mkt.get('quote_time')})" if info_mkt.get('quote_time') else ""
-            delta_str = f"{m_diff:+,.2f} 點 ({m_chg:+.2f}%)"
-            col_m1.metric(f"加權指數 (^TWII){m_time_str}", f"{m_close:,.2f}", delta_str, delta_color="inverse")
-            col_m2.metric("大盤 5 日累積動能", f"{m_r5:+.2f}%", help="大盤近 5 個交易日之累積漲跌幅")
-            col_m3.metric("大盤 20 日波段動能", f"{m_r20:+.2f}%", help="大盤近 20 個交易日月線級別波段漲跌幅")
-            
-            # 大盤技術格局判斷
-            if m_close >= m_sma5 and m_sma5 >= m_sma20:
-                m_status = "🔥 多頭強勢發動 (站穩5MA/20MA)"
-                m_s_color = "#FF4D4F"
-            elif m_close >= m_sma20:
-                m_status = "🟢 守穩月線整理 (伺機攻堅)"
-                m_s_color = "#52C41A"
-            else:
-                m_status = "⚠️ 跌破月線震盪 (需嚴控持股水位)"
-                m_s_color = "#FAAD14"
-            col_m4.markdown(f"<div style='font-size:0.85rem; color:#888; margin-top:4px;'>大盤技術位階</div><div style='font-size:1.05rem; font-weight:bold; color:{m_s_color}; margin-top:2px;'>{m_status}</div>", unsafe_allow_html=True)
-
-            # 大盤短中長關鍵防守與壓力位階面板 (在同一個框框內部，以優雅分隔線融合)
-            diff_5ma = ((m_close - m_sma5) / m_sma5) * 100
-            diff_20ma = ((m_close - m_sma20) / m_sma20) * 100
-            diff_60ma = ((m_close - m_sma60) / m_sma60) * 100
-
-            c_5_color = "#FF4D4F" if m_close >= m_sma5 else "#52C41A"
-            c_20_color = "#FF4D4F" if m_close >= m_sma20 else "#FAAD14"
-            c_60_color = "#FF4D4F" if m_close >= m_sma60 else "#FAAD14"
-
-            st.markdown(f"""
-            <div style="border-top: 1px solid rgba(148, 163, 184, 0.2); margin-top: 14px; padding-top: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; font-size: 0.88rem;">
-                <div style="display:flex; align-items:center; gap:6px;">
-                    <span style="color:#94A3B8; font-weight:600;">📌 關鍵防線定位：</span>
-                </div>
-                <div>
-                    <span style="color:#94A3B8;">上方短壓 (5MA)：</span>
-                    <span style="font-weight:bold; color:{c_5_color};">{m_sma5:,.2f}</span>
-                    <span style="font-size:0.75rem; color:#94A3B8;">({diff_5ma:+.2f}%)</span>
-                </div>
-                <div>
-                    <span style="color:#94A3B8;">短線防守 (20MA月線)：</span>
-                    <span style="font-weight:bold; color:{c_20_color};">{m_sma20:,.2f}</span>
-                    <span style="font-size:0.75rem; color:#94A3B8;">({diff_20ma:+.2f}%)</span>
-                </div>
-                <div>
-                    <span style="color:#94A3B8;">中長線生命線 (60MA季線)：</span>
-                    <span style="font-weight:bold; color:{c_60_color};">{m_sma60:,.2f}</span>
-                    <span style="font-size:0.75rem; color:#94A3B8;">({diff_60ma:+.2f}%)</span>
-                </div>
-                <div>
-                    <span style="color:#94A3B8;">波段型態前底：</span>
-                    <span style="font-weight:bold; color:#38BDF8;">45,398 點</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # 雙分頁架構：1. 個股 vs 大盤同步滯後 / 2. 族群龍頭外溢·看大哥買小弟
-    sync_tabs = st.tabs([
-        "🌐 大盤同步·個股滯後補漲 (個股 vs 加權指數)",
-        "👥 族群龍頭外溢·看大哥買小弟 (族群連動比價)"
-    ])
-
-    with sync_tabs[0]:
-        # 策略教學說明與三道濾網提示
-        with st.expander("💡 助教操盤手札：滯後補漲戰法的勝率關鍵與三道防禦濾網", expanded=False):
-            st.markdown(
-                """
-                ### 📌 什麼是「大盤同步·滯後補漲」戰法？
-                - **同向同構**：個股的走勢、高低轉折波與大盤加權指數高度重疊（形狀相似度 >= 70%），代表該標的受全市場總體資金與多頭氛圍強烈共振。
-                - **時鐘慢半拍**：大盤已經領先向上攻堅或創波段高，而此類個股仍在底部或頸線附近蓄勢（近 5 日累積漲幅落後大盤 1% ~ 8%）。
-                - **補漲啟動**：在多頭趨勢確立後，資金會由最先發動的第一梯隊權值股外溢至同型態二線主流股，形成「落後補漲」的主升推升段！
-
-                ### 🛡️ 官方助教「三道安全濾網」（防範破底假補漲）：
-                1. **嚴禁空排破線**：若個股遠低於月線（20MA）或破底創新低，屬於「弱者恆弱、主力棄守」，絕非健康補漲，系統已強制自動剔除。
-                2. **避開大盤噴出末端**：若大盤已急漲 5~7 天處於過熱高檔，此時進場滯後股易遭遇大盤回檔而「補跌不補漲」。最佳進場契機為**大盤轉折起漲第 1~3 天**。
-                3. **大盤破線即防守**：以大盤跌破 5MA 或個股自身跌破打底低點/20MA 為最高出場紀律，守住獲利絕不凹單。
-                """
-            )
-
-        # 控制項設定
-        st.markdown("---")
-        ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4, ctrl_c5 = st.columns([1.1, 0.85, 0.85, 0.95, 0.75])
-        with ctrl_c1:
-            scan_mode = st.selectbox(
-                "篩選目標策略",
-                ["🔥 強烈滯後補漲 (相似度>70% 且 漲幅落後大盤)", "⚡ 大盤高度同步 (相似度>75% 同步推升)", "🌐 全部同步候選名單"],
-                index=0
-            )
-        with ctrl_c2:
-            min_shape_sim = st.slider("最低波形相似度 (%)", min_value=60, max_value=90, value=70, step=5)
-        with ctrl_c3:
-            pool_choice = st.selectbox("監控股池", ["🔥 主流熱門與活躍股", "💎 精選波段觀察股", "📋 全部自選名冊"], index=0)
-        with ctrl_c4:
-            safety_filter = st.selectbox("安全燈號篩選", ["全部評級", "🟢 僅安全首選", "🟢/🟡 排除嚴禁追高/淘汰"], index=0)
-        with ctrl_c5:
-            st.write("")
-            st.write("")
-            do_rescan = st.button("🔄 重新掃描", use_container_width=True)
-
-        filter_mode_val = "lagging_only" if "強烈滯後" in scan_mode else ("all_sync" if "大盤高度同步" in scan_mode else "all")
-
-        # 執行掃描 (使用 session state 快取，避免切換個股或按鈕時重複大量連線抓取)
-        cache_key = f"market_sync_results_{filter_mode_val}_{min_shape_sim}_{pool_choice}"
-        if do_rescan or cache_key not in st.session_state:
-            with st.spinner("🛰️ 正在比對主流股與大盤加權指數之波形相似度與滯後缺口..."):
-                all_stk = load_stock_list()
-                if "主流熱門" in pool_choice:
-                    scan_universe = all_stk[:65]
-                elif "精選" in pool_choice:
-                    scan_universe = all_stk[:40]
-                else:
-                    scan_universe = all_stk[:100]
-
-                sync_candidates = scan_market_sync_candidates(
-                    stock_list=scan_universe,
-                    filter_mode=filter_mode_val,
-                    min_shape_corr=float(min_shape_sim),
-                    top_n=25,
-                    force_refresh=do_rescan
-                )
-                st.session_state[cache_key] = sync_candidates
-        else:
-            sync_candidates = st.session_state[cache_key]
-
-        # 安全燈號次級篩選
-        if safety_filter == "🟢 僅安全首選":
-            display_candidates = [c for c in sync_candidates if "安全首選" in c.get('safety_rating', '')]
-        elif "排除" in safety_filter:
-            display_candidates = [c for c in sync_candidates if "嚴禁" not in c.get('safety_rating', '') and "淘汰" not in c.get('safety_rating', '')]
-        else:
-            display_candidates = sync_candidates
-
-        if len(display_candidates) != len(sync_candidates):
-            st.markdown(f"**掃描結果：符合燈號標的 `{len(display_candidates)}` 檔** (雷達庫存共 `{len(sync_candidates)}` 檔)")
-        else:
-            st.markdown(f"**掃描結果：共發現 `{len(display_candidates)}` 檔符合波形同步與滯後補漲條件之標的**")
-
-        if not display_candidates:
-            st.info("目前條件下暫無符合標的，您可以將「安全燈號篩選」切換為「全部評級」或調降「最低波形相似度」重新掃描。")
-        else:
-            # 分欄排版：左欄候選股列表與卡片 / 右欄大盤 vs 個股雙走勢及 K 線對照圖
-            left_col, right_col = st.columns([1.1, 1.4])
-
-            # 預設選中第一檔
-            if "selected_sync_stock" not in st.session_state or not any(s['code'] == st.session_state.selected_sync_stock for s in display_candidates):
-                st.session_state.selected_sync_stock = display_candidates[0]['code']
-
-            with left_col:
-                st.subheader("📋 滯後補漲熱門候選清單")
-                for idx, c_item in enumerate(display_candidates):
-                    code = c_item['code']
-                    name = c_item['name']
-                    is_selected = (code == st.session_state.selected_sync_stock)
-                    is_up = c_item.get('is_up', True)
-                    chg_val = c_item.get('change', 0.0)
-                    chg_pct = c_item.get('change_pct', 0.0)
-
-                    # 漲跌顏色與符號 (台股紅漲綠跌)
-                    if chg_pct > 0:
-                        chg_color = "#FF4D4F"
-                        chg_text = f"▲ +{chg_val} (+{chg_pct}%)"
-                    elif chg_pct < 0:
-                        chg_color = "#52C41A"
-                        chg_text = f"▼ {chg_val} ({chg_pct}%)"
-                    else:
-                        chg_color = "#E0E6ED"
-                        chg_text = "0.0 (0.00%)"
-
-                    # 安全評級燈號標籤
-                    safety_rat = c_item.get('safety_rating', '🟢 安全首選')
-                    if "安全首選" in safety_rat:
-                        safety_badge = "<span style='background:rgba(82, 196, 26, 0.18); border:1px solid #52C41A; color:#52C41A; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px; margin-right:4px;'>🟢 安全首選</span>"
-                    elif "警訊" in safety_rat:
-                        safety_badge = "<span style='background:rgba(250, 173, 20, 0.18); border:1px solid #FAAD14; color:#FAAD14; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px; margin-right:4px;'>🟡 警訊注意</span>"
-                    else:
-                        safety_badge = f"<span style='background:rgba(255, 77, 79, 0.18); border:1px solid #FF4D4F; color:#FF4D4F; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px; margin-right:4px;'>{safety_rat}</span>"
-
-                    # 趨勢卡 (操盤線狀態：無敵鐵金剛 / 5MA走勢與站上)
-                    if c_item.get('iron_man', False):
-                        trend_card_html = "<span style='background:linear-gradient(90deg, #D97706, #B45309); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.75rem; margin-right:4px; box-shadow:0 0 6px rgba(217,119,6,0.5);'>🏆 無敵鐵金剛</span>"
-                    else:
-                        if c_item.get('is_5ma_rising', True):
-                            ma_up_html = "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>📈 5MA走升</span>"
-                        else:
-                            ma_up_html = "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;'>↘️ 5MA下彎</span>"
-                        if c_item.get('above_5ma', True):
-                            above_html = "<span style='background:#1D392E; color:#52C41A; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:4px;'>站上5MA</span>"
-                        else:
-                            above_html = "<span style='background:#3C1F24; color:#FF7875; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:4px;'>破5MA</span>"
-                        trend_card_html = ma_up_html + above_html
-
-                    # 動能辣椒 (收紅紅椒 / 收黑綠椒)
-                    chili_cnt = c_item.get('chili_count', 1)
-                    if is_up:
-                        chili_html = "<span style='font-size:0.85rem; margin-left:3px; vertical-align:middle;'>" + ("🌶️" * chili_cnt) + "</span>"
-                    else:
-                        chili_html = "<span style='filter: hue-rotate(95deg) saturate(2); display:inline-block; font-size:0.85rem; margin-left:3px; vertical-align:middle;'>" + ("🌶️" * chili_cnt) + "</span>"
-
-                    # 伏兵提示 (收黑但安全)
-                    ambush_html = ""
-                    if not is_up and "安全首選" in safety_rat:
-                        ambush_html = "<div style='background:rgba(5, 150, 105, 0.16); border-left:3px solid #10B981; border-radius:4px; padding:4px 8px; margin:5px 0; color:#A7F3D0; font-size:0.78rem; line-height:1.4;'>💎 <b>拉回量縮伏兵</b>：安全綠燈且多頭結構無虞，回測守穩等轉折紅K即是絕佳佈局點！</div>"
-
-                    # 助教把關警訊提示
-                    safety_reasons = c_item.get('safety_reasons', [])
-                    warn_html = ""
-                    if safety_reasons and ("警訊" in safety_rat or "嚴禁" in safety_rat or "淘汰" in safety_rat):
-                        warn_text = " | ".join(safety_reasons[:2])
-                        warn_html = f"<div style='font-size:0.75rem; color:#E0A82E; margin-top:3px;'>⚠️ <b>助教把關</b>：{warn_text}</div>"
-
-                    # 醒目標示外框
-                    border_style = "2px solid #13C2C2; background: #16202C;" if is_selected else "1px solid #2B3145; background: #181C28;"
-
-                    card_html = (
-                        f"<div style='{border_style} border-radius: 8px; padding: 11px 14px; margin-bottom: 8px;'>"
-                        f"<div style='display: flex; justify-content: space-between; align-items: center;'>"
-                        f"<div>"
-                        f"<span style='font-size: 1.12rem; font-weight: bold; color: white;'>{name}</span>"
-                        f"<span style='color: #8892B0; font-size: 0.88rem; margin-left: 4px;'>({code})</span>"
-                        f"<span style='background: #1F2438; border: 1px solid {c_item['status_color']}; color: {c_item['status_color']}; font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; margin-left: 6px;'>{c_item['status_badge']}</span>"
-                        f"</div>"
-                        f"<div style='text-align: right;'>"
-                        f"<span style='font-size: 1.15rem; font-weight: bold; color: #FFF;'>{c_item['close']}</span> 元 "
-                        f"<span style='font-size: 0.8rem; color: {chg_color}; font-weight: bold; margin-left: 4px;'>{chg_text}</span>"
-                        f"</div>"
-                        f"</div>"
-                        f"<div style='display: flex; align-items: center; flex-wrap: wrap; margin-top: 6px;'>"
-                        f"{safety_badge}{trend_card_html}<span style='color: #94A3B8; font-size: 0.75rem; margin-left: 4px;'>動能：</span>{chili_html}"
-                        f"</div>"
-                        f"{ambush_html}"
-                        f"{warn_html}"
-                        f"<div style='display: flex; justify-content: space-between; font-size: 0.82rem; color: #CBD5E1; margin-top: 6px;'>"
-                        f"<div>🌊 幾何相似度：<b style='color: #13C2C2;'>{c_item['shape_corr']}%</b> | 相關係數：<b>{c_item['corr_return']}%</b></div>"
-                        f"<div>⏳ 5日落後差距：<b style='color: #FF4D4F;'>+{c_item['lag_gap_5d']}%</b></div>"
-                        f"</div>"
-                        f"<div style='display: flex; justify-content: space-between; font-size: 0.8rem; color: #94A3B8; margin-top: 4px; border-top: 1px dashed #2B3145; padding-top: 4px;'>"
-                        f"<div>🎯 補漲目標：<b style='color: #52C41A;'>{c_item['catchup_target']} 元</b> (依大盤等比)</div>"
-                        f"<div>🛑 建議防守：<b style='color: #FF7875;'>{c_item['stop_loss']} 元</b> (風控 -{c_item['risk_pct']}%)</div>"
-                        f"</div>"
-                        f"</div>"
-                    )
-                    st.markdown(card_html, unsafe_allow_html=True)
-
-                    b_c1, b_c2 = st.columns([1, 1])
-                    with b_c1:
-                        if st.button(f"📈 檢視雙走勢對照", key=f"btn_sync_view_{code}_{idx}", use_container_width=True):
-                            st.session_state.selected_sync_stock = code
-                            st.rerun()
-                    with b_c2:
-                        if st.button(f"📊 載入主圖分頁", key=f"btn_sync_chart_{code}_{idx}", use_container_width=True):
-                            st.session_state.selected_stock = code
-                            st.session_state.return_to_menu = "🛰️ 大盤同步·滯後補漲雷達"
-                            st.session_state.goto_chart = True
-                            st.rerun()
-
-            with right_col:
-                # 取得當前選定個股資料
-                curr_code = st.session_state.selected_sync_stock
-                curr_item = next((s for s in display_candidates if s['code'] == curr_code), display_candidates[0])
-
-                st.subheader(f"📊 【{curr_item['name']} ({curr_item['code']})】vs 加權指數走勢對照")
-
-                with st.spinner(f"正在繪製 {curr_item['name']} 與大盤雙圖對照..."):
-                    df_curr, _ = fetch_stock_kline(curr_code, period="6mo")
-                    if df_curr is not None and not df_curr.empty:
-                        fig_sync = create_market_sync_comparison_figure(
-                            df_stock=df_curr,
-                            df_mkt=df_mkt,
-                            stock_code=curr_code,
-                            stock_name=curr_item['name'],
-                            sync_data=curr_item
-                        )
-                        if fig_sync:
-                            st.plotly_chart(fig_sync, use_container_width=True, key=f"plotly_sync_{curr_code}")
-                        else:
-                            st.warning("無法產生存量對照圖表，數據長度不足。")
-                    else:
-                        st.warning("無法取得個股歷史 K 線數據。")
-
-                # 實戰操作建議便條
-                curr_safety = curr_item.get('safety_rating', '🟢 安全首選')
-                curr_safety_color = "#52C41A" if "安全" in curr_safety else ("#FAAD14" if "警訊" in curr_safety else "#FF4D4F")
-
-                if curr_item.get('iron_man', False):
-                    trend_desc = "<b style='color:#F59E0B;'>🏆 無敵鐵金剛</b> (三線合一頂級波段戰法，大師勝率最高模式)"
-                else:
-                    m_up_str = "📈 5MA走升" if curr_item.get('is_5ma_rising', True) else "↘️ 5MA下彎"
-                    m_above_str = "站上5MA" if curr_item.get('above_5ma', True) else "跌破5MA"
-                    trend_desc = f"<b>{m_up_str} · {m_above_str}</b> (5MA為短線極致操盤線)"
-
-                curr_is_up = curr_item.get('is_up', True)
-                curr_chili = ("🌶️" * curr_item.get('chili_count', 1)) if curr_is_up else ("🟢🌶️(量縮測線) " * curr_item.get('chili_count', 1))
-
-                entry_strategy_guide = ""
-                if "安全首選" in curr_safety and curr_is_up and curr_item.get('above_5ma', True):
-                    entry_strategy_guide = "🌟 <b>【今日可買·強勢先鋒】</b>：安全綠燈且出量站穩 5MA，為今日第一時間跟隨大盤發動之補漲首選！尾盤 1:00~1:25 確認收紅即可依 SOP 進場。"
-                elif "安全首選" in curr_safety and not curr_is_up:
-                    entry_strategy_guide = "💎 <b>【拉回量縮伏兵】</b>：安全綠燈且中多結構完好，今日收黑屬健康回測洗盤，<b>今日切勿急追</b>！先列入鎖股名單，等次日出現轉折紅 K 站回 5MA 尾盤再行出手！"
-                elif "警訊" in curr_safety:
-                    reasons_sub = "；".join(curr_item.get('safety_reasons', ['上方有密集套牢賣壓或短線乖離']))
-                    entry_strategy_guide = f"⚠️ <b>【警訊注意·暫緩追高】</b>：{reasons_sub}。宜耐心等待量縮回測 5MA/20MA 守穩再行評估。"
-                else:
-                    entry_strategy_guide = "🛑 <b>【嚴禁追價·結構轉弱】</b>：線型已觸發防守警戒，暫不宜作為補漲標的介入，請另選安全綠燈標的。"
-
-                guide_html = (
-                    f"<div style='background: #141724; border-left: 4px solid #13C2C2; border-radius: 6px; padding: 12px 16px; margin-top: 10px; font-size: 0.88rem; line-height: 1.6; color: #E0E6ED;'>"
-                    f"<div style='font-size: 0.95rem; font-weight: bold; color: #13C2C2; margin-bottom: 6px;'>🎯 助教實戰操盤指引【{curr_item['name']} ({curr_item['code']})】：</div>"
-                    f"• <b>安全評級</b>：<span style='color:{curr_safety_color}; font-weight:bold;'>{curr_safety}</span><br>"
-                    f"• <b>操盤線趨勢</b>：{trend_desc}<br>"
-                    f"• <b>動能位階</b>：<b>{curr_chili}</b><br>"
-                    f"• <b>走勢同構度</b>：幾何波形相似度達 <b>{curr_item['shape_corr']}%</b>，高低轉折波與大盤同頻共振。<br>"
-                    f"• <b>落後大盤差距</b>：近 5 個交易日大盤累計走勢比該股超前 <b>+{curr_item['lag_gap_5d']}%</b>，金色與青色間的陰影即為「<b>補漲缺口 (Lag Spread)</b>」！<br>"
-                    f"• <b>補漲預期目標</b>：<b>{curr_item['catchup_target']} 元</b> (若追平大盤漲幅)。<br>"
-                    f"• <b>風控防守價位</b>：<b>{curr_item['stop_loss']} 元</b> (守月線或前低，預估下檔最大風險僅 <b>-{curr_item['risk_pct']}%</b>)。<br>"
-                    f"• <b>實戰進場策略</b>：<br>"
-                    f"<div style='background:rgba(255,255,255,0.04); border-radius:4px; padding:8px 10px; margin-top:4px;'>{entry_strategy_guide}</div>"
-                    f"</div>"
-                )
-                st.markdown(guide_html, unsafe_allow_html=True)
-
-
-    with sync_tabs[1]:
-        st.markdown(
-            "<div style='background:rgba(19, 194, 194, 0.08); border-left:4px solid #13C2C2; border-radius:6px; padding:10px 14px; margin-bottom:12px; font-size:0.88rem; line-height:1.5; color:#E0E6ED;'>"
-            "👥 <b>族群外溢·看大哥買小弟戰法</b>：資本市場資金以族群為單位進駐，當指標龍頭大哥（如南亞、廣達、世界）放量發動後，"
-            "後續資金會迅速向同族群內『走勢高度相關、但漲幅滯後 2%~10%』之安全小弟（如台塑、緯創、聯電）外溢！"
-            "透過動態剪刀差與老朱技術濾網，搶先在小弟補漲起跑前精準卡位！"
-            "</div>",
-            unsafe_allow_html=True
-        )
-
-        with st.expander("💡 助教操盤手札：族群龍頭外溢與小弟挑選三大鐵律", expanded=False):
-            st.markdown(
-                """
-                ### 📌 什麼是「族群龍頭外溢·看大哥買小弟」戰法？
-                - **錨定龍頭（大哥 Leader）**：在同一產業或集團艦隊中，市值最大、流動性最高、或當天率先放量突破 5MA 領漲的指標股。
-                - **外溢剪刀差（Spillover Gap）**：大哥漲勢拉開後，同族群優質小弟尚未跟上，兩者 5 日累積動能產生 $2\\% \\sim 10\\%$ 的動能落差（剪刀差），具備極高均值回歸補漲動能。
-                - **買小弟賺價差**：買在小弟起漲前或回測月線有守處，享受大哥帶動的板塊抬轎行情！
-
-                ### 🛡️ 官方助教「精選小弟三大防禦濾網」（防止選到病貓）：
-                1. **基因高度相關**：小弟與大哥的幾何價格走勢波形相似度（Shape Correlation）必須 $\\ge 60\\%$，證明平時確實同頻共振，非掛名假同族。
-                2. **月線結構完好**：小弟股價必須在月線 (20MA) 附近打底，且未破 20 日低點。若跌破前低底底低，屬於「惡性破線」直接淘汰，絕不盲目猜底。
-                3. **老朱尾盤驗鈔**：早盤看大哥臉色，尾盤 12:45~13:15 確認小弟是否收出飽滿紅 K 站上 5MA，尾盤進場安心享受隔日續攻！
-                """
-            )
-
-        # 族群外溢控制項
-        st.markdown("---")
-        sec_c1, sec_c2, sec_c3, sec_c4 = st.columns([1.2, 0.9, 0.9, 0.7])
-        with sec_c1:
-            fleet_options = ["🔥 全部發動族群 (按活躍度排序)"] + [f"{f['icon']} {f['name']}" for f in SECTOR_FLEETS]
-            selected_fleet_filter = st.selectbox("選擇族群艦隊", fleet_options, index=0, key="sec_fleet_filter")
-        with sec_c2:
-            leader_status_filter = st.selectbox(
-                "大哥動態",
-                ["全部狀態", "🔥 僅看大哥發動中 (漲幅>1% 或 5D>2%)"],
-                index=0,
-                key="sec_leader_status_filter"
-            )
-        with sec_c3:
-            follower_safety_filter = st.selectbox(
-                "小弟安全燈號",
-                ["🟢/🟡 實戰推薦 (排除破底淘汰股)", "🟢 僅安全接棒 (結構完好)", "🌐 全部候選 (含淘汰警示)"],
-                index=0,
-                key="sec_follower_safety_filter"
-            )
-        with sec_c4:
-            st.write("")
-            st.write("")
-            do_sector_rescan = st.button("🔄 重新掃描族群", use_container_width=True, key="btn_rescan_sector")
-
-        # 執行掃描與快取
-        sec_cache_key = "sector_spillover_candidates_cache"
-        if do_sector_rescan or sec_cache_key not in st.session_state:
-            with st.spinner("👥 正在比對各核心族群艦隊之領頭大哥動能與接棒小弟剪刀差..."):
-                sector_results = scan_sector_spillover_candidates(force_refresh=do_sector_rescan)
-                st.session_state[sec_cache_key] = sector_results
-        else:
-            sector_results = st.session_state[sec_cache_key]
-
-        # 族群過濾
-        filtered_fleets = []
-        for fleet_data in sector_results:
-            if "全部發動族群" not in selected_fleet_filter:
-                f_name = fleet_data['fleet_name']
-                if f_name not in selected_fleet_filter:
-                    continue
-
-            if "僅看大哥發動中" in leader_status_filter and not fleet_data['leader'].get('is_active', False):
-                continue
-
-            f_followers = fleet_data['followers']
-            if "僅安全接棒" in follower_safety_filter:
-                valid_followers = [f for f in f_followers if "安全" in f.get('safety_rating', '')]
-            elif "實戰推薦" in follower_safety_filter or "排除" in follower_safety_filter:
-                valid_followers = [f for f in f_followers if "淘汰" not in f.get('safety_rating', '') and "嚴禁" not in f.get('safety_rating', '')]
-            else:
-                valid_followers = f_followers
-
-            if valid_followers:
-                fleet_copy = dict(fleet_data)
-                fleet_copy['followers'] = valid_followers
-                filtered_fleets.append(fleet_copy)
-
-        st.markdown(f"**掃描結果：共發現 `{len(filtered_fleets)}` 個族群艦隊具備領先外溢與補漲剪刀差機會！**")
-
-        if not filtered_fleets:
-            st.info("目前條件下暫無符合族群，請切換「小弟安全燈號」為『全部評級』或選擇『全部發動族群』查看。")
-        else:
-            if "selected_pair_follower" not in st.session_state:
-                st.session_state.selected_pair_follower = filtered_fleets[0]['followers'][0]['code']
-                st.session_state.selected_pair_leader = filtered_fleets[0]['leader']['code']
-
-            sec_left_col, sec_right_col = st.columns([1.1, 1.4])
-
-            with sec_left_col:
-                st.subheader("📋 族群艦隊外溢補漲清單")
-                for f_idx, fleet_item in enumerate(filtered_fleets):
-                    f_icon = fleet_item['fleet_icon']
-                    f_name = fleet_item['fleet_name']
-                    ldr = fleet_item['leader']
-                    followers_list = fleet_item['followers']
-
-                    with st.container(border=True):
-                        ldr_chg = ldr['change_pct']
-                        ldr_chg_color = "#FF4D4F" if ldr_chg > 0 else ("#52C41A" if ldr_chg < 0 else "#E0E6ED")
-                        ldr_sign = "+" if ldr_chg > 0 else ""
-                        ldr_badge = "<span style='background:linear-gradient(90deg, #FF4D4F, #D9363E); color:white; font-weight:bold; font-size:0.75rem; padding:2px 7px; border-radius:4px;'>🔥 大哥發動中</span>" if ldr['is_active'] else "<span style='background:#2B2312; color:#FAAD14; font-size:0.75rem; padding:2px 7px; border-radius:4px;'>💤 蓄勢整理</span>"
-
-                        st.markdown(f"""
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                            <span style="font-size:1.05rem; font-weight:bold; color:#F8FAFC;">{f_icon} {f_name}</span>
-                            {ldr_badge}
-                        </div>
-                        <div style="background:rgba(255, 107, 107, 0.1); border-left:3px solid #FF6B6B; border-radius:4px; padding:6px 10px; margin-bottom:10px; font-size:0.85rem;">
-                            👑 <b>領頭大哥</b>：<b style="color:#FFF;">{ldr['name']} ({ldr['code']})</b> · 收盤 <b style="color:#FFF;">{ldr['close']}</b> · 今日 <b style="color:{ldr_chg_color};">{ldr_sign}{ldr_chg}%</b> · 5D動能 <b style="color:{ldr_chg_color};">+{ldr['pct_5d']}%</b>
-                        </div>
-                        <div style="font-size:0.85rem; font-weight:600; color:#94A3B8; margin-bottom:6px;">🎯 接棒補漲小弟 ({len(followers_list)} 檔)：</div>
-                        """, unsafe_allow_html=True)
-
-                        for fol_idx, fol in enumerate(followers_list):
-                            f_code = fol['code']
-                            f_name = fol['name']
-                            is_pair_selected = (f_code == st.session_state.selected_pair_follower and ldr['code'] == st.session_state.selected_pair_leader)
-                            
-                            f_chg = fol['change_pct']
-                            f_chg_color = "#FF4D4F" if f_chg > 0 else ("#52C41A" if f_chg < 0 else "#E0E6ED")
-                            f_sign = "+" if f_chg > 0 else ""
-
-                            fol_safety = fol.get('safety_rating', '🟢 安全接棒')
-                            if "安全" in fol_safety:
-                                fol_badge = "<span style='background:rgba(82, 196, 26, 0.18); border:1px solid #52C41A; color:#52C41A; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>🟢 安全接棒</span>"
-                            elif "守線" in fol_safety or "警訊" in fol_safety:
-                                fol_badge = "<span style='background:rgba(250, 173, 20, 0.18); border:1px solid #FAAD14; color:#FAAD14; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>🟡 守線觀察</span>"
-                            else:
-                                fol_badge = f"<span style='background:rgba(255, 77, 79, 0.18); border:1px solid #FF4D4F; color:#FF4D4F; font-weight:bold; font-size:0.72rem; padding:2px 6px; border-radius:4px;'>{fol_safety}</span>"
-
-                            if fol.get('iron_man', False):
-                                ma_status_html = "<span style='background:#D97706; color:white; font-size:0.72rem; padding:2px 5px; border-radius:3px;'>🏆 無敵鐵金剛</span>"
-                            else:
-                                if fol.get('above_5ma', True):
-                                    ma_status_html = "<span style='background:#1D392E; color:#52C41A; font-size:0.72rem; padding:2px 5px; border-radius:3px;'>站上5MA</span>"
-                                else:
-                                    ma_status_html = "<span style='background:#3C1F24; color:#FF7875; font-size:0.72rem; padding:2px 5px; border-radius:3px;'>破5MA</span>"
-
-                            selected_border = "border: 2px solid #13C2C2; background: rgba(19, 194, 194, 0.08);" if is_pair_selected else "border: 1px solid rgba(148, 163, 184, 0.15); background: rgba(15, 23, 42, 0.4);"
-
-                            st.markdown(f"""
-                            <div style="{selected_border} border-radius:6px; padding:8px 10px; margin-bottom:8px;">
-                                <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <div>
-                                        <b style="font-size:0.95rem; color:#FFF;">{f_name} ({f_code})</b>
-                                        <span style="font-size:0.85rem; color:{f_chg_color}; font-weight:bold; margin-left:6px;">{fol['close']} ({f_sign}{f_chg}%)</span>
-                                    </div>
-                                    <div>
-                                        {fol_badge}
-                                        {ma_status_html}
-                                    </div>
-                                </div>
-                                <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:0.8rem; color:#94A3B8; margin-top:5px;">
-                                    <span>✂️ 剪刀差：<b style="color:#13C2C2;">落後 +{fol['spillover_gap']}%</b></span>
-                                    <span>🧬 與大哥相似度：<b style="color:#FFF;">{fol['corr_with_leader']}%</b></span>
-                                    <span>🎯 補漲目標：<b style="color:#52C41A;">{fol['catchup_target']}</b></span>
-                                    <span>🛑 防守：<b style="color:#FF7875;">{fol['stop_loss']}</b> (風暴比 {fol['risk_pct']}%)</span>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-
-                            b_c1, b_c2 = st.columns([1, 1])
-                            with b_c1:
-                                if st.button(f"📈 檢視雙雄對照", key=f"btn_sec_view_{f_code}_{f_idx}_{fol_idx}", use_container_width=True):
-                                    st.session_state.selected_pair_follower = f_code
-                                    st.session_state.selected_pair_leader = ldr['code']
-                                    st.rerun()
-                            with b_c2:
-                                if st.button(f"📊 載入主圖分頁", key=f"btn_sec_chart_{f_code}_{f_idx}_{fol_idx}", use_container_width=True):
-                                    st.session_state.selected_stock = f_code
-                                    st.session_state.return_to_menu = "🛰️ 大盤同步·滯後補漲雷達"
-                                    st.session_state.goto_chart = True
-                                    st.rerun()
-
-            with sec_right_col:
-                curr_fol_code = st.session_state.get("selected_pair_follower", filtered_fleets[0]['followers'][0]['code'])
-                curr_ldr_code = st.session_state.get("selected_pair_leader", filtered_fleets[0]['leader']['code'])
-
-                found_fol = None
-                found_ldr = None
-                for f_item in filtered_fleets:
-                    if f_item['leader']['code'] == curr_ldr_code:
-                        for fol in f_item['followers']:
-                            if fol['code'] == curr_fol_code:
-                                found_fol = fol
-                                found_ldr = f_item['leader']
-                                break
-                    if found_fol:
-                        break
-
-                if not found_fol:
-                    found_fol = filtered_fleets[0]['followers'][0]
-                    found_ldr = filtered_fleets[0]['leader']
-                    curr_fol_code = found_fol['code']
-                    curr_ldr_code = found_ldr['code']
-
-                st.subheader(f"📊 【{found_fol['name']} ({curr_fol_code})】vs 👑 大哥【{found_ldr['name']} ({curr_ldr_code})】走勢對照")
-
-                with st.spinner(f"正在繪製 {found_fol['name']} vs {found_ldr['name']} 剪刀差圖表..."):
-                    df_fol, _ = fetch_stock_kline(curr_fol_code, period="6mo")
-                    df_ldr, _ = fetch_stock_kline(curr_ldr_code, period="6mo")
-
-                    if df_fol is not None and df_ldr is not None and not df_fol.empty and not df_ldr.empty:
-                        fig_pair = create_pair_sync_comparison_figure(
-                            df_follower=df_fol,
-                            df_leader=df_ldr,
-                            follower_name=found_fol['name'],
-                            follower_code=curr_fol_code,
-                            leader_name=found_ldr['name'],
-                            leader_code=curr_ldr_code,
-                            follower_data=found_fol
-                        )
-                        if fig_pair:
-                            st.plotly_chart(fig_pair, use_container_width=True, key=f"plotly_pair_{curr_fol_code}_{curr_ldr_code}")
-                        else:
-                            st.warning("無法產生雙雄對照圖表，數據長度不足。")
-                    else:
-                        st.warning("無法獲取雙雄歷史 K 線數據。")
-
-                sec_safety = found_fol.get('safety_rating', '🟢 安全首選')
-                sec_safety_color = "#52C41A" if "安全" in sec_safety else ("#FAAD14" if "警訊" in sec_safety else "#FF4D4F")
-
-                sec_guide_html = (
-                    f"<div style='background: #141724; border-left: 4px solid #13C2C2; border-radius: 6px; padding: 12px 16px; margin-top: 10px; font-size: 0.88rem; line-height: 1.6; color: #E0E6ED;'>"
-                    f"<div style='font-size: 0.95rem; font-weight: bold; color: #13C2C2; margin-bottom: 6px;'>🎯 族群比價實戰操盤指引【{found_fol['name']} ({curr_fol_code})】：</div>"
-                    f"• <b>領頭旗艦</b>：👑 <b>{found_ldr['name']} ({curr_ldr_code})</b> 今日收盤 <b>{found_ldr['close']}</b>，5 日累積動能 <b>+{found_ldr['pct_5d']}%</b>，為族群多頭主力先鋒。<br>"
-                    f"• <b>落後剪刀差</b>：小弟目前 5 日動能落後大哥 <b>+{found_fol['spillover_gap']}%</b>，珊瑚紅與青色間的陰影即為「<b>外溢補漲空間</b>」！<br>"
-                    f"• <b>與大哥波形同步率</b>：高達 <b>{found_fol['corr_with_leader']}%</b>，證明兩者同動性極強，大哥起跑小弟勢必跟隨。<br>"
-                    f"• <b>安全評級</b>：<span style='color:{sec_safety_color}; font-weight:bold;'>{sec_safety}</span><br>"
-                    f"• <b>補漲預期目標</b>：<b>{found_fol['catchup_target']} 元</b> (若追平大哥動能)。<br>"
-                    f"• <b>風控防守價位</b>：<b>{found_fol['stop_loss']} 元</b> (守月線 20MA 或打底低點，下檔風險僅 <b>-{found_fol['risk_pct']}%</b>)。<br>"
-                    f"• <b>老朱實戰進場 SOP</b>：<br>"
-                    f"<div style='background:rgba(255,255,255,0.04); border-radius:4px; padding:8px 10px; margin-top:4px;'>"
-                    f"早上 9:00~9:30 先觀察大哥 <b>{found_ldr['name']}</b> 是否維持強勢收紅；若大哥強勢，於 <b>12:45~13:15 尾盤</b> 確認 <b>{found_fol['name']}</b> 守穩月線並站上 5MA，尾盤直接進場，享受大哥拉開後的補漲外溢波段利潤！"
-                    f"</div>"
-                    f"</div>"
-                )
-                st.markdown(sec_guide_html, unsafe_allow_html=True)
-
-
-# ----------------------------------------------------
 # 功能分頁 3：晚間盤後功課 · 鎖股名冊監控 (Watchlist Stages)
 # ----------------------------------------------------
 elif "鎖股" in menu or "晚間盤後功課" in menu:
