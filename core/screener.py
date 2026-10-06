@@ -593,23 +593,31 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True, rebuild_f
                                             last_bar['high'] = max(last_bar.get('high', q_close), round(float(q_high), 2))
                                             last_bar['low'] = min(last_bar.get('low', q_close), round(float(q_low), 2))
                                             last_bar['open'] = round(float(q_open), 2)
+                                            if 'sma20' not in last_bar:
+                                                prev_c20 = [b.get('close', q_close) for b in s['recent_bars'][-20:-1]]
+                                                last_bar['sma20'] = round((sum(prev_c20) + q_close) / (len(prev_c20) + 1), 2)
                                         elif bar_date:
-                                            # 今日為新開盤日，推入今日即時 K 棒並計算 5MA
+                                            # 今日為新開盤日，推入今日即時 K 棒並計算 5MA 與 20MA
                                             prev_closes = [b.get('close', q_close) for b in s['recent_bars'][-4:]]
                                             cur_5ma = round((sum(prev_closes) + q_close) / (len(prev_closes) + 1), 2)
+                                            prev_closes_20 = [b.get('close', q_close) for b in s['recent_bars'][-19:]]
+                                            cur_20ma = round((sum(prev_closes_20) + q_close) / (len(prev_closes_20) + 1), 2)
                                             s['recent_bars'].append({
                                                 'date': bar_date,
                                                 'open': round(float(q_open), 2),
                                                 'high': round(float(q_high), 2),
                                                 'low': round(float(q_low), 2),
                                                 'close': round(float(q_close), 2),
-                                                'sma5': cur_5ma
+                                                'sma5': cur_5ma,
+                                                'sma20': cur_20ma
                                             })
                                             s['sma5'] = cur_5ma
                                         else:
                                             last_bar['close'] = round(float(q_close), 2)
                                             last_bar['high'] = max(last_bar.get('high', q_close), round(float(q_high), 2))
                                             last_bar['low'] = min(last_bar.get('low', q_close), round(float(q_low), 2))
+                                            if 'sma20' not in last_bar:
+                                                last_bar['sma20'] = last_bar.get('sma5', round(float(q_close), 2))
 
                                         s['is_red'] = bool(q_close >= q_open)
                                     else:

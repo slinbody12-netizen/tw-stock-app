@@ -588,13 +588,13 @@ if not check_password():
 def render_mini_kline(bars_data):
     if not bars_data or len(bars_data) < 5:
         return None
-    dates = [b['date'] for b in bars_data]
-    opens = [b['open'] for b in bars_data]
-    highs = [b['high'] for b in bars_data]
-    lows = [b['low'] for b in bars_data]
-    closes = [b['close'] for b in bars_data]
-    sma5s = [b['sma5'] for b in bars_data]
-    sma20s = [b['sma20'] for b in bars_data]
+    dates = [b.get('date', '') for b in bars_data]
+    opens = [b.get('open', 0.0) for b in bars_data]
+    highs = [b.get('high', 0.0) for b in bars_data]
+    lows = [b.get('low', 0.0) for b in bars_data]
+    closes = [b.get('close', 0.0) for b in bars_data]
+    sma5s = [b.get('sma5', b.get('close', 0.0)) for b in bars_data]
+    sma20s = [b.get('sma20', b.get('sma5', b.get('close', 0.0))) for b in bars_data]
 
     # 預設展示最新 25 根 K 線，保留歷史資料可左右滑動平移瀏覽
     start_idx = max(0, len(dates) - 26)
@@ -603,13 +603,13 @@ def render_mini_kline(bars_data):
     # 關鍵優化：縱向自適應縮放 (Vertical Auto-scaling)
     # 僅依據視野內 25 根 K 棒計算 Y 軸，徹底消除歷史高價將近期 K 棒壓成薄餅的問題
     vis_bars = bars_data[start_idx:]
-    vis_highs = [b['high'] for b in vis_bars]
-    vis_lows = [b['low'] for b in vis_bars]
-    vis_s5 = [b['sma5'] for b in vis_bars if b.get('sma5')]
-    vis_s20 = [b['sma20'] for b in vis_bars if b.get('sma20')]
+    vis_highs = [b.get('high', b.get('close', 0.0)) for b in vis_bars]
+    vis_lows = [b.get('low', b.get('close', 0.0)) for b in vis_bars]
+    vis_s5 = [b.get('sma5') for b in vis_bars if b.get('sma5') is not None]
+    vis_s20 = [b.get('sma20') for b in vis_bars if b.get('sma20') is not None]
 
-    curr_min = min(vis_lows + vis_s5)
-    curr_max = max(vis_highs + vis_s5)
+    curr_min = min(vis_lows + vis_s5) if (vis_lows + vis_s5) else 1.0
+    curr_max = max(vis_highs + vis_s5) if (vis_highs + vis_s5) else 1.0
     # 20MA 若在當前股價合理區間內 (+-12%) 才納入 Y 軸，避免 20MA 在極高處懸成一根孤線干擾視野
     for s20 in vis_s20:
         if curr_min * 0.90 <= s20 <= curr_max * 1.12:
@@ -1204,16 +1204,19 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         if two_tr_html:
             st.markdown(two_tr_html, unsafe_allow_html=True)
 
-        fig_mini = render_mini_kline(item.get('recent_bars', []))
-        if fig_mini:
-            mini_config = {
-                'scrollZoom': False,
-                'displayModeBar': False,
-                'doubleClick': 'reset',
-                'responsive': True
-            }
-            st.plotly_chart(fig_mini, use_container_width=True, config=mini_config, key=f"mini_{key_prefix}_{item['code']}")
-            st.caption("↔️ 支援水平滑動查看近 60 日歷史 · 雙擊圖表重置視角")
+        try:
+            fig_mini = render_mini_kline(item.get('recent_bars', []))
+            if fig_mini:
+                mini_config = {
+                    'scrollZoom': False,
+                    'displayModeBar': False,
+                    'doubleClick': 'reset',
+                    'responsive': True
+                }
+                st.plotly_chart(fig_mini, use_container_width=True, config=mini_config, key=f"mini_{key_prefix}_{item['code']}")
+                st.caption("↔️ 支援水平滑動查看近 60 日歷史 · 雙擊圖表重置視角")
+        except Exception:
+            pass
 
     c_btn1, c_btn2 = st.columns([1, 1])
     with c_btn1:
