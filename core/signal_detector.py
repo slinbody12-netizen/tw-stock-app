@@ -69,9 +69,13 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
         reasons.append("【規則3·成交量極度窒息】量能大幅低於均量，缺乏主力資金與流動性")
         
     # 規則 4：漲幅已達 1 倍 (100%) 以上高檔
+    # 助教教學核心（10/08指引）：若均線呈「四線多排」(5>10>20>60MA) 且處於整理後帶量突破或主升段發動 (c >= sma5 且收紅)，
+    # 屬於「初升段整理完成，準備走主升段」，並非出貨末升段，豁免規則4淘汰！
     if signals_dict.get('is_multi_bagger', False):
         bagger_m = signals_dict.get('bagger_multiple', 1.0)
-        reasons.append(f"【規則4·暴漲{bagger_m:.1f}倍高檔區】波段漲幅已翻倍，主力獲利豐厚隨時出貨，嚴禁長抱")
+        is_four_ma_launch = signals_dict.get('bullish_alignment', False) and (signals_dict.get('main_wave_2nd', False) or signals_dict.get('box_range_breakout', False) or signals_dict.get('pullback_buy', False)) and (c >= sma5 and c >= o)
+        if not is_four_ma_launch:
+            reasons.append(f"【規則4·暴漲{bagger_m:.1f}倍高檔區】波段漲幅已翻倍，主力獲利豐厚隨時出貨，嚴禁長抱")
         
     # 規則 5：高檔爆量連三黑
     if len(df) >= 3 and (is_high or signals_dict.get('is_multi_bagger', False)):
@@ -100,8 +104,12 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
         reasons.append("【規則9·跌破前低底底低】跌破前波支撐低點，破壞多頭底底高架構")
         
     # 規則 10：漲 1 倍以上且趨勢頭頭低
+    # 豁免：若今日實體紅K突破前高頸線/箱型，或四線多排且今日收盤創近10日收盤新高，代表正在多頭攻擊突破，非做頭轉空！
     if signals_dict.get('is_multi_bagger', False) and trend_info.get('lower_highs', False):
-        reasons.append("【規則10·翻倍股頭頭低】倍數大漲後反彈不過前高，確認高檔做頭轉空")
+        past10_c = df.iloc[-11:-1]['Close'].max() if len(df) >= 11 else prev_c
+        is_breaking_out = (c > past10_c) or signals_dict.get('box_range_breakout', False) or (signals_dict.get('bullish_alignment', False) and c >= o and c >= sma5 and signals_dict.get('is_5ma_rising', True))
+        if not is_breaking_out:
+            reasons.append("【規則10·翻倍股頭頭低】倍數大漲後反彈不過前高，確認高檔做頭轉空")
         
     # 規則 11：指標 (KD) 高檔背離
     if len(df) >= 12 and 'K' in df.columns:
@@ -109,8 +117,10 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
         if c >= float(recent_bars['Close'].max()) * 0.992:
             max_k = float(recent_bars['K'].max())
             cur_k = float(last.get('K', 50))
-            if cur_k < 78 and cur_k < max_k - 12:
-                reasons.append("【規則11·KD高檔背離】股價創新高但KD未能突破80且頭頭低，動能背離衰竭")
+            is_strong_red_breakout = (c > o) and (c >= sma5) and (vol_ratio >= 1.1 or (c - prev_c) / prev_c >= 0.015)
+            if not is_strong_red_breakout:
+                if cur_k < 78 and cur_k < max_k - 12:
+                    reasons.append("【規則11·KD高檔背離】股價創新高但KD未能突破80且頭頭低，動能背離衰竭")
                 
     # 規則 12：法人高檔連續賣超
     if 'Foreign_Buy' in df.columns and len(df) >= 3 and is_high:
@@ -128,7 +138,8 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
             d_shd = min(float(row['Open']), float(row['Close'])) - float(row['Low'])
             if (u_shd / bar_rng >= 0.42) or (d_shd / bar_rng >= 0.42):
                 shadow_cnt += 1
-        if shadow_cnt >= 5:
+        is_clear_breakout = (c > o) and ((c - prev_c) / prev_c >= 0.02) and (c >= sma5) and signals_dict.get('bullish_alignment', False)
+        if shadow_cnt >= 5 and not is_clear_breakout:
             reasons.append("【規則13·線型雜亂無序】連續頻繁出現長上下影線，主力控盤紊亂缺乏趨勢性")
             
     # 規則 14：有基本面但技術面走空
@@ -182,7 +193,10 @@ def check_do_not_buy_rules(df: pd.DataFrame, trend_info: dict, last: pd.Series, 
     candidate_pressures = signals_dict.get('ch9_take_profit', {}).get('candidate_pressures', [])
     if candidate_pressures:
         nearest_p_name, nearest_p_val = candidate_pressures[0]
-        if nearest_p_val > c and (nearest_p_val - c) / c <= 0.03:
+        h = float(last['High'])
+        # 豁免衝關攻擊點：若今日高點已觸及或穿透該壓力 (衝關表態)、或四線多排放量攻擊紅K、或該壓力為箱頂突破點：
+        is_pressing_forward = (h >= nearest_p_val * 0.995) or (signals_dict.get('bullish_alignment', False) and signals_dict.get('is_attack_vol', False) and c >= o) or signals_dict.get('box_range_breakout', False)
+        if nearest_p_val > c and (nearest_p_val - c) / c <= 0.03 and not is_pressing_forward:
             violations.append((3, f"重大壓力關卡前 ({nearest_p_name} {nearest_p_val:.2f}元)", f"距離上方重壓僅剩 {((nearest_p_val-c)/c*100):.1f}% 空間，風報比極差，極易衝高解套回測"))
 
     # 禁忌 4：回檔跌破月線再上漲未突破月線
@@ -777,8 +791,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # 4. 洗盤結束、籌碼換手完畢，一棒過頂，通常為波段主升段第一根起漲點！
     # ----------------------------------------------------
     is_box_breakout = False
-    if len(df) >= 15:
-        for lookback in [12, 16, 20, 25, 30]:
+    if len(df) >= 8:
+        for lookback in [6, 8, 10, 12, 16, 20, 25, 30]:
             if len(df) > lookback:
                 box_slice = df.iloc[-lookback-1:-1]
                 b_max = float(box_slice['High'].max())
@@ -789,8 +803,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
                 hl_amp = (b_max - b_min) / (b_min + 1e-9)
                 c_amp = (c_max - c_min) / (c_min + 1e-9)
                 
-                is_valid_box = (c_amp <= 0.20) or (hl_amp <= 0.30)
-                is_breaking = (c >= b_max * 0.995) and is_red and (c >= sma5) and is_5ma_rising and (change_pct >= 1.5 or c > float(prev['High']))
+                is_valid_box = (c_amp <= 0.22) or (hl_amp <= 0.32)
+                is_breaking = (c >= c_max * 0.998 or c >= b_max * 0.99) and is_red and (c >= sma5) and is_5ma_rising and (change_pct >= 1.0 or vol_ratio_5 >= 1.05 or c > float(prev['High']))
                 
                 if is_valid_box and is_breaking:
                     is_box_breakout = True
@@ -804,7 +818,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             signals_dict['is_gap_breakout'] = True
             signals.append("⚡ 跳空缺口突破 (缺口爆量突破力道最強)")
         # 突破位階勝率評定
-        if is_near_bottom:
+        if signals_dict.get('bullish_alignment', False) and (is_main_wave_2nd or signals_dict.get('main_wave_2nd', False)):
+            signals_dict['breakout_stage'] = "主升段箱型突破 (四線多排·波段加速)"
+        elif is_near_bottom:
             signals_dict['breakout_stage'] = "初升段盤整突破 (勝率高達8成·4線多排)"
         elif is_main_wave_2nd:
             signals_dict['breakout_stage'] = "第二波盤整突破 (勝率高達7成)"
@@ -928,8 +944,16 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         if high_idx < sub_abc.index[-2]:
             after_h = sub_abc.loc[high_idx:]
             if len(after_h) >= 3:
+                # 助教與老朱實戰心法：ABC 必須有「底底低轉短空」之回檔旗形特性
+                # 若拉回期間低點未破 (底底平或底底高)，屬於水平箱型整理，不可誤判為 ABC 下降切線！
+                after_lows = after_h['Low']
+                mid_pt = max(1, len(after_lows) // 2)
+                mid_low = float(after_lows.iloc[:mid_pt].min())
+                late_low = float(after_lows.iloc[mid_pt:].min())
+                has_descending_troughs = (late_low < mid_low * 0.992)
+
                 b_peak = float(after_h.iloc[1:-1]['High'].max()) if len(after_h) > 2 else float(after_h['High'].mean())
-                if c > b_peak and (vol_ratio_5 >= 1.05 or change_pct >= 1.0):
+                if has_descending_troughs and c > b_peak and (vol_ratio_5 >= 1.05 or change_pct >= 1.0):
                     signals_dict['abc_correction_breakout'] = True
                     signals.append("📐 突破ABC修正切線 (短空做頭失敗反手多)")
 
@@ -1854,9 +1878,15 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             if r not in safety_reasons:
                 safety_reasons.append(f"⚠️ {r}")
 
-    if is_false_breakout_dump or signals_dict.get('ma20_death_break', False) or elim_info['eliminated_count'] >= 2 or up_days >= 4 or bias20 >= 12.0:
-        signals_dict['safety_rating'] = "🔴 命中淘汰" if elim_info['is_eliminated'] else "🔴 嚴禁追高"
-    elif elim_info['is_eliminated'] or is_multi_bagger or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red) or (nearest_bearish_g and 0 <= nearest_bearish_g.get('distance_pct', 99) <= 3.0):
+    is_four_ma_launch = signals_dict.get('bullish_alignment', False) and (signals_dict.get('main_wave_2nd', False) or signals_dict.get('box_range_breakout', False) or signals_dict.get('pullback_buy', False)) and (c >= sma5 and c >= o)
+
+    if is_false_breakout_dump or signals_dict.get('ma20_death_break', False):
+        signals_dict['safety_rating'] = "🔴 命中淘汰"
+    elif elim_info['is_eliminated'] and not is_four_ma_launch:
+        signals_dict['safety_rating'] = "🔴 命中淘汰" if elim_info['eliminated_count'] >= 2 else "🟡 警訊注意"
+    elif up_days >= 4 or bias20 >= 12.0:
+        signals_dict['safety_rating'] = "🔴 嚴禁追高"
+    elif (elim_info['is_eliminated'] and is_four_ma_launch) or (is_multi_bagger and not is_four_ma_launch) or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red) or (nearest_bearish_g and 0 <= nearest_bearish_g.get('distance_pct', 99) <= 3.0):
         signals_dict['safety_rating'] = "🟡 警訊注意"
     else:
         signals_dict['safety_rating'] = "🟢 安全首選"

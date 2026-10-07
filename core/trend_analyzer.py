@@ -68,16 +68,28 @@ def analyze_trend(df: pd.DataFrame, points: list):
     trough_diff_pct = (curr_trough['price'] - prev_trough['price']) / (prev_trough['price'] + 1e-9)
     peak_diff_pct = (curr_peak['price'] - prev_peak['price']) / (prev_peak['price'] + 1e-9)
 
+    latest_close = float(df['Close'].iloc[-1])
+    latest_open = float(df['Open'].iloc[-1]) if 'Open' in df else latest_close
+    latest_high = float(df['High'].iloc[-1]) if 'High' in df else latest_close
+    latest_low = float(df['Low'].iloc[-1]) if 'Low' in df else latest_close
+
     hh = peak_diff_pct > 0.003  # 頭頭高 (過前高)
     lh = peak_diff_pct < -0.005  # 頭頭低
     is_flat_bottom = abs(trough_diff_pct) <= 0.008  # 平底/箱底支撐 (差 0.8% 以內視為平底有守)
     hl = (trough_diff_pct > 0.003) or (is_flat_bottom and hh)  # 底底高 (或平底箱底且過前高)
     ll = (trough_diff_pct < -0.008) and not is_flat_bottom  # 底底低 (實質跌破前低超過 0.8%)
 
-    latest_close = float(df['Close'].iloc[-1])
-    latest_open = float(df['Open'].iloc[-1]) if 'Open' in df else latest_close
-    latest_high = float(df['High'].iloc[-1]) if 'High' in df else latest_close
-    latest_low = float(df['Low'].iloc[-1]) if 'Low' in df else latest_close
+    # 助教與老朱實戰心法：
+    # 1.「過前高動態校正」：若今日最新收盤價或最高價已實質突破 curr_peak，代表多頭正在過前高，絕非「頭頭低」！
+    if (latest_close >= curr_peak['price'] * 0.998) or (latest_high > curr_peak['price']):
+        lh = False
+        if latest_close >= curr_peak['price'] or latest_high >= prev_peak['price']:
+            hh = True
+
+    # 2.「收盤跌破才算是跌破」：若盤中雖低於前底，但收盤拉回守穩 curr_trough 之上，視為留長下影線打樁有守，不判定為破底！
+    if ll and (latest_close >= curr_trough['price'] * 0.995):
+        ll = False
+        hl = True
 
     alerts = []
 
