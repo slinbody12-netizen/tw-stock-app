@@ -2764,15 +2764,15 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                         st.rerun()
 
             with c_quick_t2:
-                with st.popover("🛡️ 加入【副駕駛持股守護】", use_container_width=True):
-                    st.write(f"#### 🛡️ 將【{info['name']}】加入副駕駛持股守護")
-                    st.caption("登錄買進價格與持股張數，副駕駛將每日即時盯盤、計算停損與反彈目標，並於破線時主動提醒！")
+                with st.popover("⚡ 一鍵買進登記 (智能評估守護)", use_container_width=True):
+                    st.write(f"#### ⚡ 將【{info['name']}】登記買進並啟動天天智能評估")
+                    st.caption("登錄買進價格與持股張數，副駕駛將每日自動即時全市場比對，評估【🟢 優先續抱 vs 🔄 建議換股 vs 🔴 果斷退場】！")
                     q_hold_p = st.number_input("買進成交價 (元)", value=float(info['close']), step=0.1, key=f"q_hold_p_{query}")
                     q_hold_zh = st.number_input("持有張數", value=1.0, min_value=0.01, step=0.5, key=f"q_hold_zh_{query}")
                     q_hold_type = st.radio("交易方式", ["現股", "融資"], horizontal=True, key=f"q_hold_type_{query}")
                     q_hold_stop = st.number_input("停損防守價 (預設-5%)", value=round(float(info['close']) * 0.95, 2), step=0.1, key=f"q_hold_stop_{query}")
                     q_hold_tgt = st.number_input("波段目標價 (預設+10%)", value=round(float(info['close']) * 1.10, 2), step=0.1, key=f"q_hold_tgt_{query}")
-                    if st.button("🚀 確認加入持股守護庫存", type="primary", use_container_width=True, key=f"btn_q_add_hold_{query}"):
+                    if st.button("🚀 確認登記買進 (啟動天天智能評估)", type="primary", use_container_width=True, key=f"btn_q_add_hold_{query}"):
                         curr_u = st.session_state.get("copilot_user", {"user_id": "master"})
                         add_holding(
                             code=info['code'],
@@ -2926,6 +2926,109 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             # 老朱三層進場階梯戰法 (Three-Tier Entry Hierarchy) 操盤導航看板
             entry_tier = calculate_three_tier_entry(df, points, trend, signals_dict)
             render_three_tier_entry_dashboard(entry_tier)
+
+            # =========================================================================
+            # ⚡ 極簡 1-Click 買進登記 · 納入每日全自動評估守護神
+            # =========================================================================
+            curr_copilot_u = st.session_state.get("copilot_user", {"user_id": "master"})
+            copilot_uid = curr_copilot_u.get("user_id", "master")
+            current_user_h = [h for h in load_portfolio(user_id=copilot_uid) if h.get("code") == info["code"] and h.get("status") == "HOLDING"]
+
+            with st.container():
+                if current_user_h:
+                    h_item = current_user_h[0]
+                    h_shares_str = f"{h_item['shares'] // 1000} 張" if h_item['shares'] % 1000 == 0 else f"{h_item['shares'] / 1000:.2f} 張"
+                    st.markdown(
+                        f'<div style="background: #14231E; border: 1.5px solid #52C41A; border-radius: 10px; padding: 12px 16px; margin: 12px 0 14px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">'
+                        f'<div>'
+                        f'<span style="font-size: 1.1rem; font-weight: bold; color: #52C41A;">🛡️【{info["name"]}】在庫守護中</span> · '
+                        f'<span style="color: #E2E8F0; font-size: 0.92rem;">持有數量：<b>{h_shares_str}</b> ({h_item.get("trade_type", "現股")}) · 平均成本：<b>{h_item["buy_price"]} 元</b></span>'
+                        f'</div>'
+                        f'<div style="color: #8892B0; font-size: 0.82rem;">🤖 每日副駕駛全自動評估【優先續抱 vs 建議換股 vs 果斷退場】</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+                    with st.expander(f"➕ 加碼登記買進【{info['name']}】", expanded=False):
+                        with st.form(f"form_quick_add_{query}", clear_on_submit=False):
+                            c_qa1, c_qa2, c_qa3, c_qa4 = st.columns(4)
+                            with c_qa1:
+                                qa_buy_p = st.number_input("加碼成交價 (元)", value=float(info['close']), step=0.1, key=f"qa_p_{query}")
+                            with c_qa2:
+                                qa_shares = st.number_input("加碼張數", value=1.0, min_value=0.1, step=0.5, format="%.2f", key=f"qa_s_{query}")
+                            with c_qa3:
+                                qa_stop = st.number_input("防守停損價 (元)", value=float(entry_tier.get('stop_loss', round(float(info['close']) * 0.95, 2))), step=0.1, key=f"qa_sl_{query}")
+                            with c_qa4:
+                                qa_tgt = st.number_input("波段目標價 (元)", value=float(entry_tier.get('target_price', round(float(info['close']) * 1.10, 2))), step=0.1, key=f"qa_tp_{query}")
+                            qa_btn = st.form_submit_button(f"⚡ 確認加碼買進【{info['name']}】", type="primary", use_container_width=True)
+                            if qa_btn:
+                                add_holding(
+                                    code=info['code'],
+                                    name=info['name'],
+                                    buy_price=qa_buy_p,
+                                    stop_loss=qa_stop,
+                                    target_price=qa_tgt,
+                                    strategy=entry_tier.get('stage_name', '階梯加碼'),
+                                    buy_reason=f"{entry_tier.get('stage_name', '階梯戰術')} 加碼建倉",
+                                    shares=int(round(qa_shares * 1000)),
+                                    trade_type="現股",
+                                    user_id=copilot_uid
+                                )
+                                if "copilot_inspected_cache" in st.session_state:
+                                    del st.session_state["copilot_inspected_cache"]
+                                st.success(f"🎉 成功登記加碼【{info['name']}】{qa_shares} 張！每日自動評估守護中！")
+                                st.rerun()
+                else:
+                    default_sl = float(entry_tier.get('stop_loss', round(float(info['close']) * 0.95, 2)))
+                    default_tp = float(entry_tier.get('target_price', round(float(info['close']) * 1.10, 2)))
+                    stage_label = entry_tier.get('stage_name', '黃金階梯進場')
+
+                    st.markdown(
+                        f'<div style="background: #181E2E; border: 1.5px solid #3B82F6; border-radius: 10px; padding: 14px 16px; margin: 12px 0 14px 0;">'
+                        f'<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">'
+                        f'<div>'
+                        f'<span style="font-size: 1.15rem; font-weight: bold; color: #60A5FA;">⚡ 極簡 1-Click 買進登記</span>'
+                        f'<span style="color: #94A3B8; font-size: 0.88rem; margin-left: 8px;">登錄後天天全自動評估【🟢 優先續抱 vs 🔄 建議換股 vs 🔴 果斷退場】</span>'
+                        f'</div>'
+                        f'<span style="background: #2563EB22; color: #93C5FD; border: 1px solid #3B82F6; padding: 2px 8px; border-radius: 4px; font-size: 0.82rem; font-weight: bold;">{stage_label}</span>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+                    with st.form(f"form_quick_buy_direct_{query}", clear_on_submit=False):
+                        cq1, cq2, cq3, cq4, cq5 = st.columns([1.3, 1.1, 1.1, 1.2, 1.2])
+                        with cq1:
+                            qb_price = st.number_input("買進成交價 (元)", value=float(info['close']), step=0.1, key=f"qb_p_{query}")
+                        with cq2:
+                            qb_shares = st.number_input("買進張數", value=1.0, min_value=0.1, step=0.5, format="%.2f", key=f"qb_s_{query}")
+                        with cq3:
+                            qb_type = st.selectbox("交易類別", ["現股", "融資"], index=0, key=f"qb_t_{query}")
+                        with cq4:
+                            qb_sl = st.number_input("防守停損價 (元)", value=default_sl, step=0.1, key=f"qb_sl_{query}")
+                        with cq5:
+                            qb_tp = st.number_input("波段目標價 (元)", value=default_tp, step=0.1, key=f"qb_tp_{query}")
+                        
+                        btn_qb_submit = st.form_submit_button(
+                            f"⚡ 一鍵登記買進【{info['name']}】（立即啟動天天智能守護評估）",
+                            type="primary",
+                            use_container_width=True
+                        )
+                        if btn_qb_submit:
+                            add_holding(
+                                code=info['code'],
+                                name=info['name'],
+                                buy_price=qb_price,
+                                stop_loss=qb_sl,
+                                target_price=qb_tp,
+                                strategy=stage_label,
+                                buy_reason=f"{stage_label} 階梯進場",
+                                shares=int(round(qb_shares * 1000)),
+                                trade_type=qb_type,
+                                user_id=copilot_uid
+                            )
+                            if "copilot_inspected_cache" in st.session_state:
+                                del st.session_state["copilot_inspected_cache"]
+                            st.success(f"🎉 成功登記買進【{info['name']} ({info['code']})】！副駕駛已啟動每日【續抱 vs 換股 vs 退場】自動評估！")
+                            st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
 
             if signals_list:
                 render_strategy_signals_dashboard(signals_list, signals_dict, trend, info)
@@ -6369,11 +6472,15 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
             target_count = sum(1 for item in inspected_list if any(k in item['status_type'] for k in ["TARGET", "REBOUND_EXIT", "BREAKEVEN"]))
             hold_count = sum(1 for item in inspected_list if any(k in item['status_type'] for k in ["HOLD", "REBOUND_RISING"]))
 
+            act_hold_cnt = sum(1 for item in inspected_list if item.get('action_code') == 'HOLD_PRIORITY')
+            act_swap_cnt = sum(1 for item in inspected_list if item.get('action_code') == 'SWAP_RECOMMENDED')
+            act_exit_cnt = sum(1 for item in inspected_list if item.get('action_code') == 'EXIT_DECISIVE')
+
             summary_box = (
                 f'<div style="background: #1E202E; border: 1px solid #2F3247; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;">'
                 f'<div><span style="color: #8892B0; font-size: 0.88rem;">實戰持股總數</span><br><span style="font-size: 1.4rem; font-weight: bold; color: white;">{len(inspected_list)} 檔</span></div>'
                 f'<div><span style="color: #8892B0; font-size: 0.88rem;">在庫總損益</span><br><span style="font-size: 1.4rem; font-weight: bold; color: {pnl_c};">{pnl_sign}{total_pnl:,.0f} 元 ({pnl_sign}{total_pnl_pct}%)</span></div>'
-                f'<div><span style="color: #8892B0; font-size: 0.88rem;">守護健康狀態</span><br><span style="font-size: 0.92rem; color: #52C41A; font-weight: bold;">🟢 正常推升/續抱 {hold_count} 檔</span> · <span style="font-size: 0.92rem; color: #FAAD14; font-weight: bold;">🎯 逼近賣壓/達標 {target_count} 檔</span> · <span style="font-size: 0.92rem; color: #FF4D4F; font-weight: bold;">🔴 破線/逃命警戒 {stop_count} 檔</span></div>'
+                f'<div><span style="color: #8892B0; font-size: 0.88rem;">🤖 每日全市場動態決策</span><br><span style="font-size: 0.92rem; color: #52C41A; font-weight: bold;">🟢 優先續抱 {act_hold_cnt} 檔</span> · <span style="font-size: 0.92rem; color: #FAAD14; font-weight: bold;">🔄 建議換股 {act_swap_cnt} 檔</span> · <span style="font-size: 0.92rem; color: #FF4D4F; font-weight: bold;">🔴 果斷退場 {act_exit_cnt} 檔</span></div>'
                 f'</div>'
             )
             st.markdown(summary_box, unsafe_allow_html=True)
@@ -6396,6 +6503,46 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                 m_ratio = item.get('margin_ratio')
                 item_sign = "+" if item_pnl_pct >= 0 else ""
                 item_pnl_c = "#FF4D4F" if item_pnl_pct >= 0 else "#52C41A"
+
+                act_badge = item.get('action_badge', '🟢 優先續抱')
+                act_color = item.get('action_color', '#52C41A')
+                act_desc = item.get('action_desc', '')
+                better_tgt = item.get('better_target')
+
+                better_target_html = ""
+                if better_tgt:
+                    bt_code = better_tgt.get('code')
+                    bt_name = better_tgt.get('name')
+                    bt_p = better_tgt.get('close', 0.0)
+                    bt_chg = better_tgt.get('change_pct', 0.0)
+                    bt_strat = better_tgt.get('strategy', '')
+                    bt_rr = better_tgt.get('rr_ratio', 2.0)
+                    better_target_html = (
+                        f'<div style="background: #231C10; border: 1.5px dashed #FAAD14; border-radius: 8px; padding: 10px 14px; margin-top: 10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">'
+                        f'<div>'
+                        f'<span style="color: #FAAD14; font-weight: bold; font-size: 0.9rem;">🎯 今日推薦換股升級新標的：</span>'
+                        f'<span style="color: white; font-weight: bold; font-size: 1.05rem;">{bt_name} ({bt_code})</span> · '
+                        f'<span style="color: #FF4D4F; font-weight: bold;">{bt_p:.2f} 元 (+{bt_chg:.2f}%)</span> · '
+                        f'<span style="color: #4FD1C5; font-size: 0.88rem;">{bt_strat}</span> · '
+                        f'<span style="color: #13C2C2; font-size: 0.88rem; font-weight: bold;">風報比 1:{bt_rr}</span>'
+                        f'</div>'
+                        f'</div>'
+                    )
+
+                action_banner_html = (
+                    f'<div style="background: {act_color}18; border: 1.5px solid {act_color}; border-radius: 8px; padding: 12px 14px; margin: 10px 0;">'
+                    f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">'
+                    f'<div style="display:flex; align-items:center; gap:8px;">'
+                    f'<span style="font-size: 1.15rem; font-weight: bold; color: {act_color};">{act_badge}</span>'
+                    f'<span style="background: #202434; color: #8892B0; padding: 2px 7px; border-radius: 4px; font-size: 0.76rem;">🤖 每日全市場比對診斷</span>'
+                    f'</div>'
+                    f'</div>'
+                    f'<div style="font-size: 0.9rem; color: #E2E8F0; line-height: 1.6; margin-top: 6px;">'
+                    f'{act_desc}'
+                    f'</div>'
+                    f'{better_target_html}'
+                    f'</div>'
+                )
 
                 type_badge = '<span style="background: #13520022; color: #95DE64; border: 1px solid #52C41A; padding: 2px 7px; border-radius: 4px; font-size: 0.82rem; font-weight: bold; margin-left: 6px;">💵 現股</span>' if item_type == "現股" else '<span style="background: #722ED122; color: #D3ADF7; border: 1px solid #9254DE; padding: 2px 7px; border-radius: 4px; font-size: 0.82rem; font-weight: bold; margin-left: 6px;">💳 融資</span>'
 
@@ -6460,6 +6607,7 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
                     f'</div>'
                     f'</div>'
                     f'{ch7_warn_banner}'
+                    f'{action_banner_html}'
                     f'{metrics_bar}'
                     f'<div style="background: #151822; padding: 10px 12px; border-radius: 6px; font-size: 0.9rem; color: #E2E8F0; line-height: 1.6; margin-bottom: 10px;">'
                     f'{item_desc}'
@@ -6470,12 +6618,26 @@ elif "秘密特務" in menu or "操盤副駕駛" in menu:
 
                 col_act1, col_act2, col_act3 = st.columns([2, 1, 1])
                 with col_act1:
-                    if st.button(f"📊 載入【{item_name}】轉折波K線主圖", key=f"btn_chart_hold_{item_id}"):
-                        st.session_state.selected_stock = item_code
-                        st.session_state.goto_chart = True
-                        st.rerun()
+                    if better_tgt:
+                        c_act_sub1, c_act_sub2 = st.columns(2)
+                        with c_act_sub1:
+                            if st.button(f"📊 查看【{item_name}】主圖", key=f"btn_chart_hold_{item_id}", use_container_width=True):
+                                st.session_state.selected_stock = item_code
+                                st.session_state.goto_chart = True
+                                st.rerun()
+                        with c_act_sub2:
+                            if st.button(f"🔄 看換股【{better_tgt['name']}】", key=f"btn_swap_view_{item_id}", use_container_width=True):
+                                st.session_state.selected_stock = better_tgt['code']
+                                st.session_state.goto_chart = True
+                                st.rerun()
+                    else:
+                        if st.button(f"📊 載入【{item_name}】轉折波K線主圖", key=f"btn_chart_hold_{item_id}", use_container_width=True):
+                            st.session_state.selected_stock = item_code
+                            st.session_state.goto_chart = True
+                            st.rerun()
                 with col_act2:
-                    with st.popover("🏁 我賣出了 (結算)", use_container_width=True):
+                    sell_btn_label = "🚨 執行退場/停損 (結算)" if item.get('action_code') == 'EXIT_DECISIVE' else "🏁 我賣出了 (結算)"
+                    with st.popover(sell_btn_label, use_container_width=True):
                         st.write(f"#### 結算出場【{item_name}】({item_type} · {shares_display})")
                         with st.form(key=f"sell_form_{item_id}", clear_on_submit=False):
                             c_sp1, c_sp2 = st.columns(2)

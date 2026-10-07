@@ -9,6 +9,7 @@ AI 實戰操盤副駕駛 (Trading Copilot) 核心引擎
 import os
 import json
 import datetime
+import pickle
 import pandas as pd
 import numpy as np
 
@@ -933,6 +934,247 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
     }
 
 # ========================================================
+# 核心大腦：市場頂級候選標的萃取與持股每日動態評估引擎
+# ========================================================
+def get_market_top_candidates(limit: int = 10) -> list:
+    """
+    從選股池快照與尾盤推薦名冊中萃取今日最優質、符合技術分析黃金進場點的 Top 候選標的，
+    供在庫持股進行每日動態評估與【優先續抱 vs 建議換股】客觀比較。
+    標準：
+    1. 🟢 安全首選 (排除 14 大淘汰、假突破出貨、避雷針、嚴禁追高)
+    2. 處於第 1 層 (底部起漲/突破) 或第 2 層 (主升段回後買上漲)，或均線糾結突破/換手成功
+    3. 站穩 5MA 操盤線 且 5MA 走平翻揚
+    4. 漲幅在 0.0% ~ 4.5% 安全起漲區間 (非追高)
+    5. 風報比 >= 1.3
+    """
+    candidates = []
+    snap_path = os.path.join(DATA_DIR, "screener_snapshot.pkl")
+    if os.path.exists(snap_path):
+        try:
+            with open(snap_path, "rb") as f:
+                snap_data = pickle.load(f)
+            for s in snap_data:
+                safety = str(s.get('safety_rating', ''))
+                if "安全首選" not in safety:
+                    continue
+                c = float(s.get('close', 0))
+                chg = float(s.get('change_pct', 0))
+                above_5 = s.get('above_5ma', True)
+                if not above_5:
+                    continue
+                if chg < -1.0 or chg > 5.0:
+                    continue
+                sig = s.get('signals_dict', {})
+                if sig.get('has_long_upper_shadow', False) or sig.get('is_false_breakout_dump', False):
+                    continue
+                swing = sig.get('swing_3_5d', {})
+                rr = float(swing.get('rr_ratio', 1.8))
+                if rr < 1.3:
+                    continue
+                strat_name = s.get('entry_tier_name') or s.get('strategy')
+                if not strat_name or strat_name == "無":
+                    if sig.get('main_wave_2nd'):
+                        strat_name = "主升段第二波"
+                    elif sig.get('pullback_buy'):
+                        strat_name = "回後買上漲"
+                    elif sig.get('ma_squeeze_breakout'):
+                        strat_name = "均線糾結突破"
+                    elif sig.get('is_turnover_success'):
+                        strat_name = "爆量換手成功"
+                    else:
+                        strat_name = "多頭排列起漲"
+                candidates.append({
+                    "code": str(s.get('code')),
+                    "name": str(s.get('name')),
+                    "close": c,
+                    "change_pct": chg,
+                    "strategy": strat_name,
+                    "rr_ratio": rr,
+                    "quality_score": float(s.get('quality_score', 80)),
+                    "sma5": float(s.get('sma5', c))
+                })
+            candidates.sort(key=lambda x: (x['quality_score'], x['rr_ratio']), reverse=True)
+        except Exception as e:
+            print(f"Error parsing candidates from snapshot: {e}")
+
+    # 若快照較少，亦可從每日推薦名冊補充
+    try:
+        rec = get_copilot_recommendation(force_refresh=False, enable_realtime=False)
+        if rec and rec.get("picks"):
+            exist_codes = {c["code"] for c in candidates}
+            for p in rec["picks"]:
+                if p["code"] not in exist_codes:
+                    candidates.append({
+                        "code": str(p["code"]),
+                        "name": str(p["name"]),
+                        "close": float(p.get("close", 0)),
+                        "change_pct": float(p.get("change_pct", 0)),
+                        "strategy": p.get("strategy", "尾盤作戰首選"),
+                        "rr_ratio": float(p.get("rr_ratio", 2.0)),
+                        "quality_score": 90.0,
+                        "sma5": float(p.get("ma5", p.get("close", 0)))
+                    })
+    except Exception:
+        pass
+
+    return candidates[:limit]
+
+
+def evaluate_holding_action_decision(
+    code: str,
+    name: str,
+    curr_p: float,
+    curr_chg: float,
+    buy_p: float,
+    sma5: float,
+    sma20: float,
+    floor_stop: float,
+    custom_stop: float,
+    pnl_pct: float,
+    status_type: str,
+    sig_dict: dict,
+    df: pd.DataFrame,
+    days_held: int,
+    market_candidates: list
+) -> dict:
+    """
+    評估在庫持股當日最佳作戰決策：
+    1. 🔴 果斷退場 / 嚴格停損 (EXIT_DECISIVE)：破5MA/前底停損、假突破倒貨、重挫逾5%、破月線3天下彎
+    2. 🔄 建議換股升級 (SWAP_RECOMMENDED)：舊股動能窒息牛皮或遇大反壓未過，且市場有安全首選黃金起漲新標的
+    3. 🟢 優先續抱 (HOLD_PRIORITY)：穩居 5MA 之上，多頭結構健康，新標的無壓倒性優勢，維持紀律抱牢波段
+    """
+    # ----------------------------------------------------
+    # 決策 1：🔴 果斷退場 / 嚴格停損 (Exit Decisive)
+    # ----------------------------------------------------
+    # 實戰心法：做多守 5MA！若收盤穩居 5MA 之上，短線推升慣性未破，不應低檔盲目殺低；
+    # 只有當「摜破 5MA / 破保命前底 / 假突破倒貨 / 重挫逾5% / 破月線3天下彎」時，才觸發果斷退場！
+    is_broken_ma5 = (curr_p < sma5)
+    is_exit_stop = (
+        (is_broken_ma5 and pnl_pct <= -10.0)
+        or curr_p <= floor_stop
+        or (is_broken_ma5 and custom_stop > 0 and curr_p < custom_stop)
+        or sig_dict.get('is_false_breakout_dump', False)
+        or (curr_chg <= -5.0 and is_broken_ma5)
+        or "STOP_LOSS_FLOOR" in status_type
+        or "DEATH" in status_type
+        or "MARGIN_ALERT" in status_type
+        or "FALSE_BREAKOUT" in status_type
+        or (is_broken_ma5 and "ABSOLUTE_STOP_LOSS" in status_type)
+    )
+    if is_exit_stop:
+        if pnl_pct <= -10.0:
+            reason = f"跌破 5MA 操盤線 ({sma5:.2f}元) 且持股累積虧損已達 <b>{pnl_pct}%</b>！觸發絕對停損鐵律（虧損逾 10% 絕不凹單），請於今日尾盤果斷全數出場，杜絕損失擴大！"
+        elif curr_p <= floor_stop or (is_broken_ma5 and custom_stop > 0 and curr_p < custom_stop):
+            effective_stop = min(floor_stop, custom_stop) if custom_stop > 0 else floor_stop
+            reason = f"現價 ({curr_p:.2f}元) 已摜破防守底線 ({effective_stop:.2f}元)！空方破線慣性確立，嚴禁心存僥倖凹單，請果斷停損逃命保留資金！"
+        elif sig_dict.get('is_false_breakout_dump', False):
+            reason = "突破長紅後 3 天內長黑貫破該長紅最低點，確認主力誘多倒貨完畢！假突破陷阱已成，請果斷全數退場！"
+        elif curr_chg <= -5.0 and is_broken_ma5:
+            reason = f"今日重挫 <b>{curr_chg}%</b> 且長黑跌破 5MA 操盤線 ({sma5:.2f}元)，主力急殺倒貨！依風控防守紀律，果斷退場避開主跌段！"
+        else:
+            reason = f"跌破關鍵防守支撐，多頭結構遭到破壞！資金效率優先，果斷退場保留現金，靜待下一次進場良機。"
+            
+        return {
+            "action_code": "EXIT_DECISIVE",
+            "action_badge": "🔴 果斷退場 / 嚴格停損",
+            "action_color": "#FF4D4F",
+            "action_title": "【🔴 果斷退場 · 嚴格停損】",
+            "action_desc": f"🚨 <b>【紀律退場警報】</b>：{reason}",
+            "better_target": None
+        }
+
+    # ----------------------------------------------------
+    # 決策 2：🔄 建議換股升級 (Swap Recommended)
+    # ----------------------------------------------------
+    # 條件：
+    # (a) 舊股動能停滯/窒息量盤整 >= 3 天，或跌破 5MA 短線轉弱，或面臨前波套牢大反壓遲遲不過
+    # (b) 市場候選池中出現技術面黃金進場點、安全首選的新標的
+    is_stagnant = False
+    stagnant_reason = ""
+    
+    if len(df) >= 5:
+        recent_3 = df.tail(3)
+        vol_3_avg = float(recent_3['Volume'].mean())
+        vol_20_avg = float(df.tail(20)['Volume'].mean()) if len(df) >= 20 else vol_3_avg
+        amp_3 = float((recent_3['High'].max() - recent_3['Low'].min()) / curr_p) if curr_p > 0 else 0.0
+        
+        # 窒息量牛皮盤整：3天震幅 <= 2.8% 且 成交量顯著低於均量，資金被卡住
+        if amp_3 <= 0.028 and vol_3_avg < vol_20_avg * 0.75 and days_held >= 3:
+            is_stagnant = True
+            stagnant_reason = f"近 3~5 日量能萎縮至窒息量 ({vol_3_avg:,.0f}張)，高低震幅僅 {amp_3*100:.1f}%，短線進入牛皮休眠盤整，資金效率偏低"
+
+    # 跌破 5MA 短線轉弱 (但尚未到停損)
+    is_weak_ma5 = (curr_p < sma5 and not sig_dict.get('pullback_buy', False) and not sig_dict.get('is_turnover_success', False))
+    if is_weak_ma5 and not is_stagnant:
+        is_stagnant = True
+        stagnant_reason = f"股價 ({curr_p:.2f}元) 今日收盤跌破 5MA 操盤線 ({sma5:.2f}元)，短線攻擊節奏打亂拉回整理"
+
+    # 面臨前波密集反壓連續遇阻
+    if len(df) >= 15 and not is_stagnant:
+        high_15 = float(df.tail(15)['High'].max())
+        if abs(curr_p - high_15) / high_15 < 0.025 and df.iloc[-1]['Close'] < df.iloc[-1]['Open']:
+            is_stagnant = True
+            stagnant_reason = f"股價逼近前波高點重壓區 ({high_15:.2f}元)，連日收上影線或黑K未過，上檔解套賣壓沉重"
+
+    # 尋找全市場是否有更優質的起跑飆股
+    better_cand = None
+    if is_stagnant and market_candidates:
+        for cand in market_candidates:
+            if str(cand.get('code')) != str(code):
+                c_chg = float(cand.get('change_pct', 0))
+                c_rr = float(cand.get('rr_ratio', 0))
+                if 0.0 <= c_chg <= 4.2 and c_rr >= 1.5:
+                    better_cand = cand
+                    break
+
+    if is_stagnant and better_cand:
+        c_code = better_cand.get('code')
+        c_name = better_cand.get('name')
+        c_p = float(better_cand.get('close', 0))
+        c_chg = float(better_cand.get('change_pct', 0))
+        c_strat = better_cand.get('strategy', '黃金階梯起漲')
+        c_rr = better_cand.get('rr_ratio', 2.0)
+        
+        return {
+            "action_code": "SWAP_RECOMMENDED",
+            "action_badge": "🔄 建議換股升級",
+            "action_color": "#FAAD14",
+            "action_title": "【🔄 建議換股升級】",
+            "action_desc": (
+                f"⚠️ <b>【資金效率優化評估】</b>：本股目前{stagnant_reason}。<br>"
+                f"💡 <b>今日市場發現更佳首選標的</b>：【<b>{c_name} ({c_code})</b>】現價 <b>{c_p:.2f} 元</b> (今日漲幅 <b>+{c_chg:.2f}%</b>)，"
+                f"剛符合【<b>{c_strat}</b>】黃金攻擊型態，風報比高達 <b>1 : {c_rr}</b>！<br>"
+                f"🎯 <b>作戰指引</b>：若追求資金最快週轉與爆發力，建議可將此檔平手或微利換股，資金升級至新飆股【{c_name}】享受主升段推升！"
+            ),
+            "better_target": {
+                "code": c_code,
+                "name": c_name,
+                "close": c_p,
+                "change_pct": c_chg,
+                "strategy": c_strat,
+                "rr_ratio": c_rr
+            }
+        }
+
+    # ----------------------------------------------------
+    # 決策 3：🟢 優先續抱 (Hold Priority)
+    # ----------------------------------------------------
+    # 穩居 5MA 之上，多頭結構健康，未破防守線
+    return {
+        "action_code": "HOLD_PRIORITY",
+        "action_badge": "🟢 優先續抱",
+        "action_color": "#52C41A",
+        "action_title": "【🟢 優先續抱】",
+        "action_desc": (
+            f"💎 <b>【多頭結構健全·優先續抱】</b>：目前股價 (<b>{curr_p:.2f}元</b>) 穩居 5MA 操盤線 (<b>{sma5:.2f}元</b>) 之上，短線推升慣性健全良好！<br>"
+            f"💡 <b>副駕駛市場比對診斷</b>：今日全市場掃描無顯著更具壓倒性優勢之低風險起漲新標的；且頻繁跳車換股徒增手續費與追高洗盤風險。"
+            f"大波段利潤是守出來的，實戰鐵律『做多守5MA，收盤未跌破一路續抱』，維持原策略優先抱牢主升段！"
+        ),
+        "better_target": None
+    }
+
+
+# ========================================================
 # 核心大腦 2：全自動持股盯盤守護神 (持股動態診斷)
 # ========================================================
 def inspect_portfolio(portfolio: list) -> list:
@@ -946,6 +1188,7 @@ def inspect_portfolio(portfolio: list) -> list:
     5. 🟠 跌破 5MA 短線轉弱 (反彈動能受阻，提高戒備)
     6. 🏁 達標停利 / ➕ 回測加碼 / 🛡️ 安心續抱 (獲利波段守護)
     """
+    market_candidates = get_market_top_candidates(limit=10)
     results = []
     for item in portfolio:
         if item.get("status") != "HOLDING":
@@ -1055,11 +1298,6 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_badge = "⚠️ 融資破底·嚴防斷頭！"
                     status_color = "#FF4D4F"
                     status_desc = f"⚠️ <b>融資緊急離場警報</b>：當前股價 ({curr_p}元) 已摜破波段保命前底 ({floor_stop}元)，估算融資維持率約 <b>{margin_ratio}%</b> (逼近 130% 斷頭追繳線)！融資具利息負擔與強制平倉風險，請立即執行平倉停損，嚴防損失無限擴大！"
-                elif pnl_pct <= -10.0:
-                    status_type = "ABSOLUTE_STOP_LOSS_10PCT"
-                    status_badge = "🛑 絕對停損！虧損逾10%立刻砍單"
-                    status_color = "#FF4D4F"
-                    status_desc = f"🛑 <b>【絕對停損·終極鐵律】</b>：持股累計虧損已達 <b>{pnl_pct}%</b> (超過 10% 絕對極限)！華爾街與官方實戰鐵律：『絕不容許損失超過 10%，不可再凹單』！請於今日尾盤 13:20~13:30 果斷執行壯士斷腕全數停損，退出市場保留剩餘資金，等待下次翻盤機會！"
                 elif curr_p <= floor_stop:
                     status_type = "STOP_LOSS_FLOOR"
                     status_badge = "🔴 破保命底線！逃命離場"
@@ -1081,6 +1319,11 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_badge = "🟢 反彈推升中·守5MA等賣點"
                     status_color = "#52C41A"
                     status_desc = f"📈 <b>反彈推升中</b>：當前股價 ({curr_p}元) 守穩於 5MA ({sma5:.2f}元) 之上，短線反彈動能推升中！暫時不急著在低檔亂殺低，以 5MA 為移動防守線續抱，耐心等待股價推升至第一反彈賣點 ({target_rebound_1}元) 再逢高掛賣！"
+                elif pnl_pct <= -10.0:
+                    status_type = "ABSOLUTE_STOP_LOSS_10PCT"
+                    status_badge = "🛑 跌破5MA·絕對停損！"
+                    status_color = "#FF4D4F"
+                    status_desc = f"🛑 <b>【絕對停損·終極鐵律】</b>：今日收盤跌破 5MA ({sma5:.2f}元) 且累計虧損已達 <b>{pnl_pct}%</b> (超過 10% 絕對極限)！華爾街與官方實戰鐵律：『絕不容許損失超過 10%，不可再凹單』！請於今日尾盤 13:20~13:30 果斷執行壯士斷腕全數停損，退出市場保留剩餘資金，等待下次翻盤機會！"
                 else:
                     status_type = "BREAK_MA5_WEAK"
                     status_badge = "🟠 跌破 5MA·反彈受阻留意"
@@ -1093,11 +1336,11 @@ def inspect_portfolio(portfolio: list) -> list:
                 prev_sma20 = float(df.iloc[-2].get('SMA_20', sma20)) if len(df) >= 2 else sma20
                 is_ma20_down = (sma20 < prev_sma20 * 0.999)
 
-                if pnl_pct <= -10.0:
+                if pnl_pct <= -10.0 and curr_p < sma5:
                     status_type = "ABSOLUTE_STOP_LOSS_10PCT"
-                    status_badge = "🛑 絕對停損！虧損逾10%立刻砍單"
+                    status_badge = "🛑 跌破5MA·絕對停損！"
                     status_color = "#FF4D4F"
-                    status_desc = f"🛑 <b>【絕對停損·終極鐵律】</b>：持股累計虧損已達 <b>{pnl_pct}%</b> (超過 10% 絕對極限)！華爾街與官方實戰鐵律：『絕不容許損失超過 10%，不可再凹單』！請於今日尾盤 13:20~13:30 果斷執行壯士斷腕全數停損，退出市場保留剩餘資金，等待下次翻盤機會！"
+                    status_desc = f"🛑 <b>【絕對停損·終極鐵律】</b>：今日跌破 5MA 且持股累計虧損已達 <b>{pnl_pct}%</b> (超過 10% 絕對極限)！華爾街與官方實戰鐵律：『絕不容許損失超過 10%，不可再凹單』！請於今日尾盤 13:20~13:30 果斷執行壯士斷腕全數停損，退出市場保留剩餘資金，等待下次翻盤機會！"
                 elif sig_dict.get('is_false_breakout_dump', False):
                     status_type = "FALSE_BREAKOUT_DUMP"
                     status_badge = "🚨 假突破誘多·全數逃命！"
@@ -1156,6 +1399,27 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_color = "#52C41A"
                     status_desc = f"📈 <b>守穩5MA多頭走揚</b>：股價 ({curr_p}元) 穩居 5MA ({sma5:.2f}元) 與月線 ({sma20:.2f}元) 之上，多頭結構健全無虞！操盤鐵律：『做多守5MA，收盤未跌破一路續抱』，切勿因微幅震盪驚慌，安心抱緊波段！"
                 
+            days_held = (datetime.datetime.now().date() - datetime.datetime.strptime(item.get("buy_date", datetime.datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()).days
+
+            # 每日作戰全市場客觀評估：【優先續抱 vs 建議換股 vs 果斷退場】
+            action_eval = evaluate_holding_action_decision(
+                code=code,
+                name=name,
+                curr_p=curr_p,
+                curr_chg=curr_chg,
+                buy_p=buy_p,
+                sma5=sma5,
+                sma20=sma20,
+                floor_stop=floor_stop,
+                custom_stop=custom_stop,
+                pnl_pct=pnl_pct,
+                status_type=status_type,
+                sig_dict=sig_dict,
+                df=df,
+                days_held=days_held,
+                market_candidates=market_candidates
+            )
+
             results.append({
                 "id": item["id"],
                 "code": code,
@@ -1186,8 +1450,14 @@ def inspect_portfolio(portfolio: list) -> list:
                 "status_badge": status_badge,
                 "status_color": status_color,
                 "status_desc": status_desc,
+                "action_code": action_eval["action_code"],
+                "action_badge": action_eval["action_badge"],
+                "action_color": action_eval["action_color"],
+                "action_title": action_eval["action_title"],
+                "action_desc": action_eval["action_desc"],
+                "better_target": action_eval["better_target"],
                 "buy_reason": item.get("buy_reason", ""),
-                "days_held": (datetime.datetime.now().date() - datetime.datetime.strptime(item.get("buy_date", datetime.datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()).days
+                "days_held": days_held
             })
         except Exception as e:
             print(f"Error inspecting {code}: {e}")
