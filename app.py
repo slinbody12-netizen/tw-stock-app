@@ -1262,9 +1262,9 @@ def calc_right_pad_date(last_dt: pd.Timestamp, num_bars: float = 3.0) -> pd.Time
     except Exception:
         return last_dt + pd.Timedelta(days=4)
 
-def resolve_right_badge_collisions(fig: go.Figure, y_min: float, y_max: float, plot_height_px: int = 450, min_gap_px: int = 24) -> go.Figure:
+def resolve_right_badge_collisions(fig: go.Figure, y_min: float, y_max: float, plot_height_px: int = 450, min_gap_px: int = 30) -> go.Figure:
     """
-    自動檢測並排除右側標籤 (如 壓力 / 支撐 / 停損 / 目標 / 移動停利 / 等距目標價) 之間的垂直重疊碰撞。
+    自動檢測並排除右側標籤 (如 壓力 / 支撐 / 停損 / 防守線 / 切線 / 目標 / 移動停利 / 等距目標價) 之間的垂直重疊碰撞。
     若兩標籤在像素空間差距小於 min_gap_px，利用 yshift 進行雙向平滑推移避讓。
     """
     if not fig or not fig.layout.annotations:
@@ -1279,7 +1279,7 @@ def resolve_right_badge_collisions(fig: go.Figure, y_min: float, y_max: float, p
         sa = getattr(a, 'showarrow', True) if not isinstance(a, dict) else a.get('showarrow', True)
         y_val = getattr(a, 'y', None) if not isinstance(a, dict) else a.get('y', None)
 
-        if xa == 'left' and xs >= 15 and sa is False and y_val is not None:
+        if (xa == 'left' or xa is None) and xs >= 15 and sa is False and y_val is not None:
             try:
                 right_badge_indices.append((idx, float(y_val)))
             except (ValueError, TypeError):
@@ -1296,22 +1296,24 @@ def resolve_right_badge_collisions(fig: go.Figure, y_min: float, y_max: float, p
     n = len(badge_px)
     shifts = [0.0] * n
 
-    for i in range(1, n):
-        prev_pos = badge_px[i-1] + shifts[i-1]
-        curr_pos = badge_px[i] + shifts[i]
-        diff = curr_pos - prev_pos
-        if diff < min_gap_px:
-            needed = min_gap_px - diff
-            shifts[i-1] -= needed / 2.0
-            shifts[i] += needed / 2.0
-
-    for i in range(n - 2, -1, -1):
-        next_pos = badge_px[i+1] + shifts[i+1]
-        curr_pos = badge_px[i] + shifts[i]
-        diff = next_pos - curr_pos
-        if diff < min_gap_px:
-            needed = min_gap_px - diff
-            shifts[i] -= needed
+    # 多輪雙向平滑推移避讓，確保所有相鄰右側標籤之間保有舒適呼吸間距 (>= min_gap_px)
+    for _ in range(6):
+        for i in range(1, n):
+            prev_pos = badge_px[i-1] + shifts[i-1]
+            curr_pos = badge_px[i] + shifts[i]
+            diff = curr_pos - prev_pos
+            if diff < min_gap_px:
+                push = (min_gap_px - diff) / 2.0
+                shifts[i-1] -= push
+                shifts[i] += push
+        for i in range(n - 2, -1, -1):
+            next_pos = badge_px[i+1] + shifts[i+1]
+            curr_pos = badge_px[i] + shifts[i]
+            diff = next_pos - curr_pos
+            if diff < min_gap_px:
+                push = (min_gap_px - diff) / 2.0
+                shifts[i] -= push
+                shifts[i+1] += push
 
     new_annos = list(annos)
     for (orig_idx, _), s in zip(right_badge_indices, shifts):
@@ -3233,18 +3235,36 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if show_res and trend.get('resistance'):
                 shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trend['resistance'], y1=trend['resistance'], line=dict(color="#FF922B", width=1.5, dash="dash"), layer="below"))
                 annos1.append(dict(x=x_max, y=trend['resistance'], xref="x", yref="y", text=f" 壓力 {trend['resistance']} ", showarrow=False, bgcolor="#FF922B", font=dict(color="white", size=10), xanchor="left", xshift=22))
-            if show_sup and trend.get('support'):
-                shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trend['support'], y1=trend['support'], line=dict(color="#FFA94D", width=1.5, dash="dash"), layer="below"))
-                annos1.append(dict(x=x_max, y=trend['support'], xref="x", yref="y", text=f" 支撐 {trend['support']} ", showarrow=False, bgcolor="#FFA94D", font=dict(color="white", size=10), xanchor="left", xshift=22))
-            if show_target and trend.get('target'):
-                shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trend['target'], y1=trend['target'], line=dict(color="#FFD43B", width=1.5, dash="dot"), layer="below"))
-                annos1.append(dict(x=x_max, y=trend['target'], xref="x", yref="y", text=f" 目標 {trend['target']} ", showarrow=False, bgcolor="#D97706", font=dict(color="white", size=10), xanchor="left", xshift=22))
 
             ch7_sl_plot = signals_dict.get('ch7_stop_loss', {})
             rec_sl_plot = ch7_sl_plot.get('recommended_stop', 0.0)
             is_trail_plot = ch7_sl_plot.get('is_trailing_stop_active', False)
             trail_p_plot = ch7_sl_plot.get('trailing_stop_price', 0.0)
-            if show_stop:
+
+            # 檢測支撐與停損價位是否重疊 (避免在同一水平位置繪製兩條線與重複標籤)
+            sup_val = trend.get('support')
+            sup_stop_coincide = False
+            if show_sup and show_stop and sup_val and rec_sl_plot and not is_trail_plot:
+                try:
+                    if abs(float(sup_val) - float(rec_sl_plot)) < 0.15:
+                        sup_stop_coincide = True
+                except (ValueError, TypeError):
+                    pass
+
+            if show_sup and sup_val:
+                if sup_stop_coincide:
+                    # 兩者重疊時，合併為高辨識度之單一「支撐/停損」防守線與標籤
+                    shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=rec_sl_plot, y1=rec_sl_plot, line=dict(color="#FF4D4F", width=1.8, dash="dash"), layer="below"))
+                    annos1.append(dict(x=x_max, y=rec_sl_plot, xref="x", yref="y", text=f" 🛡️ 支撐/停損 {rec_sl_plot:.2f} (-{ch7_sl_plot.get('risk_pct')}%) ", showarrow=False, bgcolor="#B91C1C", bordercolor="#FCA5A5", borderwidth=1.2, font=dict(color="white", size=10, family="Arial Black"), xanchor="left", xshift=22))
+                else:
+                    shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=sup_val, y1=sup_val, line=dict(color="#FFA94D", width=1.5, dash="dash"), layer="below"))
+                    annos1.append(dict(x=x_max, y=sup_val, xref="x", yref="y", text=f" 支撐 {sup_val} ", showarrow=False, bgcolor="#FFA94D", font=dict(color="white", size=10), xanchor="left", xshift=22))
+
+            if show_target and trend.get('target'):
+                shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trend['target'], y1=trend['target'], line=dict(color="#FFD43B", width=1.5, dash="dot"), layer="below"))
+                annos1.append(dict(x=x_max, y=trend['target'], xref="x", yref="y", text=f" 目標 {trend['target']} ", showarrow=False, bgcolor="#D97706", font=dict(color="white", size=10), xanchor="left", xshift=22))
+
+            if show_stop and not sup_stop_coincide:
                 if is_trail_plot and trail_p_plot > 0:
                     shapes1.append(dict(type="line", x0=x_min, x1=x_max, y0=trail_p_plot, y1=trail_p_plot, line=dict(color="#13C2C2", width=1.8, dash="dashdot"), layer="below"))
                     annos1.append(dict(x=x_max, y=trail_p_plot, xref="x", yref="y", text=f" 🏆 移動停利 {trail_p_plot:.2f} ", showarrow=False, bgcolor="#13C2C2", font=dict(color="black", size=10, family="Arial Black"), xanchor="left", xshift=22))
@@ -3276,7 +3296,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             drag1 = 'pan' if "自由拖曳" in t1_touch_mode else False
             fig1.update_layout(
-                height=650, margin=dict(l=15, r=115, t=45, b=15),
+                height=650, margin=dict(l=15, r=130, t=45, b=15),
                 template="plotly_dark", annotations=annos1, shapes=shapes1,
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01),
                 dragmode=drag1, hovermode="x unified"
