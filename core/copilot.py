@@ -1387,7 +1387,9 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_type = "BREAK_MA5"
                     status_badge = "🛑 跌破 5MA 操盤線！"
                     status_color = "#FAAD14"
-                    status_desc = f"⚠️ <b>【量化波段停利心法】</b>：收盤價跌破 5MA ({sma5:.2f}元)，波段第一波獲利出場點（停利10%以上入袋）！只要下方月線 (20MA, {sma20:.2f}元) 守穩未破，後續若再度轉折站上 5MA，即可進場啟動第二波、第三波操作（有三波做三波）！"
+                    is_squeeze_mode = sig_dict.get('is_ma_squeeze_breakout', False) or sig_dict.get('consolidation_breakout_imminent', False) or (abs(curr_p - sma20)/(sma20 + 1e-9) < 0.025)
+                    squeeze_tip = "<br>💡 <b>【助教實戰心法·防主力洗盤】</b>：若本股屬於均線高度糾結或箱型整理剛發動，均線靠得很近極易出現主力刻意摜破5均洗盤；為避免『今日破5均停損、明日反手拉漲停』，助教指引：<b>改用守 5% 停損（或起漲紅K最低點），而不是死守 5 均！</b>" if is_squeeze_mode else ""
+                    status_desc = f"⚠️ <b>【量化波段停利心法】</b>：收盤價跌破 5MA ({sma5:.2f}元)，波段第一波獲利出場點（停利10%以上入袋）！只要下方月線 (20MA, {sma20:.2f}元) 守穩未破，後續若再度轉折站上 5MA，即可進場啟動第二波、第三波操作（有三波做三波）！{squeeze_tip}"
                 elif sig_dict.get('pullback_buy', False):
                     status_type = "ADD_POSITION"
                     status_badge = "➕ 回測有守·第二/三波買點！"

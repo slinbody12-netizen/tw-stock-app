@@ -118,7 +118,9 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
             max_k = float(recent_bars['K'].max())
             cur_k = float(last.get('K', 50))
             is_strong_red_breakout = (c > o) and (c >= sma5) and (vol_ratio >= 1.1 or (c - prev_c) / prev_c >= 0.015)
-            if not is_strong_red_breakout:
+            # 助教 10/08 核心心法：「KD 指標是輔助確認，飆股指標都會過熱」
+            is_main_or_aligned = signals_dict.get('bullish_alignment', False) or signals_dict.get('main_wave_2nd', False)
+            if not is_strong_red_breakout and not is_main_or_aligned:
                 if cur_k < 78 and cur_k < max_k - 12:
                     reasons.append("【規則11·KD高檔背離】股價創新高但KD未能突破80且頭頭低，動能背離衰竭")
                 

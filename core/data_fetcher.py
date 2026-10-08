@@ -392,9 +392,9 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['Vol_MA5'] = df['Volume'].rolling(window=5).mean()   # 5MA 基本量標準
     df['Vol_MA20'] = df['Volume'].rolling(window=20).mean()
 
-    # KD (9, 3, 3)
-    low_min = df['Low'].rolling(window=9).min()
-    high_max = df['High'].rolling(window=9).max()
+    # KD (5, 3, 3) - 朱家泓/林穎老師官方實戰標準參數 (一週 5 天交易日，助教 10/08 確認)
+    low_min = df['Low'].rolling(window=5).min()
+    high_max = df['High'].rolling(window=5).max()
     rsv = ((df['Close'] - low_min) / (high_max - low_min + 1e-9)) * 100
     rsv = rsv.fillna(50)
 
