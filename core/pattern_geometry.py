@@ -793,31 +793,31 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
             # 更新可能已被修改的現有標註
             fig.layout.annotations = tuple(existing_annos)
 
-            # 獨立標註 Ⓐ 起修頂：抬高 ay=-52，standoff=14 避開下方 K 線實體與「頭」圓圈
+            # 獨立標註 Ⓐ 起修頂：ay=-26，standoff=6 貼近 K 線頂部，避免過度抬高衝入工具列
             if pt_a and not coincide_hp:
                 _filter_scatter_markers_at_date(fig, ["頭", "暫高"], pt_a["date"])
                 fig.add_annotation(
                     x=pt_a["date"], y=pt_a["price"], xref="x", yref="y",
                     text=f" Ⓐ 起修頂 {pt_a['price']:.2f} ",
-                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
-                    ax=0, ay=-52, standoff=14,
+                    showarrow=True, arrowhead=2, arrowsize=1.0, arrowwidth=1.8, arrowcolor="#06B6D4",
+                    ax=0, ay=-26, standoff=6,
                     bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 獨立標註 Ⓑ 回檔底 (若未與最低底重合)：ay=46，standoff=16 避免箭頭遮擋綠色「底」圓圈
+            # 獨立標註 Ⓑ 回檔底 (若未與最低底重合)：ay=42，standoff=14 避免箭頭遮擋綠色「底」圓圈
             if pt_b and not coincide_lt:
                 _filter_scatter_markers_at_date(fig, ["底", "暫底"], pt_b["date"])
                 fig.add_annotation(
                     x=pt_b["date"], y=pt_b["price"], xref="x", yref="y",
                     text=f" Ⓑ 回檔底 {pt_b['price']:.2f} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
-                    ax=0, ay=46, standoff=16,
+                    ax=0, ay=42, standoff=14,
                     bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 3. Ⓒ 次高點：置於該日 K 線正上方 (ax=0, ay=-50, standoff=14)，排除微型「頭」圓圈避免遮擋
+            # 3. Ⓒ 次高點：置於該日 K 線正上方 (ax=0, ay=-26, standoff=6)，排除微型「頭」圓圈避免遮擋
             pt_c = active.get("c_point")
             coincide_c_top = False
             if pt_c:
@@ -825,6 +825,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     if hasattr(a, 'text') and a.text and "最高頭" in a.text and hasattr(a, 'x') and _same_date(a.x, pt_c["date"]):
                         coincide_c_top = True
                         a.text = f" 🏆 最高頭 {pt_c['price']:.2f} · Ⓒ次高頂 "
+                        a.ay = -26
                         break
 
             if pt_c and not coincide_c_top:
@@ -832,29 +833,15 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                 fig.add_annotation(
                     x=pt_c["date"], y=pt_c["price"], xref="x", yref="y",
                     text=f" Ⓒ 次高頂 {pt_c['price']:.2f} ",
-                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#06B6D4",
-                    ax=0, ay=-50, standoff=14,
+                    showarrow=True, arrowhead=2, arrowsize=1.0, arrowwidth=1.8, arrowcolor="#06B6D4",
+                    ax=0, ay=-26, standoff=6,
                     bgcolor="#0E7490", bordercolor="#38BDF8", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 4. 🔥 突破切線買點：紅色箭頭垂直指向當日高點上方，避免遮擋行進間高點「暫高」或「頭」圓圈
-            bk = active.get("breakout_point")
-            if bk:
-                cand_high = df.loc[df['Date'] == bk['date'], 'High']
-                target_y = float(cand_high.values[0]) if len(cand_high) > 0 else bk["price"]
-
-                fig.add_annotation(
-                    x=bk["date"], y=target_y, xref="x", yref="y",
-                    text=f" 🔥 突破切線 {bk['price']:.2f} ",
-                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
-                    ax=0, ay=-42, standoff=15,
-                    bgcolor="#DC2626", bordercolor="white", borderwidth=1.2,
-                    font=dict(color="white", size=10, family="Arial Black")
-                )
-
-            # 5. 📐 切線當日點位標註 (右側軸標籤，可參與垂直避讓)
+            # 4. 📐 切線當日點位標註 (右側軸標籤，若突破則以紅色高亮顯示 🔥 突破切線，單一標籤避免重疊)
             t_line = active.get("tangent_line", {})
+            bk = active.get("breakout_point")
             if t_line:
                 y_tan = t_line.get("y1")
                 d_today = df.iloc[-1]['Date']
@@ -931,8 +918,9 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                         coincide_hp = True
                         a.text = f" 🏆 最高頭 {pt_b['price']:.2f} · Ⓑ反彈頂 "
                         a.arrowcolor = "#EF4444"
-                        a.arrowwidth = 2.2
-                        a.arrowsize = 1.2
+                        a.arrowwidth = 2.0
+                        a.arrowsize = 1.0
+                        a.ay = -26
                         break
 
             fig.layout.annotations = tuple(existing_annos)
@@ -943,18 +931,19 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     x=pt_a["date"], y=pt_a["price"], xref="x", yref="y",
                     text=f" Ⓐ 主跌底 {pt_a['price']:.2f} ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#F97316",
-                    ax=0, ay=46, standoff=16,
+                    ax=0, ay=42, standoff=14,
                     bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
+            # 獨立標註 Ⓑ 反彈頂：ay=-26，standoff=6 貼近 K 線頂部，徹底避開上方工具列混淆！
             if pt_b and not coincide_hp:
                 _filter_scatter_markers_at_date(fig, ["頭", "暫高"], pt_b["date"])
                 fig.add_annotation(
                     x=pt_b["date"], y=pt_b["price"], xref="x", yref="y",
                     text=f" Ⓑ 反彈頂 {pt_b['price']:.2f} ",
-                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#F97316",
-                    ax=0, ay=-52, standoff=14,
+                    showarrow=True, arrowhead=2, arrowsize=1.0, arrowwidth=1.8, arrowcolor="#F97316",
+                    ax=0, ay=-26, standoff=6,
                     bgcolor="#C2410C", bordercolor="#FDBA74", borderwidth=1.2,
                     font=dict(color="white", size=10, family="Arial Black")
                 )
@@ -980,26 +969,9 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     font=dict(color="white", size=10, family="Arial Black")
                 )
 
-            # 4. ⚡ 跌破切線空點：紅色箭頭置於當日 K 線上方 (ay=-42) 向下指向高點，徹底避免遮擋行進間「暫底」或與防守線衝突
-            bk = active.get("breakout_point")
-            if bk:
-                cand_high = df.loc[df['Date'] == bk['date'], 'High']
-                target_y = float(cand_high.values[0]) if len(cand_high) > 0 else bk["price"]
-
-                t_line_bk = active.get("tangent_line", {})
-                y_tan_bk = t_line_bk.get("y1")
-                bk_disp = f"{y_tan_bk:.2f}元" if y_tan_bk is not None else f"{bk['price']:.2f}元"
-                fig.add_annotation(
-                    x=bk["date"], y=target_y, xref="x", yref="y",
-                    text=f" ⚡ 跌破切線 ({bk_disp}) ",
-                    showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
-                    ax=0, ay=-42, standoff=14,
-                    bgcolor="#991B1B", bordercolor="white", borderwidth=1.2,
-                    font=dict(color="white", size=10, family="Arial Black")
-                )
-
-            # 5. 📐 上升切線當日點位標註 (右側軸標籤，可參與垂直避讓)
+            # 4. 📐 上升切線當日點位標註 (統一僅在右側軸顯示單一標籤，若跌破以紅色高亮 ⚡ 跌破切線，絕不在 K 線上方重複放箭頭)
             t_line = active.get("tangent_line", {})
+            bk = active.get("breakout_point")
             if t_line:
                 y_tan = t_line.get("y1")
                 d_today = df.iloc[-1]['Date']

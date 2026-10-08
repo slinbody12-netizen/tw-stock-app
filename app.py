@@ -3143,8 +3143,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     y_maxs.append(og_top)
 
             curr_ymin, curr_ymax = min(y_mins), max(y_maxs)
-            y_pad = (curr_ymax - curr_ymin) * 0.085
-            auto_y = [curr_ymin - y_pad, curr_ymax + y_pad]
+            y_pad_bot = (curr_ymax - curr_ymin) * 0.085
+            y_pad_top = (curr_ymax - curr_ymin) * 0.15
+            auto_y = [curr_ymin - y_pad_bot, curr_ymax + y_pad_top]
 
             fig1 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.038, row_heights=[0.75, 0.25])
             fig1.add_trace(go.Candlestick(
@@ -3227,7 +3228,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             annos1, shapes1 = [], []
             if t1_hp:
-                annos1.append(dict(x=t1_hp['date'], y=t1_hp['price'], xref="x", yref="y", text=f" 🏆 最高頭 {t1_hp['price']:.2f} ({t1_hp['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=2.0, arrowcolor="#EF4444", ax=0, ay=-38, bgcolor="#B91C1C", bordercolor="white", borderwidth=1.2, font=dict(color="white", size=10, family="Arial Black")))
+                annos1.append(dict(x=t1_hp['date'], y=t1_hp['price'], xref="x", yref="y", text=f" 🏆 最高頭 {t1_hp['price']:.2f} ({t1_hp['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, arrowsize=1.0, arrowwidth=1.8, arrowcolor="#EF4444", ax=0, ay=-26, standoff=6, bgcolor="#B91C1C", bordercolor="white", borderwidth=1.2, font=dict(color="white", size=10, family="Arial Black")))
             if t1_lt:
                 annos1.append(dict(x=t1_lt['date'], y=t1_lt['price'], xref="x", yref="y", text=f" ⚓ 最低底 {t1_lt['price']:.2f} ({t1_lt['date'].strftime('%m/%d')}) ", showarrow=True, arrowhead=2, arrowsize=1.2, arrowwidth=2.2, arrowcolor="#22C55E", ax=0, ay=38, bgcolor="#15803D", bordercolor="#4ADE80", borderwidth=1.5, font=dict(color="white", size=10, family="Arial Black")))
 
@@ -3324,7 +3325,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             fig1 = resolve_right_badge_collisions(fig1, auto_y[0], auto_y[1])
 
             chart_config = {
-                'scrollZoom': False, 'displayModeBar': True,
+                'scrollZoom': False, 'displayModeBar': 'hover',
                 'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
                 'displaylogo': False, 'doubleClick': 'reset+autosize', 'responsive': True
             }
@@ -4086,8 +4087,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     s_tmp = k_vis_df[ma_c].dropna()
                     if not s_tmp.empty: k_ymins.append(s_tmp.min()); k_ymaxs.append(s_tmp.max())
             k_ymin, k_ymax = min(k_ymins), max(k_ymaxs)
-            k_ypad = (k_ymax - k_ymin) * 0.07
-            k_auto_y = [k_ymin - k_ypad, k_ymax + k_ypad]
+            k_ypad_bot = (k_ymax - k_ymin) * 0.07
+            k_ypad_top = (k_ymax - k_ymin) * 0.14
+            k_auto_y = [k_ymin - k_ypad_bot, k_ymax + k_ypad_top]
 
             fig2 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.038, row_heights=[0.74, 0.26])
             fig2.add_trace(go.Candlestick(
