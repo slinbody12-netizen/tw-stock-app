@@ -27,6 +27,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
         "active_pattern": None,
         "patterns_found": [],
         "trendlines": None,
+        "accelerated_defense_line": None,
         "summary_text": ""
     }
 
@@ -250,7 +251,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
                         continue
 
                     y_line_s_today = p_a_s + sl_s * (n - 1 - cand_a_s)
-                    is_breaking_s = (c_today <= y_line_s_today * 1.005 or c_today <= p_b_s * 0.99) and (c_today <= sma5_today)
+                    is_breaking_s = (c_today <= y_line_s_today * 1.005) and (c_today <= sma5_today)
 
                     score_s = 100.0
                     if is_breaking_s:
@@ -572,6 +573,73 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
                 "is_rising": False
             }
 
+    # =========================================================================
+    # 8. ⚡ 近期短期加速防守線 (朱家泓/林穎老師角度修正·短線防守軌道，電光青藍色 #00F0FF)
+    # =========================================================================
+    acc_defense_line = None
+    if n >= 15 and c_today >= sma20_today * 0.95:
+        look_acc = min(30, n - 2)
+        pool_acc = df.iloc[-look_acc:]
+        
+        troughs_acc = []
+        for i_acc in range(1, len(pool_acc) - 1):
+            idx_a = pool_acc.index[i_acc]
+            l_a = float(df.loc[idx_a, 'Low'])
+            prev_la = float(df.loc[pool_acc.index[i_acc - 1], 'Low'])
+            next_la = float(df.loc[pool_acc.index[i_acc + 1], 'Low'])
+            if l_a <= prev_la and l_a <= next_la:
+                troughs_acc.append((idx_a, l_a))
+        
+        min_idx_a = pool_acc['Low'].idxmin()
+        if not any(t[0] == min_idx_a for t in troughs_acc):
+            troughs_acc.append((min_idx_a, float(df.loc[min_idx_a, 'Low'])))
+        troughs_acc.sort(key=lambda x: x[0])
+        
+        best_acc_score = -1
+        for i_t in range(len(troughs_acc)):
+            t1_i, p1_v = troughs_acc[i_t]
+            for j_t in range(i_t + 1, len(troughs_acc)):
+                t2_i, p2_v = troughs_acc[j_t]
+                span_t = t2_i - t1_i
+                if span_t < 3 or span_t > 20:
+                    continue
+                if p2_v <= p1_v * 1.008:
+                    continue
+                
+                sl_t = (p2_v - p1_v) / span_t
+                if sl_t <= 0:
+                    continue
+                
+                pierced_t = False
+                for k_t in range(t1_i + 1, t2_i):
+                    line_k = p1_v + sl_t * (k_t - t1_i)
+                    if float(df.loc[k_t, 'Low']) < line_k * 0.992:
+                        pierced_t = True
+                        break
+                if pierced_t:
+                    continue
+                
+                y_acc_today = p1_v + sl_t * (n - 1 - t1_i)
+                if y_acc_today > c_today * 1.20:
+                    continue
+                
+                recency_s = (t2_i / (n - 1)) * 60.0
+                span_s = (1.0 - abs(span_t - 8) / 20.0) * 20.0
+                score_acc = 100.0 + recency_s + span_s + sl_t * 5.0
+                
+                if score_acc > best_acc_score:
+                    best_acc_score = score_acc
+                    is_broken_acc = (c_today < y_acc_today * 0.998) and (c_today <= sma5_today)
+                    acc_defense_line = {
+                        "t1_idx": t1_i, "t1_date": df.loc[t1_i, 'Date'], "p1": p1_v,
+                        "t2_idx": t2_i, "t2_date": df.loc[t2_i, 'Date'], "p2": p2_v,
+                        "slope": sl_t, "y_today": round(y_acc_today, 2),
+                        "is_broken": is_broken_acc,
+                        "color": "#00F0FF", # Electric Cyan
+                        "label": f"近期加速防守線 ({round(y_acc_today, 2)}元)"
+                    }
+    result["accelerated_defense_line"] = acc_defense_line
+
     if result["patterns_found"]:
         result["active_pattern"] = result["patterns_found"][0]
         result["summary_text"] = result["active_pattern"].get("desc", "")
@@ -884,9 +952,12 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
                     if len(cand_low) > 0:
                         target_y = float(cand_low.values[0])
 
+                t_line_bk = active.get("tangent_line", {})
+                y_tan_bk = t_line_bk.get("y1")
+                bk_disp = f"{y_tan_bk:.2f}元" if y_tan_bk is not None else f"{bk['price']}元"
                 fig.add_annotation(
                     x=bk["date"], y=target_y, xref="x", yref="y",
-                    text=f" ⚡ 跌破切線 {bk['price']} ",
+                    text=f" ⚡ 跌破切線 ({bk_disp}) ",
                     showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#EF4444",
                     ax=0, ay=42, standoff=15,
                     bgcolor="#991B1B", bordercolor="white", borderwidth=1.2,
@@ -1087,5 +1158,42 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
             bgcolor="#1E293B", bordercolor=tl["color"], borderwidth=1.2,
             font=dict(color=tl["color"], size=10, family="Arial Black")
         )
+
+    # =========================================================================
+    # 3. ⚡ 疊加繪製近期短期加速防守線 (電光青藍色 #00F0FF，獨立於大波段切線)
+    # =========================================================================
+    acc_line = pattern_data.get("accelerated_defense_line")
+    if acc_line:
+        fig.add_trace(go.Scatter(
+            x=[acc_line["t1_date"], acc_line["t2_date"], df.iloc[-1]['Date']],
+            y=[acc_line["p1"], acc_line["p2"], acc_line["y_today"]],
+            mode="lines",
+            name="近期加速防守線",
+            line=dict(color="#00F0FF", width=2.4, dash="solid"),
+            hoverinfo="text",
+            hovertext=f"📐 近期短期加速防守線 (今日切線價: {acc_line['y_today']} 元)",
+            showlegend=True
+        ), row=1, col=1)
+
+        # 右側端點切線價標註 (電光青藍色框)
+        fig.add_annotation(
+            x=df.iloc[-1]['Date'], y=acc_line["y_today"], xref="x", yref="y",
+            text=f" 📐 短線防守線 {acc_line['y_today']} ",
+            showarrow=False, xanchor="left", xshift=20,
+            bgcolor="#083344", bordercolor="#00F0FF", borderwidth=1.5,
+            font=dict(color="#00F0FF", size=9.5, family="Arial Black")
+        )
+
+        # 若今日收盤跌破加速防守線，在當日 K 棒下方打出明確空方警示標籤
+        if acc_line.get("is_broken", False):
+            cand_low = float(df.iloc[-1]['Low'])
+            fig.add_annotation(
+                x=df.iloc[-1]['Date'], y=cand_low, xref="x", yref="y",
+                text=f" ⚡ 跌破加速防守線 ({acc_line['y_today']}元) ",
+                showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#00F0FF",
+                ax=0, ay=46, standoff=15,
+                bgcolor="#0F172A", bordercolor="#00F0FF", borderwidth=1.5,
+                font=dict(color="#00F0FF", size=10, family="Arial Black")
+            )
 
     return fig
