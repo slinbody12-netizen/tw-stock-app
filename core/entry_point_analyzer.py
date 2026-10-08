@@ -123,6 +123,9 @@ def calculate_three_tier_entry(
     # =========================================================================
     has_b1 = False
     is_v_rebound = False
+    b1_trigger_idx = len(df) - 1
+    b1_has_surged = False
+    b1_surge_peak = 0.0
 
     if len(troughs) >= 2:
         leg1 = troughs[-2]
@@ -134,10 +137,12 @@ def calculate_three_tier_entry(
             
             leg2_idx = leg2.get('index', 0)
             b1_trigger_price = b1_stop
+            b1_trigger_idx = leg2_idx
             for k in range(leg2_idx, len(df)):
                 r = df.iloc[k]
                 if r['Close'] >= r.get('SMA_5', r['Close']) and r['Close'] >= r['Open']:
                     b1_trigger_price = round(float(r['Close']), 2)
+                    b1_trigger_idx = k
                     break
 
             b1_info['price'] = b1_trigger_price
@@ -148,6 +153,13 @@ def calculate_three_tier_entry(
             b1_info['date'] = b1_date
             b1_info['desc'] = f"守穩第二隻腳 {b1_stop} 元 (高於前低 {leg1['price']:.2f})，紅K站上5MA試單"
 
+            # 檢查自發動以來，股價是否曾大漲衝破禁追天花板
+            if b1_trigger_idx < len(df):
+                sub_df = df.iloc[b1_trigger_idx:]
+                b1_surge_peak = round(float(sub_df['High'].max()), 2)
+                if b1_surge_peak > b1_info['chase_ceiling']:
+                    b1_has_surged = True
+
     # 若最近一底為最低底，但從該底一路紅K大彈超過 8% 或已過前高 (如 3013 V型反轉第一波)
     if not has_b1 and len(troughs) >= 1:
         last_trough = troughs[-1]
@@ -157,6 +169,7 @@ def calculate_three_tier_entry(
             b1_trigger_price = round(float(last_trough['price'] * 1.02), 2)
             b1_stop = round(float(last_trough['price']), 2)
             b1_date = last_trough['date'].strftime('%m/%d') if hasattr(last_trough['date'], 'strftime') else str(last_trough['date'])[:10]
+            b1_trigger_idx = last_trough.get('index', 0)
             
             b1_info['price'] = b1_trigger_price
             b1_info['entry_range_low'] = b1_trigger_price
@@ -166,10 +179,19 @@ def calculate_three_tier_entry(
             b1_info['date'] = b1_date
             b1_info['desc'] = f"低點 {b1_stop:.2f} 元止跌V型推升（第一腳反彈中，尚未拉回打第二隻腳）"
 
+            if b1_trigger_idx < len(df):
+                sub_df = df.iloc[b1_trigger_idx:]
+                b1_surge_peak = round(float(sub_df['High'].max()), 2)
+                if b1_surge_peak > b1_info['chase_ceiling']:
+                    b1_has_surged = True
+
     # =========================================================================
     # 2. 計算 B2 (過前高頸線)
     # =========================================================================
     neckline_peak = None
+    has_broken_b2 = False
+    b2_has_surged = False
+    b2_surge_peak = 0.0
 
     if has_b1 and len(peaks) >= 1:
         leg2_idx = troughs[-1].get('index', 0)
@@ -199,11 +221,22 @@ def calculate_three_tier_entry(
         b2_info['date'] = b2_date
         b2_info['desc'] = f"帶量突破前高頸線 {b2_price} 元，W底完成、頭頭高底底高正式確立"
 
+        # 檢查自第二隻腳 (或 B1) 發動以來，股價是否曾突破前高頸線
+        search_start = leg2_idx if has_b1 else (troughs[-1].get('index', 0) if troughs else 0)
+        sub_since_neck = df.iloc[search_start:]
+        b2_surge_peak = round(float(sub_since_neck['High'].max()), 2)
+        if b2_surge_peak >= b2_price:
+            has_broken_b2 = True
+        if b2_surge_peak > b2_info['chase_ceiling']:
+            b2_has_surged = True
+
     # =========================================================================
     # 3. 計算 B3 (大格局切線 / 大箱頂突破 / 波段高點)
     # =========================================================================
     b3_price = None
     b3_source = ""
+    b3_has_surged = False
+    b3_surge_peak = 0.0
 
     # A. 優先檢查 AI 幾何切線 (如 ABC 下降切線)
     patterns_found = pattern_geo.get("patterns_found", [])
@@ -244,10 +277,15 @@ def calculate_three_tier_entry(
         b3_info['stop_loss'] = round(sma5, 2)
         b3_info['desc'] = f"帶量突破{b3_source} {b3_price} 元，主升段總攻加速衝刺"
 
+        search_start = leg2_idx if has_b1 else 0
+        b3_surge_peak = round(float(df.iloc[search_start:]['High'].max()), 2)
+        if b3_surge_peak > b3_info['chase_ceiling']:
+            b3_has_surged = True
+
     # =========================================================================
     # 4. 盤中即時狀態感知評估器 (Live State Evaluator for B1, B2, B3)
     # =========================================================================
-    def evaluate_live_tier_state(t_item, cur_price):
+    def evaluate_live_tier_state(t_item, cur_price, sma5_val, has_surged=False, surge_peak=0.0):
         p = t_item.get('price')
         if not p or p <= 0:
             t_item['status'] = 'WAITING'
@@ -263,30 +301,55 @@ def calculate_three_tier_entry(
         t_item['distance_price'] = round(low - cur_price, 2)
         t_item['distance_pct'] = round(((low - cur_price) / cur_price) * 100, 1)
 
+        # 情況 1: 該階梯在歷史上已經大漲噴出過 (曾衝破禁追天花板)
+        if has_surged and surge_peak > ceil:
+            over_pct = round(((surge_peak - low) / low) * 100, 1)
+            t_item['status'] = 'MISSED'
+            t_item['status_text'] = f"🚫 買點已過 (曾衝至{surge_peak:.2f}元)"
+            t_item['status_hint'] = f"此階買點先前已發動並大漲 +{over_pct}% (最高達 {surge_peak:.2f} 元)！現價回落為波段拉回修正，切勿視為原始起漲黃金買點！"
+            return
+
+        # 情況 2: 現價尚未達到進場門檻 (低於 low)
         if cur_price < low:
             t_item['status'] = 'WAITING'
             diff_p = round(low - cur_price, 2)
             diff_pct = round(((low - cur_price) / cur_price) * 100, 1)
             t_item['status_text'] = f"🎯 距買點差 {diff_p:.2f}元 (-{diff_pct}%)"
             t_item['status_hint'] = f"蓄勢伏擊中，盤中帶量衝過 {low:.2f} 元即為啟動訊號"
+
+        # 情況 3: 現價處於建議進場區間 [low, high]
         elif low <= cur_price <= high:
-            t_item['status'] = 'ACTIVE'
-            t_item['status_text'] = "🔥 黃金買點 (進行中)"
-            t_item['status_hint'] = f"現價 {cur_price:.2f} 元正處黃金進場區 ({low:.2f} ~ {high:.2f} 元)，可按建議部位進場！"
+            if cur_price < sma5_val:
+                t_item['status'] = 'WAITING'
+                t_item['status_text'] = f"⏳ 跌破5MA拉回 (待站回{sma5_val:.2f}元)"
+                t_item['status_hint'] = f"現價 {cur_price:.2f} 元雖落於進場區間，但收盤跌破 5MA ({sma5_val:.2f} 元) 整理中！老朱SOP嚴守『紅K站上5MA』才進場，切勿盲目接刀，靜待量縮止跌重返 5MA！"
+            else:
+                t_item['status'] = 'ACTIVE'
+                t_item['status_text'] = "🔥 黃金買點 (進行中)"
+                t_item['status_hint'] = f"現價 {cur_price:.2f} 元正處黃金進場區 ({low:.2f} ~ {high:.2f} 元) 且站上 5MA，可按建議部位進場！"
+
+        # 情況 4: 輕度追價區 (high < cur_price <= ceil)
         elif high < cur_price <= ceil:
-            t_item['status'] = 'CAUTION'
-            over_pct = round(((cur_price - low) / low) * 100, 1)
-            t_item['status_text'] = f"⚠️ 輕度追價 (+{over_pct}%)"
-            t_item['status_hint'] = f"現價稍離發動點 (+{over_pct}%)，接近禁追上限 ({ceil:.2f} 元)，建議部位減半！"
-        else: # cur_price > ceil
+            if cur_price < sma5_val:
+                t_item['status'] = 'WAITING'
+                t_item['status_text'] = f"⚠️ 破5MA整理 (待站回{sma5_val:.2f}元)"
+                t_item['status_hint'] = f"現價稍離發動點但跌破 5MA ({sma5_val:.2f} 元)，短線轉弱，切勿追價，觀察守穩後能否重返 5MA！"
+            else:
+                t_item['status'] = 'CAUTION'
+                over_pct = round(((cur_price - low) / low) * 100, 1)
+                t_item['status_text'] = f"⚠️ 輕度追價 (+{over_pct}%)"
+                t_item['status_hint'] = f"現價稍離發動點 (+{over_pct}%)，接近禁追上限 ({ceil:.2f} 元)，建議部位減半！"
+
+        # 情況 5: 超出禁追天花板 (cur_price > ceil)
+        else:
             over_pct = round(((cur_price - low) / low) * 100, 1)
             t_item['status'] = 'MISSED'
             t_item['status_text'] = f"🚫 買點已過 (+{over_pct}%)"
             t_item['status_hint'] = f"現價已大漲 +{over_pct}%，超出禁追天花板 ({ceil:.2f} 元)！切勿追高，等待拉回測線或看下一階！"
 
-    evaluate_live_tier_state(b1_info, c)
-    evaluate_live_tier_state(b2_info, c)
-    evaluate_live_tier_state(b3_info, c)
+    evaluate_live_tier_state(b1_info, c, sma5, has_surged=b1_has_surged, surge_peak=b1_surge_peak)
+    evaluate_live_tier_state(b2_info, c, sma5, has_surged=b2_has_surged, surge_peak=b2_surge_peak)
+    evaluate_live_tier_state(b3_info, c, sma5, has_surged=b3_has_surged, surge_peak=b3_surge_peak)
 
     # =========================================================================
     # 5. 綜合判定全檔所處階段 (Current Stage & Executive Verdict)
@@ -301,6 +364,7 @@ def calculate_three_tier_entry(
     b1_p = b1_info['price'] or 0
     b2_p = b2_info['price'] or 999999
     b3_p = b3_info['price'] or 999999
+    is_below_5ma = (c < sma5)
 
     # A. 仍在探底 (未打底、無第二隻腳、底底低)
     if not has_b1 and not is_v_rebound and c < b2_p:
@@ -321,17 +385,63 @@ def calculate_three_tier_entry(
         badge_text = "🌱 第一腳反彈 (勿追高)"
         badge_html = "<span style='background:#1E293B; border:1px solid #64748B; color:#CBD5E1; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>🌱 第一腳反彈 (勿追高)</span>"
 
-    # C. 標準多頭階梯流程
+    # C. 特殊拉回型態：先前曾大漲衝高 (曾衝破 B1 禁追天花板或曾突破 B2 頸線)，目前自高檔拉回至頸線之下
+    elif (b1_has_surged or has_broken_b2) and c < b2_p:
+        current_stage = "PULLBACK_CORRECTION"
+        stage_code = 0
+        peak_val = max(b1_surge_peak, b2_surge_peak)
+
+        broken_tags = []
+        if is_below_5ma:
+            broken_tags.append(f"5MA ({sma5:.2f}元)")
+        if has_broken_b2:
+            broken_tags.append(f"頸線 ({b2_p:.2f}元)")
+        if pattern_geo:
+            acc_def = pattern_geo.get("accelerated_defense_line")
+            if acc_def and acc_def.get("is_broken"):
+                broken_tags.append(f"加速防守線 ({acc_def.get('y_today', 0):.2f}元)")
+            for p_item in pattern_geo.get("patterns_found", []):
+                if p_item.get("id") == "abc_rebound_breakdown" and p_item.get("tangent_line"):
+                    y_cut = p_item["tangent_line"].get("y1")
+                    if y_cut:
+                        broken_tags.append(f"上升切線 ({float(y_cut):.2f}元)")
+
+        broken_desc = "、".join(broken_tags) if broken_tags else "關鍵防守線"
+
+        if is_below_5ma:
+            stage_name = "🛑 高檔拉回整理（破5MA防守中）"
+            stage_verdict = (
+                f"本檔先前自起漲點強勢推升，波段最高曾衝至 {peak_val:.2f} 元（已完成前波攻勢）！"
+                f"目前自高檔拉回修正，今日收盤跌破 {broken_desc}，切勿盲目猜底接刀！"
+                f"依老朱戰法紀律：持股者應依跌破 5MA 執行減碼停利防守；空手者耐心等待拉回守穩第二隻腳支撐 ({b1_info['stop_loss']:.2f} 元) 並出紅K重返 5MA，方為下一波布局良機！"
+            )
+            badge_text = "🛑 破5MA拉回 (禁接刀)"
+            badge_html = "<span style='background:#450A0A; border:1px solid #DC2626; color:#FCA5A5; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>🛑 破5MA拉回 (禁接刀)</span>"
+        else:
+            stage_name = "🔄 高檔拉回回測支撐（守穩5MA觀察）"
+            stage_verdict = (
+                f"本檔前波最高推升至 {peak_val:.2f} 元，目前自高檔拉回測試支撐，現價守穩 5MA ({sma5:.2f} 元) 之上！"
+                f"空手者可觀察能否在此築出新的次級底底高，持股者以 5MA 移動防守續抱。"
+            )
+            badge_text = "🔄 拉回測支撐 (守5MA)"
+            badge_html = "<span style='background:#1E293B; border:1px solid #3B82F6; color:#93C5FD; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>🔄 拉回測支撐 (守5MA)</span>"
+
+    # D. 標準多頭階梯流程
     else:
-        # 1. 處在 B1 階梯 (股價在 B2 頸線之下，或剛守穩第二隻腳)
+        # 1. 處在 B1 階梯 (股價在 B2 頸線之下，或剛守穩第二隻腳且尚未大漲過)
         if c < b2_p:
             current_stage = "TIER_1"
             stage_code = 1
             if b1_info['status'] == 'ACTIVE':
                 stage_name = "🟢 處於第 1 買點【底部轉折試單】"
-                stage_verdict = f"本檔已打出第二隻腳（支撐 {b1_info['stop_loss']} 元），現價正處於黃金進場區間 ({b1_info['entry_range_low']:.2f} ~ {b1_info['entry_range_high']:.2f} 元)！建議建立小部位 20%~30% 試單卡位，嚴守跌破 {b1_info['stop_loss']} 元停損！"
+                stage_verdict = f"本檔已打出第二隻腳（支撐 {b1_info['stop_loss']} 元），現價正處於黃金進場區間 ({b1_info['entry_range_low']:.2f} ~ {b1_info['entry_range_high']:.2f} 元) 且站穩 5MA！建議建立小部位 20%~30% 試單卡位，嚴守跌破 {b1_info['stop_loss']} 元停損！"
                 badge_text = "🟢 第1買點 (試單20%)"
                 badge_html = "<span style='background:#064E3B; border:1px solid #10B981; color:#A7F3D0; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px; box-shadow:0 0 6px rgba(16,185,129,0.3);'>🟢 第1買點 (試單20%)</span>"
+            elif is_below_5ma:
+                stage_name = "⏳ 第 1 階築底整理（破5MA觀察中）"
+                stage_verdict = f"本檔雖守在第二隻腳 ({b1_info['stop_loss']} 元) 之上，但今日收盤跌破 5MA ({sma5:.2f} 元) 整理中。老朱戰法嚴守『紅K站上5MA』才進場，切勿躁進猜底，待出紅K轉強再行試單！"
+                badge_text = "⏳ 破5MA整理 (待轉強)"
+                badge_html = "<span style='background:#1E293B; border:1px solid #64748B; color:#CBD5E1; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>⏳ 破5MA整理 (待轉強)</span>"
             else:
                 stage_name = "🟢 第 1 買點已過（蓄勢挑戰第2買點）"
                 diff_b2 = round(b2_p - c, 2)
@@ -347,9 +457,14 @@ def calculate_three_tier_entry(
             diff_b3 = round(b3_p - c, 2)
             diff_b3_pct = round(((b3_p - c) / c) * 100, 1)
 
-            if b2_info['status'] == 'ACTIVE':
+            if is_below_5ma:
+                stage_name = "⚠️ 第 2 階高檔整理（跌破5MA防守中）"
+                stage_verdict = f"本檔雖站於前高頸線 ({b2_p:.2f} 元) 之上，但今日收盤跌破 5MA ({sma5:.2f} 元)！多頭短線轉弱，嚴禁盲目追價；持股者緊盯 5MA 紀律執行停利防守，空手者待重新站回 5MA 再行觀察！"
+                badge_text = "⚠️ 破5MA防守 (禁追價)"
+                badge_html = "<span style='background:#451A03; border:1px solid #D97706; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>⚠️ 破5MA防守 (禁追價)</span>"
+            elif b2_info['status'] == 'ACTIVE':
                 stage_name = "🔥 處於第 2 買點【標準多頭確立】"
-                stage_verdict = f"收盤已成功突破前高頸線 ({b2_p:.2f} 元)，『頭頭高＋底底高』100% 成立！現價正處黃金進場區 ({b2_info['entry_range_low']:.2f} ~ {b2_info['entry_range_high']:.2f} 元)，為老朱勝率最高之標準多頭進場點，建議建立標準部位 60%~70%，停損設守頸線 {b2_p:.2f} 元！"
+                stage_verdict = f"收盤已成功突破前高頸線 ({b2_p:.2f} 元)，『頭頭高＋底底高』100% 成立！現價正處黃金進場區 ({b2_info['entry_range_low']:.2f} ~ {b2_info['entry_range_high']:.2f} 元) 且站穩 5MA，為老朱勝率最高之標準多頭進場點，建議建立標準部位 60%~70%，停損設守頸線 {b2_p:.2f} 元！"
                 badge_text = "🔥 第2買點 (標準60%)"
                 badge_html = "<span style='background:#78350F; border:1px solid #F59E0B; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px; box-shadow:0 0 6px rgba(245,158,11,0.3);'>🔥 第2買點 (標準60%)</span>"
             elif b2_info['status'] == 'CAUTION':
@@ -369,9 +484,14 @@ def calculate_three_tier_entry(
         else:
             current_stage = "TIER_3"
             stage_code = 3
-            if b3_info['status'] == 'ACTIVE':
+            if is_below_5ma:
+                stage_name = "⚠️ 主升段高檔震盪（跌破5MA停利防守）"
+                stage_verdict = f"本檔雖越過大格局壓力切線/箱頂 ({b3_p:.2f} 元)，但今日收盤跌破 5MA ({sma5:.2f} 元)！主升段短線拉回，嚴禁追價；持股者緊盯 5MA 紀律執行分批獲利了結！"
+                badge_text = "⚠️ 破5MA防守 (緊盯停利)"
+                badge_html = "<span style='background:#450A0A; border:1px solid #EF4444; color:#FCA5A5; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>⚠️ 破5MA防守 (緊盯停利)</span>"
+            elif b3_info['status'] == 'ACTIVE':
                 stage_name = "🚀 處於第 3 買點【波段加碼／強勢追價】"
-                stage_verdict = f"強勢放量突破大格局壓力切線/箱頂 ({b3_p:.2f} 元)，主升段衝刺啟動！現價正處加碼區 ({b3_info['entry_range_low']:.2f} ~ {b3_info['entry_range_high']:.2f} 元)，已持股者可順勢加碼擴大戰果；空手者屬強勢追價，部位不宜過大，一律嚴守 5MA ({sma5:.2f}元) 移動停利！"
+                stage_verdict = f"強勢放量突破大格局壓力切線/箱頂 ({b3_p:.2f} 元)，主升段衝刺啟動！現價正處加碼區 ({b3_info['entry_range_low']:.2f} ~ {b3_info['entry_range_high']:.2f} 元) 且站穩 5MA，已持股者可順勢加碼擴大戰果；空手者屬強勢追價，部位不宜過大，一律嚴守 5MA ({sma5:.2f}元) 移動停利！"
                 badge_text = "🚀 第3買點 (加碼/追價)"
                 badge_html = "<span style='background:#4C1D95; border:1px solid #8B5CF6; color:#DDD6FE; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px; box-shadow:0 0 6px rgba(139,92,246,0.3);'>🚀 第3買點 (加碼/追價)</span>"
             elif b3_info['status'] == 'CAUTION':
@@ -440,6 +560,14 @@ def render_three_tier_entry_dashboard(tier_info: dict):
         theme_bg = "rgba(59, 130, 246, 0.12)"
         theme_bd = "#3B82F6"
         theme_color = "#60A5FA"
+    elif c_stage == 'PULLBACK_CORRECTION':
+        theme_bg = "rgba(220, 38, 38, 0.12)"
+        theme_bd = "#DC2626"
+        theme_color = "#F87171"
+    elif c_stage == 'PULLBACK_SUPPORT':
+        theme_bg = "rgba(59, 130, 246, 0.12)"
+        theme_bd = "#3B82F6"
+        theme_color = "#93C5FD"
     else:
         theme_bg = "rgba(220, 38, 38, 0.12)"
         theme_bd = "#DC2626"
@@ -464,6 +592,11 @@ def render_three_tier_entry_dashboard(tier_info: dict):
                 "border: 1px solid #78350F; background: #18120B; opacity: 0.92;"
             )
         else: # WAITING
+            if "破5MA" in st_txt or "⚠️" in st_txt:
+                return (
+                    f"<span style='background:#3C1F24; border:1px solid #EF4444; color:#FCA5A5; font-weight:bold; padding:2px 6px; border-radius:4px; font-size:0.72rem;'>{st_txt}</span>",
+                    "border: 1px solid #7F1D1D; background: rgba(127, 29, 29, 0.12);"
+                )
             return (
                 f"<span style='background:#1E293B; border:1px solid #475569; color:#94A3B8; font-weight:bold; padding:2px 6px; border-radius:4px; font-size:0.72rem;'>{st_txt or '⏳ 預備伏擊'}</span>",
                 "border: 1px solid #1E293B; background: #0B0F19;"
