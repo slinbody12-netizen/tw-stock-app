@@ -354,12 +354,18 @@ def calculate_three_tier_entry(
     # =========================================================================
     bars_since_trigger = 0
     trigger_ref_price = None
+    target_tier_num = 1
+    target_tier_name = "階梯一 (B1)"
     if has_b1 and b1_trigger_idx < len(df):
         bars_since_trigger = len(df) - 1 - b1_trigger_idx
         trigger_ref_price = b1_info['price']
+        target_tier_num = 1
+        target_tier_name = "階梯一 (B1)"
     elif has_broken_b2 and len(peaks) >= 1:
         bars_since_trigger = len(df) - 1 - int(peaks[-1].get('index', len(df)-1))
         trigger_ref_price = b2_info['price']
+        target_tier_num = 2
+        target_tier_name = "階梯二 (B2)"
 
     is_misprediction = False
     misprediction_chg = 0.0
@@ -373,7 +379,7 @@ def calculate_three_tier_entry(
             if recent_vol < avg_vol * 1.25:
                 is_misprediction = True
                 misprediction_warning = (
-                    f"買點觸發已 T+{bars_since_trigger} 天，股價仍在成本區原地打轉 ({misprediction_chg:+.1f}%)、量能萎縮未放量發動！"
+                    f"【{target_tier_name}】買點觸發已 T+{bars_since_trigger} 天，股價仍在成本區原地打轉 ({misprediction_chg:+.1f}%)、量能萎縮未放量發動！"
                     f"依朱家泓老師 10/07 線上 Q&A 贏家心法：『買進 3~5 天不衝即屬預測失準！沒壞但不漲也要出場！』"
                     f"資金的時間也是成本，切勿讓資金死守死魚盤！建議在平盤附近微損主動換股，落實『汰弱留強』，將資金轉向已放量起跑的強勢飆股！"
                 )
@@ -383,7 +389,9 @@ def calculate_three_tier_entry(
         "bars": bars_since_trigger,
         "pct_change": misprediction_chg,
         "badge": f"⏱️ 預測失準 (T+{bars_since_trigger} 沒壞不漲)" if is_misprediction else "",
-        "warning": misprediction_warning
+        "warning": misprediction_warning,
+        "target_tier": target_tier_num,
+        "target_tier_name": target_tier_name
     }
 
     # =========================================================================
@@ -635,11 +643,12 @@ def calculate_three_tier_entry(
 
     # 壓力臨頭警示全域追加於操盤定奪 (無論任何階段，只要上方空間不足 3% 一律警示做多避開 7 位置)
     if is_imminent and closest_res and "做多避開 7 位置" not in stage_verdict:
-        stage_verdict += f"（⚠️ 做多避開 7 位置：上方僅距【{closest_res['name']}】約 {room_pct}%，壓力臨頭勿賭突破，靜待放量站上再順勢加碼！）"
+        ov_target_str = "階梯二前高" if (b2_p < 999999 and abs(closest_res['price'] - b2_p) <= max(b2_p * 0.05, 3.0)) else "上方"
+        stage_verdict += f"（⚠️ 做多避開 7 位置：{ov_target_str}【{closest_res['name']}】距今僅 {room_pct}%，壓力臨頭勿賭突破，靜待放量站上再順勢加碼！）"
 
     # 預測失準換股 SOP 全域追加於操盤定奪
     if is_misprediction and "預測失準" not in stage_verdict:
-        stage_verdict += f"（⏱️ 朱老師 10/07 贏家心法：發動 T+{bars_since_trigger} 天原地打轉量縮屬預測失準，沒壞但不漲亦建議平盤附近微損換股，汰弱留強！）"
+        stage_verdict += f"（⏱️ 朱老師 10/07 贏家心法：{target_tier_name}發動已 T+{bars_since_trigger} 天原地打轉量縮屬預測失準，沒壞但不漲亦建議平盤附近微損換股，汰弱留強！）"
 
     return {
         "current_stage": current_stage,
@@ -739,8 +748,28 @@ def render_three_tier_entry_dashboard(tier_info: dict):
     b2_badge, b2_style = format_card_live_status(b2)
     b3_badge, b3_style = format_card_live_status(b3)
 
+    overhead = tier_info.get('overhead_analysis') or {}
+    mispred = tier_info.get('misprediction_diagnostic') or {}
+    weekly_g = tier_info.get('weekly_guidance') or {}
+
+    # 判斷臨壓屬於哪一個階梯門檻
+    overhead_target_tier = 0
+    if overhead.get('is_imminent') and overhead.get('closest_resistance'):
+        res_p = overhead['closest_resistance']
+        b1_p = b1.get('price') or 0
+        b2_p = b2.get('price') or 999999
+        b3_p = b3.get('price') or 999999
+        if b3_p < 999999 and abs(res_p - b3_p) <= max(b3_p * 0.04, 2.0):
+            overhead_target_tier = 3
+        elif b2_p < 999999 and (abs(res_p - b2_p) <= max(b2_p * 0.05, 3.0) or (b1_p > 0 and res_p >= b1_p * 0.99)):
+            overhead_target_tier = 2
+        elif b1_p > 0 and res_p <= b1_p * 1.02:
+            overhead_target_tier = 1
+        else:
+            overhead_target_tier = 2
+
     # 價格格式化
-    def render_tier_card_content(b_item, default_name, is_b3=False):
+    def render_tier_card_content(b_item, default_name, is_b3=False, extra_alert_html=""):
         p = b_item.get('price')
         low = b_item.get('entry_range_low')
         high = b_item.get('entry_range_high')
@@ -750,8 +779,9 @@ def render_three_tier_entry_dashboard(tier_info: dict):
 
         if not p:
             return (
-                "<div style='font-size:1.1rem; color:#94A3B8; font-weight:bold; margin-bottom:4px;'>未成形</div>"
-                "<div style='font-size:0.8rem; color:#64748B;'>型態尚未構築完成</div>"
+                f"<div style='font-size:1.1rem; color:#94A3B8; font-weight:bold; margin-bottom:4px;'>未成形</div>"
+                f"<div style='font-size:0.8rem; color:#64748B;'>型態尚未構築完成</div>"
+                f"{extra_alert_html}"
             )
 
         range_str = f"{low:.2f} ～ {high:.2f} 元" if (low and high) else f"{p:.2f} 元"
@@ -787,29 +817,49 @@ def render_three_tier_entry_dashboard(tier_info: dict):
         <div style="font-size:0.74rem; color:#60A5FA; border-top:1px dashed #334155; padding-top:4px; margin-top:4px; line-height:1.4;">
             📌 <b>即時導航</b>：{hint}
         </div>
+        {extra_alert_html}
         """
 
-    c1_html = render_tier_card_content(b1, "B1")
-    c2_html = render_tier_card_content(b2, "B2")
-    c3_html = render_tier_card_content(b3, "B3", is_b3=True)
+    # 卡片專屬警示標示 (直接標在對應卡片中，文字簡短清楚)
+    c1_alerts = []
+    if mispred.get('is_misprediction') and mispred.get('target_tier', 1) == 1:
+        c1_alerts.append(
+            f"<div style='background:rgba(245, 158, 11, 0.16); border-left:3px solid #F59E0B; border-radius:4px; padding:4px 7px; margin-top:5px; font-size:0.75rem; color:#FDE68A; line-height:1.45;'>"
+            f"⏱️ <b>10/07心法 · 預測失準 (T+{mispred['bars']})</b>：發動後原地打轉量縮，建議平盤附近微損換股，汰弱留強！"
+            f"</div>"
+        )
+    if overhead_target_tier == 1:
+        c1_alerts.append(
+            f"<div style='background:rgba(220, 38, 38, 0.16); border-left:3px solid #EF4444; border-radius:4px; padding:4px 7px; margin-top:5px; font-size:0.75rem; color:#FCA5A5; line-height:1.45;'>"
+            f"⚠️ <b>臨壓防禦 (僅距+{overhead['room_pct']}%)</b>：距上方【{overhead['resistance_name']}】極近，壓力前勿急追！"
+            f"</div>"
+        )
 
-    overhead = tier_info.get('overhead_analysis') or {}
-    mispred = tier_info.get('misprediction_diagnostic') or {}
-    weekly_g = tier_info.get('weekly_guidance') or {}
+    c2_alerts = []
+    if overhead_target_tier == 2:
+        c2_alerts.append(
+            f"<div style='background:rgba(220, 38, 38, 0.16); border-left:3px solid #EF4444; border-radius:4px; padding:4px 7px; margin-top:5px; font-size:0.75rem; color:#FCA5A5; line-height:1.45;'>"
+            f"⚠️ <b>臨壓防禦 (僅距+{overhead['room_pct']}%)</b>：距前高【{overhead['resistance_name']}】極近，壓力前勿賭突破，等放量站上再重倉！"
+            f"</div>"
+        )
+    if mispred.get('is_misprediction') and mispred.get('target_tier') == 2:
+        c2_alerts.append(
+            f"<div style='background:rgba(245, 158, 11, 0.16); border-left:3px solid #F59E0B; border-radius:4px; padding:4px 7px; margin-top:5px; font-size:0.75rem; color:#FDE68A; line-height:1.45;'>"
+            f"⏱️ <b>10/07心法 · 預測失準 (T+{mispred['bars']})</b>：突破後原地打轉量縮，建議平盤附近微損換股！"
+            f"</div>"
+        )
 
-    alert_blocks_html = ""
-    if overhead.get('is_imminent'):
-        alert_blocks_html += f"""
-        <div style="background: rgba(220, 38, 38, 0.16); border: 1.5px solid #EF4444; border-radius: 7px; padding: 9px 13px; margin-bottom: 10px; font-size: 0.84rem; color: #FCA5A5; line-height: 1.55;">
-            <b>⚠️【做多避開 7 位置：壓力臨頭防禦】</b>：{overhead.get('warning_desc')}
-        </div>
-        """
-    if mispred.get('is_misprediction'):
-        alert_blocks_html += f"""
-        <div style="background: rgba(245, 158, 11, 0.16); border: 1.5px solid #F59E0B; border-radius: 7px; padding: 9px 13px; margin-bottom: 10px; font-size: 0.84rem; color: #FDE68A; line-height: 1.55;">
-            <b>⏱️【朱老師 10/07 心法：預測失準（時間停損）換股 SOP】</b>：{mispred.get('warning')}
-        </div>
-        """
+    c3_alerts = []
+    if overhead_target_tier == 3:
+        c3_alerts.append(
+            f"<div style='background:rgba(220, 38, 38, 0.16); border-left:3px solid #EF4444; border-radius:4px; padding:4px 7px; margin-top:5px; font-size:0.75rem; color:#FCA5A5; line-height:1.45;'>"
+            f"⚠️ <b>臨壓防禦 (僅距+{overhead['room_pct']}%)</b>：距波段重壓【{overhead['resistance_name']}】極近，守5MA停利！"
+            f"</div>"
+        )
+
+    c1_html = render_tier_card_content(b1, "B1", extra_alert_html="".join(c1_alerts))
+    c2_html = render_tier_card_content(b2, "B2", extra_alert_html="".join(c2_alerts))
+    c3_html = render_tier_card_content(b3, "B3", is_b3=True, extra_alert_html="".join(c3_alerts))
 
     res_badge_color = "#FCA5A5" if overhead.get('is_imminent') else ("#86EFAC" if overhead.get('is_ample') else "#FDE68A")
 
@@ -826,8 +876,6 @@ def render_three_tier_entry_dashboard(tier_info: dict):
                 </span>
             </div>
         </div>
-
-        {alert_blocks_html}
 
         <div style="background: {theme_bg}; border-left: 4px solid {theme_bd}; border-radius: 6px; padding: 9px 12px; margin-bottom: 12px; font-size: 0.86rem; line-height: 1.55; color: #F1F5F9;">
             <b>💡 實戰操盤定奪</b>：{stage_verdict}

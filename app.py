@@ -3373,25 +3373,6 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 else:
                     st.markdown("<div style='background:#13261A; border-left:4px solid #52C41A; padding:6px 12px; border-radius:6px; font-size:0.82rem; color:#95DE64; margin-bottom:8px;'>🟢 <b>七項指標全數通關</b>：未出現追高、壓力前硬闖、下彎月線反彈、盤整空頭、高檔爆量長紅或價漲黑K，多頭攻擊路徑安全！</div>", unsafe_allow_html=True)
 
-                # 朱老師 10/07 贏家心法：預測失準 (時間停損) 換股診斷 (連宇 2482 等個股在此直接醒目警示)
-                mis_d = entry_tier.get('misprediction_diagnostic', {})
-                if mis_d.get('is_misprediction'):
-                    st.markdown(
-                        f"<div style='background:rgba(245, 158, 11, 0.16); border-left:4px solid #F59E0B; padding:8px 12px; border-radius:6px; font-size:0.83rem; color:#FDE68A; margin-bottom:8px; line-height:1.55;'>"
-                        f"⏱️ <b>【朱老師 10/07 贏家心法：預測失準（時間停損）換股 SOP】</b><br>"
-                        f"{mis_d.get('warning')}"
-                        f"</div>",
-                        unsafe_allow_html=True
-                    )
-
-                # 朱老師 10/07 贏家核心指引：週日聯動進場 SOP
-                st.markdown(
-                    "<div style='background:rgba(59, 130, 246, 0.12); border-left:4px solid #3B82F6; padding:7px 12px; border-radius:6px; font-size:0.81rem; color:#93C5FD; margin-bottom:8px; line-height:1.5;'>"
-                    "🧭 <b>朱老師 10/07 實戰聯動 SOP</b>：週五尾盤 (13:00~13:25) 週K站上週5MA建底倉，下週一切回日線等「回後買上漲」再加碼！進場後 3~5 天不發動即屬預測失準，平盤附近微損換股，嚴格落實汰弱留強！"
-                    "</div>",
-                    unsafe_allow_html=True
-                )
-
                 with st.expander("📋 查看【做多七大禁忌位置 (做多七不買)】標準規範與避雷原則", expanded=False):
                     st.markdown("""
                     1. **盤底還沒有反轉多頭，沒有三線多排勿進場**：嚴禁盲目猜底摸底，必須等打底完成且均線呈 5MA > 10MA > 20MA 多頭排列。
