@@ -573,12 +573,22 @@ def calculate_three_tier_entry(
                 badge_text = "⏳ 破5MA整理 (待轉強)"
                 badge_html = "<span style='background:#1E293B; border:1px solid #64748B; color:#CBD5E1; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>⏳ 破5MA整理 (待轉強)</span>"
             else:
-                stage_name = "🟢 第 1 買點已過（蓄勢挑戰第2買點）"
-                diff_b2 = round(b2_p - c, 2)
-                diff_b2_pct = round(((b2_p - c) / c) * 100, 1)
-                stage_verdict = f"第 1 買點試單區已過，目前股價向第 2 階頸線 ({b2_p:.2f} 元) 推升（僅差 {diff_b2:.2f} 元，-{diff_b2_pct}%）。持股者續抱守 5MA，空手者等待帶量放量突破 {b2_p:.2f} 元即刻啟動第 2 階重倉進場！"
-                badge_text = f"🎯 蓄勢突破B2 (差{diff_b2:.2f}元)"
-                badge_html = f"<span style='background:#1E293B; border:1px solid #F59E0B; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>🎯 蓄勢突破B2 (差{diff_b2:.2f}元)</span>"
+                if is_misprediction:
+                    stage_name = f"⏱️ 第 1 階預測失準（T+{bars_since_trigger} 沒壞不漲·建議換股）"
+                    stage_verdict = (
+                        f"本檔自階梯一 (B1) 試單已 T+{bars_since_trigger} 天，股價在成本區原地打轉 ({misprediction_chg:+.1f}%) 且量能萎縮未發動！"
+                        f"依朱家泓老師 10/07 贏家心法：『買進 3~5 天不衝即屬預測失準！沒壞但不漲也要出場！』"
+                        f"既然第 1 階試單已預測失準，現階段絕不考慮第 2 階加碼；建議持股者於平盤附近微損主動換股，落實『汰弱留強』轉向強勢飆股！"
+                    )
+                    badge_text = f"⏱️ B1預測失準 (T+{bars_since_trigger}換股)"
+                    badge_html = "<span style='background:#451A03; border:1px solid #D97706; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>⏱️ B1預測失準 (換股)</span>"
+                else:
+                    stage_name = "🟢 第 1 買點已過（蓄勢挑戰第2買點）"
+                    diff_b2 = round(b2_p - c, 2)
+                    diff_b2_pct = round(((b2_p - c) / c) * 100, 1)
+                    stage_verdict = f"第 1 買點試單區已過，目前股價向第 2 階頸線 ({b2_p:.2f} 元) 推升（僅差 {diff_b2:.2f} 元，-{diff_b2_pct}%）。持股者續抱守 5MA，空手者等待帶量放量突破 {b2_p:.2f} 元即刻啟動第 2 階重倉進場！"
+                    badge_text = f"🎯 蓄勢突破B2 (差{diff_b2:.2f}元)"
+                    badge_html = f"<span style='background:#1E293B; border:1px solid #F59E0B; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>🎯 蓄勢突破B2 (差{diff_b2:.2f}元)</span>"
 
         # 2. 處在 B2 階梯 (已突破 B2 頸線，但尚未突破 B3 大切線)
         elif c >= b2_p and (b3_p is None or c < b3_p):
@@ -642,9 +652,12 @@ def calculate_three_tier_entry(
             stage_verdict += f"（⚠️ 提醒：已連續推升第 {up_days} 根，短線正乖離稍大，追價者手腳需敏捷，或耐心等量縮拉回守穩 5MA 時切入！）"
 
     # 壓力臨頭警示全域追加於操盤定奪 (無論任何階段，只要上方空間不足 3% 一律警示做多避開 7 位置)
-    if is_imminent and closest_res and "做多避開 7 位置" not in stage_verdict:
+    if is_imminent and closest_res and "做多避開 7 位置" not in stage_verdict and "壓力臨頭" not in stage_verdict:
         ov_target_str = "階梯二前高" if (b2_p < 999999 and abs(closest_res['price'] - b2_p) <= max(b2_p * 0.05, 3.0)) else "上方"
-        stage_verdict += f"（⚠️ 做多避開 7 位置：{ov_target_str}【{closest_res['name']}】距今僅 {room_pct}%，壓力臨頭勿賭突破，靜待放量站上再順勢加碼！）"
+        if is_misprediction:
+            stage_verdict += f"（⚠️ 壓力臨頭：頭頂正上方僅距【{closest_res['name']}】約 {room_pct}%，空間不足 3% 風報比極差，正是壓制第 1 階攻勢熄火的主因，嚴禁加碼賭突破！）"
+        else:
+            stage_verdict += f"（⚠️ 做多避開 7 位置：{ov_target_str}【{closest_res['name']}】距今僅 {room_pct}%，壓力臨頭勿賭突破，靜待放量站上再順勢加碼！）"
 
     # 預測失準換股 SOP 全域追加於操盤定奪
     if is_misprediction and "預測失準" not in stage_verdict:
@@ -836,7 +849,13 @@ def render_three_tier_entry_dashboard(tier_info: dict):
         )
 
     c2_alerts = []
-    if overhead_target_tier == 2:
+    if mispred.get('is_misprediction') and mispred.get('target_tier') == 1:
+        c2_alerts.append(
+            f"<div style='background:rgba(75, 85, 99, 0.22); border-left:3px solid #94A3B8; border-radius:4px; padding:4px 7px; margin-top:5px; font-size:0.75rem; color:#CBD5E1; line-height:1.45;'>"
+            f"🔒 <b>暫不考慮第 2 階</b>：階梯一試單已預測失準，且頭頂有壓 ({overhead.get('resistance_name')})，未見放量轉強前嚴禁預設加碼！"
+            f"</div>"
+        )
+    elif overhead_target_tier == 2:
         c2_alerts.append(
             f"<div style='background:rgba(220, 38, 38, 0.16); border-left:3px solid #EF4444; border-radius:4px; padding:4px 7px; margin-top:5px; font-size:0.75rem; color:#FCA5A5; line-height:1.45;'>"
             f"⚠️ <b>臨壓防禦 (僅距+{overhead['room_pct']}%)</b>：距前高【{overhead['resistance_name']}】極近，壓力前勿賭突破，等放量站上再重倉！"
