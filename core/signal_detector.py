@@ -191,15 +191,41 @@ def check_do_not_buy_rules(df: pd.DataFrame, trend_info: dict, last: pd.Series, 
     if up_days >= 3:
         violations.append((2, f"連續上漲第 {up_days} 根位置勿追高", f"股價已連續推升 {up_days} 天，短線正乖離過大，極易遭遇獲利調節回檔，應耐心等拉回再切入"))
 
-    # 禁忌 3：重大壓力關卡前勿進場 (空間不足 3%)
-    candidate_pressures = signals_dict.get('ch9_take_profit', {}).get('candidate_pressures', [])
+    # 禁忌 3：重大壓力關卡前勿進場 (空間不足 3%，做多避開 7 位置鐵律)
+    candidate_pressures = []
+    # 1. 納入所有前高頸線與波峰
+    if trend_info and 'peaks' in trend_info and trend_info['peaks']:
+        for p in trend_info['peaks']:
+            if p['price'] > c * 1.002:
+                candidate_pressures.append(('前高頸線', float(p['price'])))
+    elif trend_info.get('curr_peak') and trend_info['curr_peak']['price'] > c * 1.002:
+        candidate_pressures.append(('前高頸線', float(trend_info['curr_peak']['price'])))
+
+    # 2. 納入下彎月線與下彎季線反壓
+    if sma20 > c * 1.002 and sma20 < prev_sma20:
+        candidate_pressures.append(('下彎月線20MA', sma20))
+    if 'SMA_60' in last and float(last['SMA_60']) > c * 1.002:
+        sma60 = float(last['SMA_60'])
+        if len(df) >= 5 and sma60 < float(df['SMA_60'].iloc[-4]):
+            candidate_pressures.append(('下彎季線60MA', sma60))
+
+    # 3. 納入原有形態壓力
+    ch9_pressures = signals_dict.get('ch9_take_profit', {}).get('candidate_pressures', [])
+    for p_item in ch9_pressures:
+        candidate_pressures.append(p_item)
+
     if candidate_pressures:
+        candidate_pressures.sort(key=lambda x: x[1])
         nearest_p_name, nearest_p_val = candidate_pressures[0]
         h = float(last['High'])
-        # 豁免衝關攻擊點：若今日高點已觸及或穿透該壓力 (衝關表態)、或四線多排放量攻擊紅K、或該壓力為箱頂突破點：
         is_pressing_forward = (h >= nearest_p_val * 0.995) or (signals_dict.get('bullish_alignment', False) and signals_dict.get('is_attack_vol', False) and c >= o) or signals_dict.get('box_range_breakout', False)
+        # 若收盤跌破5MA或收黑K，代表攻擊受阻拉回，絕不予豁免衝關
+        if c < sma5 or c < o:
+            is_pressing_forward = False
+
         if nearest_p_val > c and (nearest_p_val - c) / c <= 0.03 and not is_pressing_forward:
-            violations.append((3, f"重大壓力關卡前 ({nearest_p_name} {nearest_p_val:.2f}元)", f"距離上方重壓僅剩 {((nearest_p_val-c)/c*100):.1f}% 空間，風報比極差，極易衝高解套回測"))
+            room_p = ((nearest_p_val - c) / c) * 100
+            violations.append((3, f"重大壓力關卡前 ({nearest_p_name} {nearest_p_val:.2f}元)", f"距離上方重壓僅剩 {room_p:.1f}% 空間，依朱老師 10/07 贏家鐵律『做多避開 7 位置：壓力前勿進』，風報比極差，嚴禁賭突破，寧等帶量突破站穩再進！"))
 
     # 禁忌 4：回檔跌破月線再上漲未突破月線
     if c < sma20 and (sma20 < prev_sma20 * 0.9995):

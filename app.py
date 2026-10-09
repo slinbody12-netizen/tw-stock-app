@@ -1082,6 +1082,9 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     if item.get('market') == 'TWO':
         core_badge_html += "<span style='background:#722ED1; color:white; padding:1px 5px; border-radius:3px; font-size:0.72rem; margin-right:3px;'>櫃</span>"
 
+    if item.get('spurt_badge'):
+        core_badge_html += f" {item['spurt_badge']}"
+
     # 提取核心起漲關鍵說明
     if is_iron_man:
         breakout_desc = "老朱旗艦無敵鐵金剛：底底高確立 ＋ 雙線翻揚 ＋ 站穩 5MA"
@@ -1158,6 +1161,11 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
 
     # 渲染極簡 3 秒決策精簡卡片
     rt_badge = " <span style='background:rgba(34,197,94,0.18); color:#22C55E; border:1px solid rgba(34,197,94,0.35); font-size:0.70rem; padding:1px 5px; border-radius:3px; font-weight:bold; vertical-align:middle;'>🟢 即時</span>" if item.get('is_realtime') else ""
+    ov_item = item.get('overhead_analysis') or {}
+    mp_item = item.get('misprediction_diagnostic') or {}
+    ov_warning_html = f"<div style='color:#FCA5A5; font-size:0.78rem; margin-top:3px;'>⚠️ <b>做多避開 7 位置</b>：前方僅距 {ov_item.get('resistance_name')} 約 {ov_item.get('room_pct')}%，壓力臨頭嚴禁追價！</div>" if ov_item.get('is_imminent') else ""
+    mp_warning_html = f"<div style='color:#FDE68A; font-size:0.78rem; margin-top:3px;'>⏱️ <b>預測失準換股 SOP</b>：已發動 T+{mp_item.get('bars')} 天沒壞但不漲，朱老師心法建議微損主動換股！</div>" if mp_item.get('is_misprediction') else ""
+
     card_html = (
         f'<div style="background:#181A26; border:1px solid #2E334D; border-radius:10px; padding:12px 14px; margin-bottom:6px; box-shadow:0 3px 10px rgba(0,0,0,0.25);">'
         f'<div style="display:flex; justify-content:space-between; align-items:center;">'
@@ -1175,6 +1183,8 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         f'<div style="color:#E2E8F0; margin-bottom:3px;">🎯 <b>起漲關鍵</b>：<span style="color:#F1F5F9; font-weight:600;">{breakout_desc}</span></div>'
         f'<div style="margin-bottom:3px;">📍 <b>買點定位</b>：{tier_action_html}</div>'
         f'<div style="color:#CBD5E1;">{risk_reward_html}</div>'
+        f'{ov_warning_html}'
+        f'{mp_warning_html}'
         f'</div>'
         f'</div>'
     )
@@ -2926,8 +2936,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 if two_tr.get('advice'):
                     st.info(f"💡 **【買兩張（長短配）實戰操盤指引】**：{two_tr['advice']}")
             # 老朱三層進場階梯戰法 (Three-Tier Entry Hierarchy) 操盤導航看板
-            entry_tier = calculate_three_tier_entry(df, points, trend, signals_dict)
-            render_three_tier_entry_dashboard(entry_tier)
+            entry_tier = core.entry_point_analyzer.calculate_three_tier_entry(df, points, trend, signals_dict)
+            core.entry_point_analyzer.render_three_tier_entry_dashboard(entry_tier)
 
             # =========================================================================
             # ⚡ 極簡 1-Click 買進登記 · 納入每日全自動評估守護神
@@ -3362,6 +3372,25 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     st.markdown(f"<div style='background:#2B1616; border-left:4px solid #FF4D4F; padding:8px 12px; border-radius:6px; font-size:0.83rem; color:#FFA39E; margin-bottom:8px;'><ul style='margin:0; padding-left:18px;'>{v_items}</ul></div>", unsafe_allow_html=True)
                 else:
                     st.markdown("<div style='background:#13261A; border-left:4px solid #52C41A; padding:6px 12px; border-radius:6px; font-size:0.82rem; color:#95DE64; margin-bottom:8px;'>🟢 <b>七項指標全數通關</b>：未出現追高、壓力前硬闖、下彎月線反彈、盤整空頭、高檔爆量長紅或價漲黑K，多頭攻擊路徑安全！</div>", unsafe_allow_html=True)
+
+                # 朱老師 10/07 贏家心法：預測失準 (時間停損) 換股診斷 (連宇 2482 等個股在此直接醒目警示)
+                mis_d = entry_tier.get('misprediction_diagnostic', {})
+                if mis_d.get('is_misprediction'):
+                    st.markdown(
+                        f"<div style='background:rgba(245, 158, 11, 0.16); border-left:4px solid #F59E0B; padding:8px 12px; border-radius:6px; font-size:0.83rem; color:#FDE68A; margin-bottom:8px; line-height:1.55;'>"
+                        f"⏱️ <b>【朱老師 10/07 贏家心法：預測失準（時間停損）換股 SOP】</b><br>"
+                        f"{mis_d.get('warning')}"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
+
+                # 朱老師 10/07 贏家核心指引：週日聯動進場 SOP
+                st.markdown(
+                    "<div style='background:rgba(59, 130, 246, 0.12); border-left:4px solid #3B82F6; padding:7px 12px; border-radius:6px; font-size:0.81rem; color:#93C5FD; margin-bottom:8px; line-height:1.5;'>"
+                    "🧭 <b>朱老師 10/07 實戰聯動 SOP</b>：週五尾盤 (13:00~13:25) 週K站上週5MA建底倉，下週一切回日線等「回後買上漲」再加碼！進場後 3~5 天不發動即屬預測失準，平盤附近微損換股，嚴格落實汰弱留強！"
+                    "</div>",
+                    unsafe_allow_html=True
+                )
 
                 with st.expander("📋 查看【做多七大禁忌位置 (做多七不買)】標準規範與避雷原則", expanded=False):
                     st.markdown("""

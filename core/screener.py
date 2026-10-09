@@ -245,6 +245,20 @@ def calculate_quality_score(s):
         elim_cnt = elim_info.get('eliminated_count', 1)
         score -= min(60.0, elim_cnt * 25.0)
 
+    # 9. 飆股基因加減分 (朱家泓 & 林穎 10/07 飆股基因 vs 牛皮震盪股)
+    spurt_tag = str(s.get('spurt_tag', ''))
+    if "飆股基因" in spurt_tag:
+        score += 25.0
+    elif "牛皮震盪" in spurt_tag:
+        score -= 25.0
+
+    # 10. 做多避開 7 位置：壓力臨頭扣分與空間充裕加分
+    ov = s.get('overhead_analysis') or {}
+    if ov.get('is_imminent', False):
+        score -= 35.0  # 壓力臨頭嚴禁追價，扣分防止推薦買在壓力下
+    elif ov.get('is_ample', False):
+        score += 15.0  # 上方空間充裕加分
+
     return round(float(score), 1)
 
 def _analyze_single_stock(item, realtime_map, chips_map):
@@ -353,6 +367,46 @@ def _analyze_single_stock(item, realtime_map, chips_map):
             buyer_vol = max(25, buyer_vol)
             broker_str = f"{broker_name} {buyer_vol:,} 張 (均 {major_cost})"
 
+        # 飆股基因評分 (朱家泓 & 林穎 10/07 Q&A 飆股 vs 牛皮震盪股量化)
+        # 1. 均線糾結度
+        cur_sma10 = float(df['SMA_10'].iloc[-1]) if 'SMA_10' in df else cur_sma5
+        cur_sma20 = float(df['SMA_20'].iloc[-1]) if 'SMA_20' in df else cur_sma5
+        cur_sma60 = float(df['SMA_60'].iloc[-1]) if 'SMA_60' in df else cur_sma5
+        ma_vals = [cur_sma5, cur_sma10, cur_sma20, cur_sma60]
+        ma_band_pct = round(((max(ma_vals) - min(ma_vals)) / (min(ma_vals) + 1e-9)) * 100, 1)
+
+        # 2. K 線乾淨度 (近 10 根 K 線實體佔總振幅比例)
+        clean_ratio = 50.0
+        if len(df) >= 10:
+            sub10 = df.iloc[-10:]
+            body_lens = (sub10['Close'] - sub10['Open']).abs()
+            rng_lens = (sub10['High'] - sub10['Low']).replace(0, 1e-9)
+            clean_ratio = round(float((body_lens / rng_lens).mean() * 100), 1)
+
+        spurt_dna_score = 50.0
+        if ma_band_pct <= 3.8:
+            spurt_dna_score += 25.0
+        if clean_ratio >= 60.0:
+            spurt_dna_score += 25.0
+        elif clean_ratio < 40.0:
+            spurt_dna_score -= 25.0
+
+        if signals_dict.get('ma_squeeze_breakout', False) or signals_dict.get('iron_man', False):
+            spurt_dna_score += 20.0
+
+        if spurt_dna_score >= 70.0 and above_5ma and is_5ma_rising:
+            spurt_tag = "🔥 飆股基因"
+            spurt_badge = "<span style='background:#701A75; border:1px solid #D946EF; color:#F5D0FE; font-size:0.75rem; font-weight:bold; padding:2px 6px; border-radius:4px;'>🔥 飆股基因</span>"
+            spurt_desc = "均線糾結後放量首度發散突破，K線實體乾淨有力，具黑馬飆股主升潛力！"
+        elif clean_ratio < 40.0 or (clean_ratio < 48.0 and abs(close_price - res_val)/(res_val + 1e-9) <= 0.03):
+            spurt_tag = "🐢 牛皮震盪"
+            spurt_badge = "<span style='background:#1E293B; border:1px solid #64748B; color:#94A3B8; font-size:0.75rem; font-weight:bold; padding:2px 6px; border-radius:4px;'>🐢 牛皮震盪</span>"
+            spurt_desc = "上下影線雜訊多、頻繁遇壓，短線獲利空間狹隘，操作難度較高。"
+        else:
+            spurt_tag = "常態結構"
+            spurt_badge = ""
+            spurt_desc = "線型常態推進。"
+
         stock_record = {
             "code": item['code'],
             "name": item['name'],
@@ -452,7 +506,15 @@ def _analyze_single_stock(item, realtime_map, chips_map):
             "entry_tier_name": entry_tier.get('stage_name', ''),
             "entry_tier_badge": entry_tier.get('badge_html', ''),
             "entry_tier_text": entry_tier.get('badge_text', ''),
-            "entry_tier_verdict": entry_tier.get('stage_verdict', '')
+            "entry_tier_verdict": entry_tier.get('stage_verdict', ''),
+            "spurt_tag": spurt_tag,
+            "spurt_badge": spurt_badge,
+            "spurt_desc": spurt_desc,
+            "spurt_dna_score": spurt_dna_score,
+            "clean_ratio": clean_ratio,
+            "ma_band_pct": ma_band_pct,
+            "overhead_analysis": entry_tier.get("overhead_analysis", {}),
+            "misprediction_diagnostic": entry_tier.get("misprediction_diagnostic", {})
         }
         stock_record['quality_score'] = calculate_quality_score(stock_record)
         return stock_record

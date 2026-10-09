@@ -283,7 +283,121 @@ def calculate_three_tier_entry(
             b3_has_surged = True
 
     # =========================================================================
-    # 4. 盤中即時狀態感知評估器 (Live State Evaluator for B1, B2, B3)
+    # 4. 做多避開 7 位置：上方壓力臨頭檢測 (Overhead Resistance & Room Analysis)
+    # =========================================================================
+    res_candidates = []
+    # A. 所有高於現價的已確認前高
+    for p in peaks:
+        if p['price'] > c * 1.002:
+            res_candidates.append({'name': f"前高頸線 ({p['price']:.2f})", 'price': p['price'], 'type': 'PEAK'})
+
+    # B. 下彎重大均線反壓 (月線 20MA / 季線 60MA)
+    if 'SMA_20' in df and len(df) >= 5:
+        sma20 = float(df['SMA_20'].iloc[-1])
+        prev_sma20 = float(df['SMA_20'].iloc[-4])
+        if sma20 > c * 1.002 and sma20 < prev_sma20:
+            res_candidates.append({'name': f"下彎月線20MA ({sma20:.2f})", 'price': sma20, 'type': 'MA20'})
+
+    if 'SMA_60' in df and len(df) >= 5:
+        sma60 = float(df['SMA_60'].iloc[-1])
+        prev_sma60 = float(df['SMA_60'].iloc[-4])
+        if sma60 > c * 1.002 and sma60 < prev_sma60:
+            res_candidates.append({'name': f"下彎季線60MA ({sma60:.2f})", 'price': sma60, 'type': 'MA60'})
+
+    # C. 趨勢關鍵壓力線
+    if trend_info.get('resistance') and float(trend_info['resistance']) > c * 1.002:
+        res_candidates.append({'name': f"關鍵波段壓力 ({float(trend_info['resistance']):.2f})", 'price': float(trend_info['resistance']), 'type': 'TREND_RES'})
+
+    closest_res = None
+    room_pct = 999.0
+    is_imminent = False
+    is_ample = True
+    overhead_status_badge = "✅ 空間充裕 (無前壓)"
+    overhead_warning_desc = ""
+
+    if res_candidates:
+        res_candidates.sort(key=lambda x: x['price'])
+        closest_res = res_candidates[0]
+        room_pct = round(((closest_res['price'] - c) / c) * 100, 1)
+        if 0 < room_pct <= 3.0:
+            is_imminent = True
+            is_ample = False
+            overhead_status_badge = f"⚠️ 壓力臨頭 (僅距+{room_pct}%)"
+            overhead_warning_desc = (
+                f"上方僅距【{closest_res['name']}】約 {room_pct}%！"
+                f"依朱家泓老師實戰鐵律『做多避開 7 位置：壓力前勿進』，此處進場極易遇壓被打回、盈虧比極差！"
+                f"嚴禁在壓力前賭突破，寧等帶量長紅實質突破並站穩後再順勢進場！"
+            )
+        elif room_pct >= 8.0:
+            is_imminent = False
+            is_ample = True
+            overhead_status_badge = f"✅ 空間充裕 (距前壓+{room_pct}%)"
+            overhead_warning_desc = f"上方距最近壓力【{closest_res['name']}】有 +{room_pct}% 獲利空間，盈虧比良好。"
+        else:
+            is_imminent = False
+            is_ample = False
+            overhead_status_badge = f"🟡 正常空間 (距前壓+{room_pct}%)"
+            overhead_warning_desc = f"上方距最近壓力【{closest_res['name']}】約 +{room_pct}%，按紀律操作。"
+
+    overhead_analysis = {
+        "closest_resistance": round(closest_res['price'], 2) if closest_res else None,
+        "resistance_name": closest_res['name'] if closest_res else "",
+        "room_pct": room_pct if closest_res else None,
+        "is_imminent": is_imminent,
+        "is_ample": is_ample,
+        "status_badge": overhead_status_badge,
+        "warning_desc": overhead_warning_desc
+    }
+
+    # =========================================================================
+    # 5. 朱老師 10/07 贏家心法：預測失準 (時間停損) 換股診斷器
+    # =========================================================================
+    bars_since_trigger = 0
+    trigger_ref_price = None
+    if has_b1 and b1_trigger_idx < len(df):
+        bars_since_trigger = len(df) - 1 - b1_trigger_idx
+        trigger_ref_price = b1_info['price']
+    elif has_broken_b2 and len(peaks) >= 1:
+        bars_since_trigger = len(df) - 1 - int(peaks[-1].get('index', len(df)-1))
+        trigger_ref_price = b2_info['price']
+
+    is_misprediction = False
+    misprediction_chg = 0.0
+    misprediction_warning = ""
+
+    if 3 <= bars_since_trigger <= 6 and trigger_ref_price and trigger_ref_price > 0:
+        misprediction_chg = round(((c - trigger_ref_price) / trigger_ref_price) * 100, 1)
+        if -2.2 <= misprediction_chg <= 2.2:
+            recent_vol = float(df['Volume'].iloc[-1])
+            avg_vol = float(df['Volume'].rolling(20).mean().iloc[-1]) if len(df) >= 20 else recent_vol
+            if recent_vol < avg_vol * 1.25:
+                is_misprediction = True
+                misprediction_warning = (
+                    f"買點觸發已 T+{bars_since_trigger} 天，股價仍在成本區原地打轉 ({misprediction_chg:+.1f}%)、量能萎縮未放量發動！"
+                    f"依朱家泓老師 10/07 線上 Q&A 贏家心法：『買進 3~5 天不衝即屬預測失準！沒壞但不漲也要出場！』"
+                    f"資金的時間也是成本，切勿讓資金死守死魚盤！建議在平盤附近微損主動換股，落實『汰弱留強』，將資金轉向已放量起跑的強勢飆股！"
+                )
+
+    misprediction_diagnostic = {
+        "is_misprediction": is_misprediction,
+        "bars": bars_since_trigger,
+        "pct_change": misprediction_chg,
+        "badge": f"⏱️ 預測失準 (T+{bars_since_trigger} 沒壞不漲)" if is_misprediction else "",
+        "warning": misprediction_warning
+    }
+
+    # =========================================================================
+    # 6. 週線中長線雙重視角進場指引 (依朱老師 10/07 答覆)
+    # =========================================================================
+    weekly_guidance = {
+        "title": "週線中長線進場 SOP (朱老師 10/07 規範)",
+        "step1": "週五尾盤 (13:00~13:25) 確認週K收紅站上週 5MA / 突破週頸線，先建底倉 20%~30%",
+        "step2": "下週一切回日線，等待日線拉回守穩、出現「日線回後買上漲」第一根紅K再加碼重倉",
+        "tip": "長線一定要從獲利拉開 15%~20% 轉長線，切勿因套牢而自我安慰變長線！"
+    }
+
+    # =========================================================================
+    # 7. 盤中即時狀態感知評估器 (Live State Evaluator for B1, B2, B3)
     # =========================================================================
     def evaluate_live_tier_state(t_item, cur_price, sma5_val, has_surged=False, surge_peak=0.0):
         p = t_item.get('price')
@@ -323,6 +437,10 @@ def calculate_three_tier_entry(
                 t_item['status'] = 'WAITING'
                 t_item['status_text'] = f"⏳ 跌破5MA拉回 (待站回{sma5_val:.2f}元)"
                 t_item['status_hint'] = f"現價 {cur_price:.2f} 元雖落於進場區間，但收盤跌破 5MA ({sma5_val:.2f} 元) 整理中！老朱SOP嚴守『紅K站上5MA』才進場，切勿盲目接刀，靜待量縮止跌重返 5MA！"
+            elif is_imminent:
+                t_item['status'] = 'CAUTION'
+                t_item['status_text'] = f"⚠️ 壓力臨頭 (僅距+{room_pct}%)"
+                t_item['status_hint'] = f"現價雖在進場區，但頭頂正上方僅距【{closest_res['name']}】約 {room_pct}%！做多避開7位置（壓力前勿進），嚴禁賭突破，寧等帶量突破後再進！"
             else:
                 t_item['status'] = 'ACTIVE'
                 t_item['status_text'] = "🔥 黃金買點 (進行中)"
@@ -334,6 +452,10 @@ def calculate_three_tier_entry(
                 t_item['status'] = 'WAITING'
                 t_item['status_text'] = f"⚠️ 破5MA整理 (待站回{sma5_val:.2f}元)"
                 t_item['status_hint'] = f"現價稍離發動點但跌破 5MA ({sma5_val:.2f} 元)，短線轉弱，切勿追價，觀察守穩後能否重返 5MA！"
+            elif is_imminent:
+                t_item['status'] = 'CAUTION'
+                t_item['status_text'] = f"⚠️ 壓力臨頭 (僅距+{room_pct}%)"
+                t_item['status_hint'] = f"現價稍離發動點且接近上方【{closest_res['name']}】({closest_res['price']:.2f}元)，空間僅 {room_pct}%，壓力前切勿追價！"
             else:
                 t_item['status'] = 'CAUTION'
                 over_pct = round(((cur_price - low) / low) * 100, 1)
@@ -511,6 +633,14 @@ def calculate_three_tier_entry(
         if up_days >= 3 and current_stage in ["TIER_2", "TIER_3"]:
             stage_verdict += f"（⚠️ 提醒：已連續推升第 {up_days} 根，短線正乖離稍大，追價者手腳需敏捷，或耐心等量縮拉回守穩 5MA 時切入！）"
 
+    # 壓力臨頭警示全域追加於操盤定奪 (無論任何階段，只要上方空間不足 3% 一律警示做多避開 7 位置)
+    if is_imminent and closest_res and "做多避開 7 位置" not in stage_verdict:
+        stage_verdict += f"（⚠️ 做多避開 7 位置：上方僅距【{closest_res['name']}】約 {room_pct}%，壓力臨頭勿賭突破，靜待放量站上再順勢加碼！）"
+
+    # 預測失準換股 SOP 全域追加於操盤定奪
+    if is_misprediction and "預測失準" not in stage_verdict:
+        stage_verdict += f"（⏱️ 朱老師 10/07 贏家心法：發動 T+{bars_since_trigger} 天原地打轉量縮屬預測失準，沒壞但不漲亦建議平盤附近微損換股，汰弱留強！）"
+
     return {
         "current_stage": current_stage,
         "current_price": round(c, 2),
@@ -521,7 +651,10 @@ def calculate_three_tier_entry(
         "badge_text": badge_text,
         "b1": b1_info,
         "b2": b2_info,
-        "b3": b3_info
+        "b3": b3_info,
+        "overhead_analysis": overhead_analysis,
+        "misprediction_diagnostic": misprediction_diagnostic,
+        "weekly_guidance": weekly_guidance
     }
 
 
@@ -660,6 +793,26 @@ def render_three_tier_entry_dashboard(tier_info: dict):
     c2_html = render_tier_card_content(b2, "B2")
     c3_html = render_tier_card_content(b3, "B3", is_b3=True)
 
+    overhead = tier_info.get('overhead_analysis') or {}
+    mispred = tier_info.get('misprediction_diagnostic') or {}
+    weekly_g = tier_info.get('weekly_guidance') or {}
+
+    alert_blocks_html = ""
+    if overhead.get('is_imminent'):
+        alert_blocks_html += f"""
+        <div style="background: rgba(220, 38, 38, 0.16); border: 1.5px solid #EF4444; border-radius: 7px; padding: 9px 13px; margin-bottom: 10px; font-size: 0.84rem; color: #FCA5A5; line-height: 1.55;">
+            <b>⚠️【做多避開 7 位置：壓力臨頭防禦】</b>：{overhead.get('warning_desc')}
+        </div>
+        """
+    if mispred.get('is_misprediction'):
+        alert_blocks_html += f"""
+        <div style="background: rgba(245, 158, 11, 0.16); border: 1.5px solid #F59E0B; border-radius: 7px; padding: 9px 13px; margin-bottom: 10px; font-size: 0.84rem; color: #FDE68A; line-height: 1.55;">
+            <b>⏱️【朱老師 10/07 心法：預測失準（時間停損）換股 SOP】</b>：{mispred.get('warning')}
+        </div>
+        """
+
+    res_badge_color = "#FCA5A5" if overhead.get('is_imminent') else ("#86EFAC" if overhead.get('is_ample') else "#FDE68A")
+
     dashboard_html = f"""
     <div style="background: linear-gradient(135deg, #131722 0%, #1A2030 100%); border: 1px solid {theme_bd}; border-radius: 10px; padding: 14px 16px; margin: 10px 0 14px 0; box-shadow: 0 4px 14px rgba(0,0,0,0.3);">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px; margin-bottom: 12px;">
@@ -673,6 +826,8 @@ def render_three_tier_entry_dashboard(tier_info: dict):
                 </span>
             </div>
         </div>
+
+        {alert_blocks_html}
 
         <div style="background: {theme_bg}; border-left: 4px solid {theme_bd}; border-radius: 6px; padding: 9px 12px; margin-bottom: 12px; font-size: 0.86rem; line-height: 1.55; color: #F1F5F9;">
             <b>💡 實戰操盤定奪</b>：{stage_verdict}
@@ -704,6 +859,16 @@ def render_three_tier_entry_dashboard(tier_info: dict):
                     {b3_badge}
                 </div>
                 {c3_html}
+            </div>
+        </div>
+
+        <!-- 底部實戰心法聯動條 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 7px 12px; margin-top: 12px; font-size: 0.77rem; color: #94A3B8;">
+            <div>
+                🧭 <b>週日聯動進場 SOP (朱老師 10/07 規範)</b>：週五尾盤 (13:00~13:25) 週K站上週5MA建底倉，下週一切回日線等「回後買上漲」再加碼！
+            </div>
+            <div style="font-weight: bold; color: {res_badge_color};">
+                🛡️ 壓力空間：{overhead.get('status_badge', '空間適中')}
             </div>
         </div>
     </div>

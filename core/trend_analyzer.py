@@ -492,6 +492,8 @@ def analyze_trend(df: pd.DataFrame, points: list):
         "prev_peak": prev_peak,
         "curr_trough": curr_trough,
         "prev_trough": prev_trough,
+        "peaks": peaks,
+        "troughs": troughs,
         "support": support,
         "resistance": resistance,
         "target": target,
