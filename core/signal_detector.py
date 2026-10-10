@@ -386,10 +386,17 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     upper_shadow_ratio = upper_shadow / total_range
     upper_shadow_pct = round((upper_shadow / c) * 100, 2) if c > 0 else 0.0
 
-    # 長上影線（避雷針）判定：上影線佔全日高低振幅 40% 以上，且相對於收盤價超過 1.2%
-    has_long_upper_shadow = (upper_shadow_ratio >= 0.40 and upper_shadow_pct >= 1.2) or (upper_shadow >= body * 1.4 and upper_shadow_pct >= 1.0)
-    # 實體飽滿收高 (無長上影線)：收在當日最高點 1.5% 內，或上影線小於實體紅K 0.6 倍
-    is_solid_bull = (h - c) <= (c * 0.015) or (upper_shadow <= body * 0.6)
+    # 長上影線（避雷針）判定：
+    # 1. 上影線長度 >= 實體紅K長度，且上影線回吐幅度 >= 1.5% (經典衝高遇壓無力突破，如 4770 上品)
+    # 2. 或上影線佔全日高低振幅 35% 以上，且相對於收盤價超過 1.2%
+    # 3. 或上影線 >= 實體 1.25 倍，且上影線幅度 >= 1.0%
+    has_long_upper_shadow = (
+        (upper_shadow >= body * 1.0 and upper_shadow_pct >= 1.5) or
+        (upper_shadow_ratio >= 0.35 and upper_shadow_pct >= 1.2) or
+        (upper_shadow >= body * 1.25 and upper_shadow_pct >= 1.0)
+    )
+    # 實體飽滿收高 (無長上影線)：收在當日最高點 1.5% 內，且上影線小於實體紅K 0.6 倍
+    is_solid_bull = ((h - c) <= (c * 0.015) or (upper_shadow <= body * 0.6)) and not has_long_upper_shadow
 
     signals_dict['has_long_upper_shadow'] = has_long_upper_shadow
     signals_dict['is_solid_bull'] = is_solid_bull
@@ -482,8 +489,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             })
 
     unresolved_blacks = [b for b in heavy_black_ks if b['high'] >= c]
-
-    # 5. 辣椒動能指標 (1~3 根)
+    signals_dict['unresolved_blacks'] = unresolved_blacks
+    signals_dict['has_unresolved_blacks'] = len(unresolved_blacks) > 0
     chili = 1
     vol_ratio = v / v_ma20 if v_ma20 > 0 else 1.0
     if vol_ratio >= 2.0 or abs(change_pct) >= 5.0:
@@ -679,12 +686,13 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals.append("回後準進場 (拉回測線有守，轉折紅K站回5MA)")
 
         # 👑 創高無壓回後買上漲 (朱家泓老師 10/07 達人秀：日月光 3711、台達電 2308 歷史新高龍頭戰法)
-        # 過去 120 天最高價在近期 25 天內出現過 (或創歷史/波段新高)，上方無解套賣壓，回後買上漲勝率極高
+        # 過去 120 天最高價在近期 25 天內出現過 (或創歷史/波段新高)，且上方絕無爆量黑K或長上影線套牢賣壓，回後買上漲勝率極高
         is_ath_candidate = False
-        if len(df) >= 30:
+        if len(df) >= 30 and not unresolved_blacks and not has_long_upper_shadow:
             past_max = float(df.iloc[-120:]['High'].max()) if len(df) >= 120 else float(df['High'].max())
             recent_high = float(df.iloc[-25:]['High'].max())
-            if recent_high >= past_max * 0.985:
+            # 股價必須維持在高檔區間 (距最高點不超過 6%)，且未遭遇重挫或重壓
+            if recent_high >= past_max * 0.985 and c >= past_max * 0.94:
                 is_ath_candidate = True
         if is_ath_candidate:
             signals_dict['ath_pullback_buy'] = True

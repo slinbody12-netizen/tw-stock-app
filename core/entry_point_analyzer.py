@@ -404,6 +404,14 @@ def calculate_three_tier_entry(
         "tip": "長線一定要從獲利拉開 15%~20% 轉長線，切勿因套牢而自我安慰變長線！"
     }
 
+    # 風控主閘門關鍵指標提取
+    has_long_upper_shadow = bool(signals_dict.get('has_long_upper_shadow', False))
+    unresolved_blacks = signals_dict.get('unresolved_blacks', [])
+    four_ma_not_ready = bool(signals_dict.get('four_ma_not_ready_warning', False))
+    elim_info = signals_dict.get('elimination_info', {})
+    is_eliminated = bool(elim_info.get('is_eliminated', False))
+    is_four_ma_launch = signals_dict.get('bullish_alignment', False) and (signals_dict.get('main_wave_2nd', False) or signals_dict.get('box_range_breakout', False) or signals_dict.get('pullback_buy', False)) and (c >= sma5)
+
     # =========================================================================
     # 7. 盤中即時狀態感知評估器 (Live State Evaluator for B1, B2, B3)
     # =========================================================================
@@ -431,6 +439,30 @@ def calculate_three_tier_entry(
             t_item['status_hint'] = f"此階買點先前已發動並大漲 +{over_pct}% (最高達 {surge_peak:.2f} 元)！現價回落為波段拉回修正，切勿視為原始起漲黃金買點！"
             return
 
+        # 風控主閘門安全檢核：識別是否存在重大技術瑕疵
+        caution_flaw = None
+        caution_hint = None
+        if has_long_upper_shadow:
+            caution_flaw = "⚠️ 長上影避雷針 (高檔調節)"
+            caution_hint = "今日收盤留長上影線（避雷針）遭遇逢高調節賣壓！依朱老師實戰鐵律『長上影線次日極易拉回，長上影線前勿進』，嚴禁躁進，靜待次日回測消化！"
+        elif unresolved_blacks:
+            latest_bk = unresolved_blacks[-1]
+            caution_flaw = f"⚠️ 前有爆量黑K重壓 ({latest_bk['high']:.2f}元)"
+            caution_hint = f"前方 {latest_bk['date']} 留有 {latest_bk['ratio']} 倍爆量黑K套牢賣壓 ({latest_bk['high']:.2f} 元)！依老朱四大金剛成交量心法：未放量克服爆量黑K高點前，切勿過早進場！"
+        elif four_ma_not_ready:
+            caution_flaw = "⚠️ 四線未做好 (60MA下彎)"
+            caution_hint = "季線 (60MA) 仍下彎或未多頭排列，上方均線反壓沉重！依朱老師達人秀盲點警示：宜先列入鎖股名單觀察，切勿急躁試單！"
+        elif is_misprediction:
+            caution_flaw = f"⏱️ 預測失準 (T+{bars_since_trigger}換股)"
+            caution_hint = misprediction_warning
+        elif is_eliminated and not is_four_ma_launch:
+            first_r = elim_info.get('reasons', ['命中淘汰'])[0]
+            caution_flaw = f"⛔ 命中淘汰 ({first_r[:10]})"
+            caution_hint = f"本檔觸發老朱 14 大淘汰法：{'; '.join(elim_info.get('reasons', [])[:2])}，技術面走空或破壞，嚴禁逆勢做多！"
+        elif is_imminent:
+            caution_flaw = f"⚠️ 壓力臨頭 (僅距+{room_pct}%)"
+            caution_hint = f"現價雖在進場區，但頭頂正上方僅距【{closest_res['name']}】約 {room_pct}%！做多避開7位置（壓力前勿進），嚴禁賭突破，寧等帶量突破後再進！"
+
         # 情況 2: 現價尚未達到進場門檻 (低於 low)
         if cur_price < low:
             t_item['status'] = 'WAITING'
@@ -445,14 +477,14 @@ def calculate_three_tier_entry(
                 t_item['status'] = 'WAITING'
                 t_item['status_text'] = f"⏳ 跌破5MA拉回 (待站回{sma5_val:.2f}元)"
                 t_item['status_hint'] = f"現價 {cur_price:.2f} 元雖落於進場區間，但收盤跌破 5MA ({sma5_val:.2f} 元) 整理中！老朱SOP嚴守『紅K站上5MA』才進場，切勿盲目接刀，靜待量縮止跌重返 5MA！"
-            elif is_imminent:
+            elif caution_flaw:
                 t_item['status'] = 'CAUTION'
-                t_item['status_text'] = f"⚠️ 壓力臨頭 (僅距+{room_pct}%)"
-                t_item['status_hint'] = f"現價雖在進場區，但頭頂正上方僅距【{closest_res['name']}】約 {room_pct}%！做多避開7位置（壓力前勿進），嚴禁賭突破，寧等帶量突破後再進！"
+                t_item['status_text'] = caution_flaw
+                t_item['status_hint'] = f"現價雖在進場區間 ({low:.2f} ~ {high:.2f} 元)，但伴隨【{caution_flaw}】！{caution_hint}"
             else:
                 t_item['status'] = 'ACTIVE'
                 t_item['status_text'] = "🔥 黃金買點 (進行中)"
-                t_item['status_hint'] = f"現價 {cur_price:.2f} 元正處黃金進場區 ({low:.2f} ~ {high:.2f} 元) 且站上 5MA，可按建議部位進場！"
+                t_item['status_hint'] = f"現價 {cur_price:.2f} 元正處黃金進場區 ({low:.2f} ~ {high:.2f} 元) 且站上 5MA，各項安全檢核完全通過，可按建議部位進場！"
 
         # 情況 4: 輕度追價區 (high < cur_price <= ceil)
         elif high < cur_price <= ceil:
@@ -460,10 +492,10 @@ def calculate_three_tier_entry(
                 t_item['status'] = 'WAITING'
                 t_item['status_text'] = f"⚠️ 破5MA整理 (待站回{sma5_val:.2f}元)"
                 t_item['status_hint'] = f"現價稍離發動點但跌破 5MA ({sma5_val:.2f} 元)，短線轉弱，切勿追價，觀察守穩後能否重返 5MA！"
-            elif is_imminent:
+            elif caution_flaw:
                 t_item['status'] = 'CAUTION'
-                t_item['status_text'] = f"⚠️ 壓力臨頭 (僅距+{room_pct}%)"
-                t_item['status_hint'] = f"現價稍離發動點且接近上方【{closest_res['name']}】({closest_res['price']:.2f}元)，空間僅 {room_pct}%，壓力前切勿追價！"
+                t_item['status_text'] = caution_flaw
+                t_item['status_hint'] = f"現價已偏離發動點，且伴隨【{caution_flaw}】！風報比極差，嚴禁追價！{caution_hint}"
             else:
                 t_item['status'] = 'CAUTION'
                 over_pct = round(((cur_price - low) / low) * 100, 1)
@@ -567,6 +599,13 @@ def calculate_three_tier_entry(
                 stage_verdict = f"本檔已打出第二隻腳（支撐 {b1_info['stop_loss']} 元），現價正處於黃金進場區間 ({b1_info['entry_range_low']:.2f} ~ {b1_info['entry_range_high']:.2f} 元) 且站穩 5MA！建議建立小部位 20%~30% 試單卡位，嚴守跌破 {b1_info['stop_loss']} 元停損！"
                 badge_text = "🟢 第1買點 (試單20%)"
                 badge_html = "<span style='background:#064E3B; border:1px solid #10B981; color:#A7F3D0; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px; box-shadow:0 0 6px rgba(16,185,129,0.3);'>🟢 第1買點 (試單20%)</span>"
+            elif b1_info['status'] == 'CAUTION':
+                st_txt = b1_info['status_text']
+                stage_name = f"⚠️ 第 1 階帶瑕疵【{st_txt}】"
+                stage_verdict = f"本檔股價雖落於第 1 階試單區間，但盤面伴隨【{st_txt}】！依老朱實戰心法『安全第一，寧可錯過不可做錯』，瑕疵未化解前嚴禁盲目試單！{b1_info['status_hint']}"
+                clean_badge = st_txt.replace('⚠️ ', '').replace('⏱️ ', '').replace('⛔ ', '')
+                badge_text = f"⚠️ 第1階瑕疵 ({clean_badge})"
+                badge_html = "<span style='background:#451A03; border:1px solid #D97706; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>⚠️ 第1階瑕疵 (暫緩試單)</span>"
             elif is_below_5ma:
                 stage_name = "⏳ 第 1 階築底整理（破5MA觀察中）"
                 stage_verdict = f"本檔雖守在第二隻腳 ({b1_info['stop_loss']} 元) 之上，但今日收盤跌破 5MA ({sma5:.2f} 元) 整理中。老朱戰法嚴守『紅K站上5MA』才進場，切勿躁進猜底，待出紅K轉強再行試單！"
@@ -608,11 +647,19 @@ def calculate_three_tier_entry(
                 badge_text = "🔥 第2買點 (標準60%)"
                 badge_html = "<span style='background:#78350F; border:1px solid #F59E0B; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px; box-shadow:0 0 6px rgba(245,158,11,0.3);'>🔥 第2買點 (標準60%)</span>"
             elif b2_info['status'] == 'CAUTION':
-                over_p = round(((c - b2_p) / b2_p) * 100, 1)
-                stage_name = "⚠️ 第 2 買點【輕度追價區】"
-                stage_verdict = f"股價突破頸線後已推升至 {c:.2f} 元 (+{over_p}%)，已高於黃金進場區，接近禁追天花板 ({b2_info['chase_ceiling']:.2f} 元)。此處若要進場建議部位減半 (30%)，防守緊貼 5MA！"
-                badge_text = "⚠️ 第2買點 (輕度追價)"
-                badge_html = "<span style='background:#451A03; border:1px solid #D97706; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>⚠️ 第2買點 (輕度追價)</span>"
+                st_txt = b2_info['status_text']
+                if "輕度追價" in st_txt:
+                    over_p = round(((c - b2_p) / b2_p) * 100, 1)
+                    stage_name = "⚠️ 第 2 買點【輕度追價區】"
+                    stage_verdict = f"股價突破頸線後已推升至 {c:.2f} 元 (+{over_p}%)，已高於黃金進場區，接近禁追天花板 ({b2_info['chase_ceiling']:.2f} 元)。此處若要進場建議部位減半 (30%)，防守緊貼 5MA！"
+                    badge_text = "⚠️ 第2買點 (輕度追價)"
+                    badge_html = "<span style='background:#451A03; border:1px solid #D97706; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>⚠️ 第2買點 (輕度追價)</span>"
+                else:
+                    stage_name = f"⚠️ 第 2 階帶瑕疵【{st_txt}】"
+                    stage_verdict = f"本檔雖越過頸線 ({b2_p:.2f} 元)，但伴隨【{st_txt}】！老朱戰法明訓：突破若留長上影或前有爆量黑K重壓，常為主力假突破誘多出貨，嚴禁急躁重倉，待量縮拉回守穩頸線再行評估！{b2_info['status_hint']}"
+                    clean_badge = st_txt.replace('⚠️ ', '').replace('⏱️ ', '').replace('⛔ ', '')
+                    badge_text = f"⚠️ 第2階瑕疵 ({clean_badge})"
+                    badge_html = "<span style='background:#451A03; border:1px solid #D97706; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>⚠️ 第2階瑕疵 (暫緩重倉)</span>"
             else: # MISSED
                 over_p = round(((c - b2_p) / b2_p) * 100, 1)
                 stage_name = "🔥 第 2 買點已過（多頭確立·朝第3階推進）"
@@ -635,11 +682,19 @@ def calculate_three_tier_entry(
                 badge_text = "🚀 第3買點 (加碼/追價)"
                 badge_html = "<span style='background:#4C1D95; border:1px solid #8B5CF6; color:#DDD6FE; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px; box-shadow:0 0 6px rgba(139,92,246,0.3);'>🚀 第3買點 (加碼/追價)</span>"
             elif b3_info['status'] == 'CAUTION':
-                over_p = round(((c - b3_p) / b3_p) * 100, 1)
-                stage_name = "🚀 第 3 買點【極致衝刺追價】"
-                stage_verdict = f"已越過大箱頂/切線推升至 {c:.2f} 元 (+{over_p}%)，主升段加速奔馳中！追價空間有限，接近禁追上限 ({b3_info['chase_ceiling']:.2f}元)，一律以 5MA ({sma5:.2f}元) 為絕對防守線移動停利！"
-                badge_text = "🚀 第3買點 (衝刺追價)"
-                badge_html = "<span style='background:#2E1065; border:1px solid #A855F7; color:#E9D5FF; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>🚀 第3買點 (衝刺追價)</span>"
+                st_txt = b3_info['status_text']
+                if "衝刺" in st_txt or "輕度追價" in st_txt:
+                    over_p = round(((c - b3_p) / b3_p) * 100, 1)
+                    stage_name = "🚀 第 3 買點【極致衝刺追價】"
+                    stage_verdict = f"已越過大箱頂/切線推升至 {c:.2f} 元 (+{over_p}%)，主升段加速奔馳中！追價空間有限，接近禁追上限 ({b3_info['chase_ceiling']:.2f}元)，一律以 5MA ({sma5:.2f}元) 為絕對防守線移動停利！"
+                    badge_text = "🚀 第3買點 (衝刺追價)"
+                    badge_html = "<span style='background:#2E1065; border:1px solid #A855F7; color:#E9D5FF; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>🚀 第3買點 (衝刺追價)</span>"
+                else:
+                    stage_name = f"⚠️ 第 3 階帶瑕疵【{st_txt}】"
+                    stage_verdict = f"本檔雖突破大格局壓力，但盤面出現【{st_txt}】！主升段加速面臨壓力或短線調節，切勿盲目追價！{b3_info['status_hint']}"
+                    clean_badge = st_txt.replace('⚠️ ', '').replace('⏱️ ', '').replace('⛔ ', '')
+                    badge_text = f"⚠️ 第3階瑕疵 ({clean_badge})"
+                    badge_html = "<span style='background:#451A03; border:1px solid #D97706; color:#FDE68A; font-size:0.75rem; font-weight:bold; padding:2px 7px; border-radius:4px;'>⚠️ 第3階瑕疵 (暫緩追價)</span>"
             else: # MISSED
                 over_p = round(((c - b3_p) / b3_p) * 100, 1)
                 stage_name = "🚀 主升段高檔加速（嚴禁追高·守5MA停利）"
@@ -668,7 +723,9 @@ def calculate_three_tier_entry(
         stage_verdict += "（⚠️ 朱老師防呆提醒：本檔季線 60MA 仍下彎或未多頭排列，四線尚未理順！上方均線反壓沉重，不可看到低檔出量第一根就急躁重倉，宜先列入鎖股名單觀察！）"
 
     # 朱老師龍頭戰法：創高無壓回後買 (日月光、台達電案例)
-    if signals_dict.get('ath_pullback_buy', False) and "創高無壓" not in stage_verdict:
+    # 嚴格風控主閘門：前方若有爆量黑K、長上影線、四線未做好或壓力臨頭，絕對不可追加「上方無任何解套賣壓」！
+    has_any_risk_flaw = is_imminent or has_long_upper_shadow or bool(unresolved_blacks) or four_ma_not_ready
+    if signals_dict.get('ath_pullback_buy', False) and not has_any_risk_flaw and "創高無壓" not in stage_verdict:
         stage_verdict += "（👑 朱老師龍頭戰法：創歷史/波段新高後回測均線守穩，上方無任何解套賣壓，為回後買上漲勝率最高之首選型態！）"
 
     return {

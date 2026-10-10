@@ -1175,23 +1175,56 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     # 老朱階梯買點決策
     et = item.get('entry_tier') or {}
     et_st = item.get('entry_tier_stage') or et.get('current_stage', '')
+    b1_item = et.get('b1', {})
+    b2_item = et.get('b2', {})
+    b3_item = et.get('b3', {})
+    b1_stat = b1_item.get('status', 'WAITING')
+    b2_stat = b2_item.get('status', 'WAITING')
+    b3_stat = b3_item.get('status', 'WAITING')
+
     if et_st == 'TIER_1':
-        b1_p = et.get('b1', {}).get('price', item['close'])
-        b1_s = et.get('b1', {}).get('stop_loss', item['close'] * 0.95)
-        tier_action_html = f"<span style='color:#10B981; font-weight:bold;'>🟢 第 1 買點【底部轉折試單】</span> (建議部位 10~20% ｜ 試單價約 {b1_p:.2f} 元 ｜ 破 {b1_s:.2f} 停損)"
+        b1_p = b1_item.get('price', item['close'])
+        b1_s = b1_item.get('stop_loss', item['close'] * 0.95)
+        if b1_stat == 'ACTIVE':
+            tier_action_html = f"<span style='color:#10B981; font-weight:bold;'>🟢 第 1 買點【底部轉折試單】</span> (建議部位 20~30% ｜ 試單價約 {b1_p:.2f} 元 ｜ 破 {b1_s:.2f} 停損)"
+        elif b1_stat == 'CAUTION':
+            st_t = b1_item.get('status_text', '帶瑕疵')
+            tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⚠️ 第 1 階【{st_t}】</span> (老朱心法：瑕疵未除切勿急躁試單，等守穩化解！)"
+        else:
+            st_t = b1_item.get('status_text', '整理中')
+            tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>⏳ 第 1 階【{st_t}】</span>"
     elif et_st == 'TIER_2':
-        b2_p = et.get('b2', {}).get('price', item['close'])
-        b2_s = et.get('b2', {}).get('stop_loss', item['close'] * 0.95)
-        tier_action_html = f"<span style='color:#EF4444; font-weight:bold;'>🔥 第 2 買點【標準多頭確立】</span> (建議重倉 60~70% ｜ 黃金進場價約 {b2_p:.2f} 元 ｜ 破 {b2_s:.2f} 停損)"
+        b2_p = b2_item.get('price', item['close'])
+        b2_s = b2_item.get('stop_loss', item['close'] * 0.95)
+        if b2_stat == 'ACTIVE':
+            tier_action_html = f"<span style='color:#EF4444; font-weight:bold;'>🔥 第 2 買點【標準多頭確立】</span> (建議重倉 60~70% ｜ 黃金進場價約 {b2_p:.2f} 元 ｜ 破 {b2_s:.2f} 停損)"
+        elif b2_stat == 'CAUTION':
+            st_t = b2_item.get('status_text', '帶瑕疵')
+            tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⚠️ 第 2 階【{st_t}】</span> (老朱心法：瑕疵未除切勿急躁重倉，等量縮守穩！)"
+        elif b2_stat == 'MISSED':
+            tier_action_html = f"<span style='color:#F97316; font-weight:bold;'>🔥 第 2 買點已過【多頭推進中】</span> (已大漲超標勿追高，持股守5MA，等突破B3加碼)"
+        else:
+            st_t = b2_item.get('status_text', '整理中')
+            tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>⏳ 第 2 階【{st_t}】</span>"
     elif et_st == 'TIER_3':
-        b3_p = et.get('b3', {}).get('price', item['close'])
-        tier_action_html = f"<span style='color:#8B5CF6; font-weight:bold;'>🚀 第 3 買點【波段加碼追價】</span> (順勢追價加碼 ｜ 突破 {b3_p:.2f} 元總攻)"
+        b3_p = b3_item.get('price', item['close'])
+        if b3_stat == 'ACTIVE':
+            tier_action_html = f"<span style='color:#8B5CF6; font-weight:bold;'>🚀 第 3 買點【波段加碼追價】</span> (順勢追價加碼 ｜ 突破 {b3_p:.2f} 元總攻)"
+        elif b3_stat == 'CAUTION':
+            st_t = b3_item.get('status_text', '帶瑕疵')
+            tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⚠️ 第 3 階【{st_t}】</span> (追價空間有限，切勿盲目追高)"
+        elif b3_stat == 'MISSED':
+            tier_action_html = f"<span style='color:#EF4444; font-weight:bold;'>🛑 主升段大漲超標【嚴禁追高】</span> (持股緊盯5MA停利)"
+        else:
+            tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>⏳ 第 3 階【蓄勢挑戰】</span> (距突破加碼點仍有距離)"
     elif et_st == 'FIRST_LEG_RALLY':
         tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⌛ 買點已過【切勿追高】</span> (單腳急拉已遠離起漲點，手中有股續抱守 5MA，空手者等打第2腳)"
     elif et_st == 'BOTTOMING':
         tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>🛑 探底觀望期【暫勿進場】</span> (尚未見底部止跌轉折紅K，耐心觀望)"
+    elif et_st in ['PULLBACK_CORRECTION', 'PULLBACK_SUPPORT']:
+        tier_action_html = f"<span style='color:#F87171; font-weight:bold;'>🛑 高檔拉回整理【暫勿盲目接刀】</span> (持股守 5MA，空手等第二隻腳守穩)"
     else:
-        tier_action_html = f"<span style='color:#CBD5E1;'>{et.get('stage_name', '波段推進中')}</span>"
+        tier_action_html = f"<span style='color:#CBD5E1;'>{item.get('entry_tier_name') or et.get('stage_name', '波段推進中')}</span>"
 
     # 風險防守與目標獲利空間
     stop_p = swing.get('stop_loss', round(item['close'] * 0.95, 2))
@@ -5408,25 +5441,36 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     (sig.get('iron_man', False) and not is_missed)
                 )
 
-                # 嚴格風控一票否決指標 (朱老師心法：前高反壓臨頭、T+4滯漲換股、探底觀望期絕不列入今日買進首選)
+                # 嚴格風控一票否決主閘門 (朱老師心法：前高反壓臨頭、長上影避雷針、爆量黑K重壓、四線未做好、T+4滯漲換股、探底觀望期絕不列入今日買進首選)
                 ov_item = item.get('overhead_analysis') or {}
                 mp_item = item.get('misprediction_diagnostic') or {}
                 is_imminent_resistance = bool(ov_item.get('is_imminent', False))  # 距前高反壓 < 3%
                 is_stagnant_misprediction = bool(mp_item.get('is_misprediction', False))  # 發動 T+4 滯漲未拉開建議換股
-                is_not_actionable_stage = (et_st in ['BOTTOMING', 'FIRST_LEG_RALLY']) or ('暫勿進場' in str(item.get('entry_tier_text', ''))) or ('切勿追高' in str(item.get('entry_tier_text', '')))
+                is_not_actionable_stage = (et_st in ['BOTTOMING', 'FIRST_LEG_RALLY', 'PULLBACK_CORRECTION']) or ('暫勿進場' in str(item.get('entry_tier_text', ''))) or ('切勿追高' in str(item.get('entry_tier_text', ''))) or ('瑕疵' in str(item.get('entry_tier_text', '')))
 
-                has_critical_buy_risk = is_imminent_resistance or is_stagnant_misprediction or is_not_actionable_stage
+                has_long_upper_shadow = bool(sig.get('has_long_upper_shadow', False))
+                has_unresolved_black = bool(sig.get('unresolved_blacks', [])) or any("爆量黑K" in r for r in item.get('safety_reasons', []))
+                is_four_ma_not_ready = bool(sig.get('four_ma_not_ready_warning', False))
+
+                has_critical_buy_risk = (
+                    is_imminent_resistance or 
+                    is_stagnant_misprediction or 
+                    is_not_actionable_stage or
+                    has_long_upper_shadow or
+                    has_unresolved_black or
+                    is_four_ma_not_ready
+                )
 
                 if not is_short_dir:
                     # 做多三區塊分流
-                    # 梯隊一【👑 純金首選】：滿足實體紅K/平盤站穩 + 🟢安全首選 + 成交量充足 + 新鮮買點(未連漲4天/未錯過第一腳) + 無暴跌假突破警訊 + 零重大瑕疵 (無前高壓力臨頭、無T+4滯漲、非暫勿進場)
+                    # 梯隊一【👑 純金首選】：滿足實體紅K/平盤站穩 + 🟢安全首選 + 成交量充足 + 新鮮買點(未連漲4天/未錯過第一腳) + 無暴跌假突破警訊 + 零重大瑕疵 (無前高壓力臨頭、無長上影線、無爆量黑K重壓、無四線未做好、無T+4滯漲、非暫勿進場)
                     if is_up and is_red_k and is_safe and has_enough_vol and not is_missed and is_fresh_trigger and not sig.get('is_drop_5pct_warning', False) and not has_critical_buy_risk:
                         gold_buys.append(item)
-                    # 梯隊二【⚡ 強勢進攻】：實體紅K + 站穩5MA + 成交量充足 + 未連漲4天 + 非淘汰致命股，允許輕微警訊，放量攻擊表態 (同樣排除滯漲與暫勿進場)
-                    elif is_up and is_red_k and is_caution and above_5ma and has_enough_vol and not is_missed and not is_danger and not sig.get('is_drop_5pct_warning', False) and not is_stagnant_misprediction and not is_not_actionable_stage and (item.get('change_pct', 0) >= 0.5 or sig.get('is_attack_vol', False)):
+                    # 梯隊二【⚡ 強勢進攻】：實體紅K + 站穩5MA + 成交量充足 + 未連漲4天 + 非淘汰致命股，允許輕微警訊，放量攻擊表態 (同樣嚴格一票否決重大買進風險)
+                    elif is_up and is_red_k and is_caution and above_5ma and has_enough_vol and not is_missed and not is_danger and not sig.get('is_drop_5pct_warning', False) and not has_critical_buy_risk and (item.get('change_pct', 0) >= 0.5 or sig.get('is_attack_vol', False)):
                         aggressive_buys.append(item)
-                    elif (not is_up or not is_red_k or is_imminent_resistance or is_not_actionable_stage) and is_safe and not is_stagnant_misprediction:
-                        # 區塊二【💎 明日鎖股追蹤】：結構健全之安全好股，但今日拉回量縮(綠辣椒)、收黑測均線、或即將挑戰前高壓力線(等放量突破)。今日不急買，列為明日優先鎖股！次日放量出轉折紅K過高即為買點！
+                    elif (not is_up or not is_red_k or has_critical_buy_risk) and is_safe and not is_stagnant_misprediction and et_st != 'BOTTOMING':
+                        # 區塊二【💎 明日鎖股追蹤】：結構健全之安全好股，但今日拉回量縮(綠辣椒)、收黑測均線、或即將挑戰前高壓力線(等放量突破)、或帶瑕疵等次日化解。今日不急買，列為明日優先鎖股！次日放量出轉折紅K過高即為買點！
                         ambush_stocks.append(item)
                     else:
                         # 區塊三【🚀 波段行進續抱】：持股者續抱守5MA，或已發動T+4滯漲換股/已連漲多日/帶有淘汰警訊，空手者切勿追高！

@@ -267,6 +267,15 @@ def calculate_quality_score(s):
     elif ov.get('is_ample', False):
         score += 15.0  # 上方空間充裕加分
 
+    # 11. 風控主閘門瑕疵扣分 (長上影線、爆量黑K套牢、預測失準T+4、四線未做好)
+    if sig.get('has_long_upper_shadow', False):
+        score -= 35.0  # 長上影避雷針高檔調節扣分
+    if sig.get('unresolved_blacks', []):
+        score -= 25.0  # 前有爆量黑K套牢重壓扣分
+    mp = s.get('misprediction_diagnostic') or {}
+    if mp.get('is_misprediction', False):
+        score -= 35.0  # T+4 滯漲沒壞不漲預測失準換股扣分
+
     return round(float(score), 1)
 
 def _analyze_single_stock(item, realtime_map, chips_map):
@@ -352,10 +361,23 @@ def _analyze_single_stock(item, realtime_map, chips_map):
         res_val = trend.get('resistance', 0) or (close_price * 1.05)
         is_breakout = (close_price >= res_val * 0.998) or signals_dict.get('bottom_breakout', False) or signals_dict.get('high_breakout', False) or signals_dict.get('flat_base_breakout', False)
 
+        has_breakout_flaw = (
+            signals_dict.get('has_long_upper_shadow', False) or
+            signals_dict.get('four_ma_not_ready_warning', False) or
+            bool(signals_dict.get('unresolved_blacks', [])) or
+            entry_tier.get('overhead_analysis', {}).get('is_imminent', False) or
+            entry_tier.get('misprediction_diagnostic', {}).get('is_misprediction', False)
+        )
+
         if is_breakout and is_5ma_rising and above_5ma and info.get('change_pct', 0) >= 0.5:
-            intraday_status = "🚀 盤整突破剛起漲 (可即刻進場)"
-            intraday_action = "放量突破前高壓力線！尾盤 1:00~1:25 確認收紅可即刻進場操作。"
-            intraday_tag = "突破起漲"
+            if has_breakout_flaw:
+                intraday_status = "⚠️ 突破帶瑕疵 (暫緩追價)"
+                intraday_action = "雖嘗試放量突破，但伴隨長上影線、均線下彎或頭頂重壓等瑕疵！依老朱紀律今日不可急買，觀察次日能否守穩化解！"
+                intraday_tag = "突破帶瑕疵"
+            else:
+                intraday_status = "🚀 盤整突破剛起漲 (可即刻進場)"
+                intraday_action = "放量突破前高壓力線！尾盤 1:00~1:25 確認收紅可即刻進場操作。"
+                intraday_tag = "突破起漲"
         elif signals_dict.get('is_consolidation', False) or (close_price < res_val * 0.998 and abs(close_price - res_val)/(res_val + 1e-9) <= 0.05):
             intraday_status = "⏳ 盤整等突破 (先鎖股等1:00)"
             intraday_action = "受制於前高壓力線尚未突破，先列入鎖股名單，每日 1:00 觀察是否出量突破再進！"
