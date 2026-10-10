@@ -3120,25 +3120,25 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
                 st.markdown("<hr style='margin: 8px 0 10px 0; border: none; border-top: 1px solid #2F3247;' />", unsafe_allow_html=True)
 
-                # 第二排：核心均線與轉折波 (5 欄均勻分佈，文字與圖示顏色與底圖完全一致)
+                # 第二排：核心均線與轉折波 (5 欄均勻分佈，融入線條圖示 ── / ··· 與色彩)
                 r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
-                show_5ma = r1_c1.checkbox("🔴 :red[5MA 操盤線 (桃紅)]", value=True, key=f"t1_5ma_{query}")
-                show_20ma = r1_c2.checkbox("🔵 :blue[20MA 趨勢線 (天藍)]", value=True, key=f"t1_20ma_{query}")
-                show_wave = r1_c3.checkbox("⚪ :gray[轉折波折線 (銀白)]", value=True, key=f"t1_wave_{query}")
-                show_labels = r1_c4.checkbox(":red[🔴頭] / :green[🟢底] (轉折標籤)", value=True, key=f"t1_lbl_{query}")
-                show_target = r1_c5.checkbox("🟡 :orange[目標價 (金黃)]", value=has_broken_res, key=f"t1_tgt_{query}")
+                show_5ma = r1_c1.checkbox("── 🔴 :red[5MA 操盤線 (桃紅)]", value=True, key=f"t1_5ma_{query}")
+                show_20ma = r1_c2.checkbox("── 🔵 :blue[20MA 趨勢線 (天藍)]", value=True, key=f"t1_20ma_{query}")
+                show_wave = r1_c3.checkbox("── ⚪ :gray[轉折波折線 (銀白)]", value=True, key=f"t1_wave_{query}")
+                show_labels = r1_c4.checkbox(":red[🔴頭] / :green[🟢底] (波段轉折標籤)", value=True, key=f"t1_lbl_{query}")
+                show_target = r1_c5.checkbox("··· 🟡 :orange[目標價 (金黃點線)]", value=has_broken_res, key=f"t1_tgt_{query}")
 
-                # 第三排：壓力支撐、停損風控與缺口色帶 (4 欄寬敞完整，文字與圖示顏色與底圖完全一致)
+                # 第三排：壓力支撐、停損風控與缺口色帶 (4 欄寬敞完整，融入線條圖示 - - / ▓▓ 與色彩)
                 r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
-                show_res = r2_c1.checkbox("🟠 :orange[壓力線 (橘)]", value=True, key=f"t1_res_{query}")
-                show_sup = r2_c2.checkbox("🟠 :orange[支撐線 (淺橘)]", value=True, key=f"t1_sup_{query}")
-                show_stop = r2_c3.checkbox("🛑 :red[停損(紅)] / 🏆 :blue[停利(青)]", value=True, key=f"t1_stop_{query}")
-                show_gap = r2_c4.checkbox("🟣 :violet[空方(紫)] / 🟢 :green[多方(綠)] 缺口", value=True, key=f"t1_gap_{query}")
+                show_res = r2_c1.checkbox("- - 🟠 :orange[壓力線 (橘虛線)]", value=True, key=f"t1_res_{query}")
+                show_sup = r2_c2.checkbox("- - 🟠 :orange[支撐線 (淺橘虛線)]", value=True, key=f"t1_sup_{query}")
+                show_stop = r2_c3.checkbox("- - 🛑 :red[停損(紅虛線)] / 🏆 :blue[停利(青虛線)]", value=True, key=f"t1_stop_{query}")
+                show_gap = r2_c4.checkbox("▓▓ 🟣 :violet[空方(紫)] / 🟢 :green[多方(綠)] 缺口帶", value=True, key=f"t1_gap_{query}")
 
-                # 第四排：AI 型態幾何與老朱三層買點專屬控制列 (文字與圖示顏色與底圖完全一致)
+                # 第四排：AI 型態幾何與老朱三層買點專屬控制列 (融入切線樣式與色彩)
                 r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.4, 2.4])
-                show_geometry = r3_c1.checkbox("📐 :violet[AI 型態幾何線 (切線/箱型/軌道)]", value=True, key=f"t1_geom_{query}")
-                show_entry_tiers = r3_c2.checkbox("🎯 老朱買點 (:green[🟢B1] / :orange[🔥B2] / :violet[🚀B3])", value=True, key=f"t1_tiers_{query}")
+                show_geometry = r3_c1.checkbox("📐 :violet[AI型態幾何線 (切線/箱型/軌道)]", value=True, key=f"t1_geom_{query}")
+                show_entry_tiers = r3_c2.checkbox("🎯 老朱買點 (:green[── 🟢B1] / :orange[── 🔥B2] / :violet[- - 🚀B3])", value=True, key=f"t1_tiers_{query}")
                 if show_geometry and pattern_geo.get("patterns_found"):
                     p_options = [p["name"] for p in pattern_geo["patterns_found"]]
                     chosen_pname = r3_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
@@ -3207,7 +3207,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if show_wave and t1_lines:
                 wave_x = [t1_lines[0]['x0']] + [l['x1'] for l in t1_lines]
                 wave_y = [t1_lines[0]['y0']] + [l['y1'] for l in t1_lines]
-                fig1.add_trace(go.Scatter(x=wave_x, y=wave_y, mode='lines', name="轉折波", line=dict(color='#CBD5E1', width=1.8)), row=1, col=1)
+                fig1.add_trace(go.Scatter(x=wave_x, y=wave_y, mode='lines', name="轉折波", line=dict(color='#CBD5E1', width=1.8), showlegend=False), row=1, col=1)
 
             t1_peaks = [p for p in t1_points if p['type'] == 'PEAK']
             t1_troughs = [p for p in t1_points if p['type'] == 'TROUGH']
@@ -3336,13 +3336,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             # 副圖：成交量 + 20MA量線
             vol_colors = ['#FF4D4F' if df.loc[k, 'Close'] >= df.loc[k, 'Open'] else '#2F9E44' for k in range(len(df))]
             fig1.add_trace(go.Bar(x=df['Date'], y=df['Volume'], name="成交量", marker_color=vol_colors, showlegend=False), row=2, col=1)
-            fig1.add_trace(go.Scatter(x=df['Date'], y=df['Vol_MA20'], name="20日均量", line=dict(color='#FCC419', width=1.5)), row=2, col=1)
+            fig1.add_trace(go.Scatter(x=df['Date'], y=df['Vol_MA20'], name="20日均量", line=dict(color='#FCC419', width=1.5), showlegend=False), row=2, col=1)
 
             drag1 = 'pan' if "自由拖曳" in t1_touch_mode else False
             fig1.update_layout(
-                height=650, margin=dict(l=15, r=130, t=45, b=15),
+                height=650, margin=dict(l=15, r=130, t=25, b=15),
                 template="plotly_dark", annotations=annos1, shapes=shapes1,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01),
+                showlegend=False,
                 dragmode=drag1, hovermode="x unified"
             )
             fig1.update_xaxes(

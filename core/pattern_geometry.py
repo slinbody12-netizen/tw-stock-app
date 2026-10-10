@@ -172,7 +172,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
 
                 abc_pat = {
                     "id": "abc_correction",
-                    "name": "📐 突破 ABC 修正下降切線",
+                    "name": "- - 📐 突破 ABC 修正下降切線",
                     "direction": "多",
                     "status": status,
                     "is_breakout": is_breaking,
@@ -299,7 +299,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
 
                 abc_short_pat = {
                     "id": "abc_rebound_breakdown",
-                    "name": "📐 跌破反彈 ABC 上升切線",
+                    "name": "- - 📐 跌破反彈 ABC 上升切線",
                     "direction": "空",
                     "status": "破線重回主跌" if is_breaking_s else "反彈旗型中",
                     "is_breakout": is_breaking_s,
@@ -352,7 +352,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
 
         flat_pat = {
             "id": "flat_base",
-            "name": "📦 一字底 (箱型放量大突破)",
+            "name": "── 📦 一字底 (箱型放量大突破)",
             "direction": "多",
             "status": flat_status,
             "is_breakout": is_break_flat,
@@ -419,7 +419,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
 
         round_pat = {
             "id": "rounding_bottom",
-            "name": "🥣 圓弧底 (U型慢火打底)",
+            "name": "── 🥣 圓弧底 (U型慢火打底)",
             "direction": "多",
             "status": round_status,
             "is_breakout": is_break_round,
@@ -477,7 +477,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
         is_break_ch = is_touch_upper and (c_today >= sma5_today) and is_red_k and (not has_overhead_gap)
 
         if ch_slope >= 0:
-            ch_name = "🚀 突破上升軌道線" if is_break_ch else "📈 上升軌道線"
+            ch_name = "- - 🚀 突破上升軌道線" if is_break_ch else "- - 📈 上升軌道線"
             if is_break_ch:
                 ch_status = "衝破上軌加速噴出"
                 ch_action = "今日放量大紅K衝破上升軌道線上緣！多頭轉強加速噴出主升段。"
@@ -492,7 +492,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
                 ch_action = "目前在上升軌道內震盪墊高，回踩下軌守穩為良性買點。"
             ch_desc = f"多頭沿上升通道推升 (下軌支撐約 {y_lower_today:.2f} 元，上軌反壓約 {y_upper_today:.2f} 元)。{ch_action}"
         else:
-            ch_name = "🚀 突破下降軌道線" if is_break_ch else "📉 下降軌道線"
+            ch_name = "- - 🚀 突破下降軌道線" if is_break_ch else "- - 📉 下降軌道線"
             if is_break_ch:
                 ch_status = "衝破上軌扭轉空頭"
                 ch_action = "今日強勢收紅衝破下降軌道線上緣！空頭趨勢扭轉反轉走多。"
