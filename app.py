@@ -435,6 +435,24 @@ st.markdown("""
         top: 4px !important;
         right: 10px !important;
     }
+    /* 轉折波主圖專屬：選項控制面板與 Plotly 趨勢圖零縫隙緊湊貼齊，徹底消除中間黑色空白區域 */
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.t1-chart-controls-anchor) {
+        margin-bottom: -10px !important;
+        padding-bottom: 4px !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.t1-chart-controls-anchor) > div[data-testid="stVerticalBlock"] {
+        gap: 0.35rem !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.t1-chart-controls-anchor) div[data-testid="stCheckbox"] {
+        margin-bottom: -2px !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.t1-chart-controls-anchor) div[data-testid="stSelectbox"] {
+        margin-bottom: -4px !important;
+    }
+    div[data-testid="stPlotlyChart"] {
+        margin-top: -6px !important;
+        padding-top: 0px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -3095,6 +3113,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             # 📊 轉折波趨勢主圖專屬整合控制面板（緊密貼齊在趨勢圖正上方，點選即見變化無須滑動）
             # =========================================================================
             with st.container(border=True):
+                st.markdown("<span class='t1-chart-controls-anchor' style='display:none;'></span>", unsafe_allow_html=True)
                 # 第一排：轉折範圍、濾網與視角模式
                 col_t_ctrl1, col_t_ctrl2, col_t_ctrl3, col_t_ctrl4 = st.columns([1.6, 1.8, 2.4, 1.4])
                 with col_t_ctrl1:
@@ -3118,7 +3137,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 from core.pattern_geometry import detect_pattern_geometries, apply_pattern_geometry_to_figure
                 pattern_geo = detect_pattern_geometries(df, signals_dict)
 
-                st.markdown("<hr style='margin: 8px 0 10px 0; border: none; border-top: 1px solid #2F3247;' />", unsafe_allow_html=True)
+                st.markdown("<hr style='margin: 4px 0 6px 0; border: none; border-top: 1px solid #2F3247;' />", unsafe_allow_html=True)
 
                 # 第二排：核心均線與轉折波 (5 欄均勻分佈，融入線條圖示 ── / ··· 與色彩)
                 r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
@@ -3135,13 +3154,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 show_stop = r2_c3.checkbox("- - 🛑 :red[停損(紅虛線)] / 🏆 :blue[停利(青虛線)]", value=True, key=f"t1_stop_{query}")
                 show_gap = r2_c4.checkbox("▓▓ 🟣 :violet[空方(紫)] / 🟢 :green[多方(綠)] 缺口帶", value=True, key=f"t1_gap_{query}")
 
-                # 第四排：AI 型態幾何與老朱三層買點專屬控制列 (融入切線樣式與色彩)
-                r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.4, 2.4])
+                # 第四排：AI 型態幾何與老朱三層買點專屬控制列 (融入切線樣式與色彩，水平垂直對齊緊湊排列)
+                r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.4, 2.4], vertical_alignment="center")
                 show_geometry = r3_c1.checkbox("📐 :violet[AI型態幾何線 (切線/箱型/軌道)]", value=True, key=f"t1_geom_{query}")
                 show_entry_tiers = r3_c2.checkbox("🎯 老朱買點 (:green[── 🟢B1] / :orange[── 🔥B2] / :violet[- - 🚀B3])", value=True, key=f"t1_tiers_{query}")
                 if show_geometry and pattern_geo.get("patterns_found"):
                     p_options = [p["name"] for p in pattern_geo["patterns_found"]]
-                    chosen_pname = r3_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
+                    chosen_pname = r3_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}", label_visibility="collapsed", help="切換顯示型態 (ABC切線/一字底/圓弧底/軌道線)")
                     p_match = next((p for p in pattern_geo["patterns_found"] if p["name"] == chosen_pname), None)
                     if p_match:
                         pattern_geo["active_pattern"] = p_match
@@ -3186,8 +3205,19 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     y_maxs.append(og_top)
 
             curr_ymin, curr_ymax = min(y_mins), max(y_maxs)
-            y_pad_bot = (curr_ymax - curr_ymin) * 0.085
-            y_pad_top = (curr_ymax - curr_ymin) * 0.15
+            vis_high_ref = float(vis_df['High'].max())
+            y_range = max(1.0, curr_ymax - curr_ymin)
+            y_pad_bot = max(0.4, y_range * 0.06)
+
+            # 智慧動態頂部留白：徹底解決「上方一大片黑色空白」問題
+            # 若 curr_ymax 是因為遠端壓力線 (例如 108.17) 或目標價而大幅高於實質 K 線高點：
+            # 此時下方已有充裕空間，上方僅需極小留白 (1.5%) 供標籤辨識，避免頂部留下一大片黑幕！
+            # 若以實質 K 線為頂，留 6.5% 空間供頭部圓圈與文字顯示即可。
+            if curr_ymax > vis_high_ref * 1.02:
+                y_pad_top = max(0.3, y_range * 0.015)
+            else:
+                y_pad_top = max(0.6, y_range * 0.065)
+
             auto_y = [curr_ymin - y_pad_bot, curr_ymax + y_pad_top]
 
             fig1 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.038, row_heights=[0.75, 0.25])
@@ -3340,7 +3370,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             drag1 = 'pan' if "自由拖曳" in t1_touch_mode else False
             fig1.update_layout(
-                height=650, margin=dict(l=15, r=130, t=25, b=15),
+                height=650, margin=dict(l=15, r=130, t=2, b=12),
                 template="plotly_dark", annotations=annos1, shapes=shapes1,
                 showlegend=False,
                 dragmode=drag1, hovermode="x unified"
