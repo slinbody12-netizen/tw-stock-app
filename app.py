@@ -50,32 +50,64 @@ _CORE_MODULES = [
     core.market_sync, core.pattern_geometry, core.gap_detector,
     core.entry_point_analyzer
 ]
-if '_module_mtimes' not in st.session_state:
-    st.session_state._module_mtimes = {}
-
+_GLOBAL_MTIMES = globals().get('_GLOBAL_MTIMES', {})
 for _mod in _CORE_MODULES:
     _fpath = getattr(_mod, '__file__', None)
     if _fpath and os.path.exists(_fpath):
         _mtime = os.path.getmtime(_fpath)
-        if st.session_state._module_mtimes.get(_mod.__name__) is not None and st.session_state._module_mtimes.get(_mod.__name__) != _mtime:
+        if _mod.__name__ in _GLOBAL_MTIMES and _GLOBAL_MTIMES[_mod.__name__] != _mtime:
             try:
                 importlib.reload(_mod)
             except Exception:
                 pass
-        st.session_state._module_mtimes[_mod.__name__] = _mtime
+        _GLOBAL_MTIMES[_mod.__name__] = _mtime
 
 from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, load_stock_list
 from core.gap_detector import detect_unfilled_gaps, apply_gaps_to_figure
-from core.market_sync import (
-    get_market_benchmark,
-    analyze_market_sync_single,
-    scan_market_sync_candidates,
-    create_market_sync_comparison_figure,
-    SECTOR_FLEETS,
-    scan_sector_spillover_candidates,
-    create_pair_sync_comparison_figure,
-    calculate_market_environment_guidance
-)
+try:
+    from core.market_sync import (
+        get_market_benchmark,
+        analyze_market_sync_single,
+        scan_market_sync_candidates,
+        create_market_sync_comparison_figure,
+        SECTOR_FLEETS,
+        scan_sector_spillover_candidates,
+        create_pair_sync_comparison_figure,
+        calculate_market_environment_guidance
+    )
+except (ImportError, AttributeError):
+    try:
+        importlib.reload(core.market_sync)
+        from core.market_sync import (
+            get_market_benchmark,
+            analyze_market_sync_single,
+            scan_market_sync_candidates,
+            create_market_sync_comparison_figure,
+            SECTOR_FLEETS,
+            scan_sector_spillover_candidates,
+            create_pair_sync_comparison_figure,
+            calculate_market_environment_guidance
+        )
+    except Exception:
+        from core.market_sync import (
+            get_market_benchmark,
+            analyze_market_sync_single,
+            scan_market_sync_candidates,
+            create_market_sync_comparison_figure,
+            SECTOR_FLEETS,
+            scan_sector_spillover_candidates,
+            create_pair_sync_comparison_figure
+        )
+        def calculate_market_environment_guidance(df_mkt, info_mkt=None):
+            return {
+                "status": "CHOPPY_DEFEND",
+                "status_label": "🟡 震盪整理期 (建議資金 ≤ 40% 做短線)",
+                "action_strategy": "多空雙向震盪，建議維持低水位輕倉應對。",
+                "capital_advice": "嚴格控制在 40% 以下，多看少做或短線輕倉",
+                "badge_color": "#FBBF24",
+                "conditions": []
+            }
+
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals, categorize_signals

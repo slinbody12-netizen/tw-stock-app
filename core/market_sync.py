@@ -19,8 +19,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from typing import List, Dict, Any, Tuple, Optional
 
-from core.data_fetcher import fetch_stock_kline, batch_fetch_realtime_quotes, get_tw_now
-from core.screener import load_stock_list
+from core.data_fetcher import fetch_stock_kline, batch_fetch_realtime_quotes, get_tw_now, load_stock_list
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
 from core.signal_detector import detect_signals
