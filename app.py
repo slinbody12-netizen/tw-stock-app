@@ -3120,25 +3120,25 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
                 st.markdown("<hr style='margin: 8px 0 10px 0; border: none; border-top: 1px solid #2F3247;' />", unsafe_allow_html=True)
 
-                # 第二排：核心均線與轉折波 (5 欄均勻分佈)
+                # 第二排：核心均線與轉折波 (5 欄均勻分佈，文字與圖示顏色與底圖完全一致)
                 r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
-                show_5ma = r1_c1.checkbox("5MA 操盤線", value=True, key=f"t1_5ma_{query}")
-                show_20ma = r1_c2.checkbox("20MA 趨勢線", value=True, key=f"t1_20ma_{query}")
-                show_wave = r1_c3.checkbox("轉折波折線", value=True, key=f"t1_wave_{query}")
-                show_labels = r1_c4.checkbox("頭/暫高/底/暫底", value=True, key=f"t1_lbl_{query}")
-                show_target = r1_c5.checkbox("目標價 (金黃)", value=has_broken_res, key=f"t1_tgt_{query}")
+                show_5ma = r1_c1.checkbox("🔴 :red[5MA 操盤線 (桃紅)]", value=True, key=f"t1_5ma_{query}")
+                show_20ma = r1_c2.checkbox("🔵 :blue[20MA 趨勢線 (天藍)]", value=True, key=f"t1_20ma_{query}")
+                show_wave = r1_c3.checkbox("⚪ :gray[轉折波折線 (銀白)]", value=True, key=f"t1_wave_{query}")
+                show_labels = r1_c4.checkbox(":red[🔴頭] / :green[🟢底] (轉折標籤)", value=True, key=f"t1_lbl_{query}")
+                show_target = r1_c5.checkbox("🟡 :orange[目標價 (金黃)]", value=has_broken_res, key=f"t1_tgt_{query}")
 
-                # 第三排：壓力支撐、停損風控與缺口色帶 (4 欄寬敞完整，絕不擠壓截斷)
+                # 第三排：壓力支撐、停損風控與缺口色帶 (4 欄寬敞完整，文字與圖示顏色與底圖完全一致)
                 r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
-                show_res = r2_c1.checkbox("壓力線 (橘)", value=True, key=f"t1_res_{query}")
-                show_sup = r2_c2.checkbox("支撐線 (橘)", value=True, key=f"t1_sup_{query}")
-                show_stop = r2_c3.checkbox("🛑 停損/移動停利線", value=True, key=f"t1_stop_{query}")
-                show_gap = r2_c4.checkbox("🕳️ 缺口色帶", value=True, key=f"t1_gap_{query}")
+                show_res = r2_c1.checkbox("🟠 :orange[壓力線 (橘)]", value=True, key=f"t1_res_{query}")
+                show_sup = r2_c2.checkbox("🟠 :orange[支撐線 (淺橘)]", value=True, key=f"t1_sup_{query}")
+                show_stop = r2_c3.checkbox("🛑 :red[停損(紅)] / 🏆 :blue[停利(青)]", value=True, key=f"t1_stop_{query}")
+                show_gap = r2_c4.checkbox("🟣 :violet[空方(紫)] / 🟢 :green[多方(綠)] 缺口", value=True, key=f"t1_gap_{query}")
 
-                # 第四排：AI 型態幾何與老朱三層買點專屬控制列
-                r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.2, 2.6])
-                show_geometry = r3_c1.checkbox("📐 顯示 AI 型態幾何線 (切線/箱型/軌道)", value=True, key=f"t1_geom_{query}")
-                show_entry_tiers = r3_c2.checkbox("🎯 顯示老朱三層買點線 (B1/B2/B3)", value=True, key=f"t1_tiers_{query}")
+                # 第四排：AI 型態幾何與老朱三層買點專屬控制列 (文字與圖示顏色與底圖完全一致)
+                r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.4, 2.4])
+                show_geometry = r3_c1.checkbox("📐 :violet[AI 型態幾何線 (切線/箱型/軌道)]", value=True, key=f"t1_geom_{query}")
+                show_entry_tiers = r3_c2.checkbox("🎯 老朱買點 (:green[🟢B1] / :orange[🔥B2] / :violet[🚀B3])", value=True, key=f"t1_tiers_{query}")
                 if show_geometry and pattern_geo.get("patterns_found"):
                     p_options = [p["name"] for p in pattern_geo["patterns_found"]]
                     chosen_pname = r3_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
@@ -4088,13 +4088,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             with col_k_c3:
                 k_view_bars = st.selectbox("每屏顯示K棒數", ["45根 (清晰放大)", "70根", "全區間"], index=0, key=f"k_vb_{query}")
 
-            st.markdown("<div class='checkbox-panel'>", unsafe_allow_html=True)
-            k_ma1, k_ma2, k_ma3, k_ma4 = st.columns(4)
-            show_k_5ma = k_ma1.checkbox("5MA (桃紅)", value=True, key=f"k_5ma_{query}")
-            show_k_10ma = k_ma2.checkbox("10MA (鮮黃)", value=True, key=f"k_10ma_{query}")
-            show_k_20ma = k_ma3.checkbox("20MA (天藍)", value=True, key=f"k_20ma_{query}")
-            show_k_60ma = k_ma4.checkbox("60MA (亮紫)", value=True, key=f"k_60ma_{query}")
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.container(border=True):
+                k_ma1, k_ma2, k_ma3, k_ma4 = st.columns(4)
+                show_k_5ma = k_ma1.checkbox("🔴 :red[5MA (桃紅)]", value=True, key=f"k_5ma_{query}")
+                show_k_10ma = k_ma2.checkbox("🟡 :orange[10MA (鮮黃)]", value=True, key=f"k_10ma_{query}")
+                show_k_20ma = k_ma3.checkbox("🔵 :blue[20MA (天藍)]", value=True, key=f"k_20ma_{query}")
+                show_k_60ma = k_ma4.checkbox("🟣 :violet[60MA (亮紫)]", value=True, key=f"k_60ma_{query}")
 
             # 依週期重採樣數據
             if "週K" in k_period:
