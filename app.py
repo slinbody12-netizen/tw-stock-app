@@ -375,6 +375,18 @@ st.markdown("""
         border: 1px solid #2F3247;
         margin-bottom: 12px;
     }
+    .checkbox-panel [data-testid="stCheckbox"] label {
+        white-space: normal !important;
+        font-size: 0.85rem !important;
+        line-height: 1.25 !important;
+    }
+    .checkbox-panel [data-testid="stCheckbox"] label p {
+        white-space: normal !important;
+        font-size: 0.85rem !important;
+        line-height: 1.25 !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
     /* 手機優先 Tabs 模組化導航樣式 */
     div[data-baseweb="tab-list"] {
         gap: 8px;
@@ -3103,24 +3115,28 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             pattern_geo = detect_pattern_geometries(df, signals_dict)
 
             st.markdown("<div class='checkbox-panel'>", unsafe_allow_html=True)
-            r1_c1, r1_c2, r1_c3, r1_c4, r1_c5, r1_c6, r1_c7, r1_c8, r1_c9 = st.columns(9)
+            # 第一列：核心均線與轉折波 (5 欄均勻分佈)
+            r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
             show_5ma = r1_c1.checkbox("5MA 操盤線", value=True, key=f"t1_5ma_{query}")
             show_20ma = r1_c2.checkbox("20MA 趨勢線", value=True, key=f"t1_20ma_{query}")
             show_wave = r1_c3.checkbox("轉折波折線", value=True, key=f"t1_wave_{query}")
             show_labels = r1_c4.checkbox("頭/暫高/底/暫底", value=True, key=f"t1_lbl_{query}")
-            show_res = r1_c5.checkbox("壓力線 (橘)", value=True, key=f"t1_res_{query}")
-            show_sup = r1_c6.checkbox("支撐線 (橘)", value=True, key=f"t1_sup_{query}")
-            show_target = r1_c7.checkbox("目標價 (金黃)", value=has_broken_res, key=f"t1_tgt_{query}")
-            show_stop = r1_c8.checkbox("🛑 停損/移動停利線", value=True, key=f"t1_stop_{query}")
-            show_gap = r1_c9.checkbox("🕳️ 缺口色帶", value=True, key=f"t1_gap_{query}")
+            show_target = r1_c5.checkbox("目標價 (金黃)", value=has_broken_res, key=f"t1_tgt_{query}")
 
-            # 第二行：AI 型態幾何與老朱三層買點專屬控制列
-            r2_c1, r2_c2, r2_c3 = st.columns([3.2, 3.2, 2.6])
-            show_geometry = r2_c1.checkbox("📐 顯示 AI 型態幾何線 (切線/箱型/軌道)", value=True, key=f"t1_geom_{query}")
-            show_entry_tiers = r2_c2.checkbox("🎯 顯示老朱三層買點線 (B1/B2/B3)", value=True, key=f"t1_tiers_{query}")
+            # 第二列：壓力支撐、停損風控與缺口色帶 (4 欄寬敞完整，絕不擠壓截斷)
+            r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
+            show_res = r2_c1.checkbox("壓力線 (橘)", value=True, key=f"t1_res_{query}")
+            show_sup = r2_c2.checkbox("支撐線 (橘)", value=True, key=f"t1_sup_{query}")
+            show_stop = r2_c3.checkbox("🛑 停損/移動停利線", value=True, key=f"t1_stop_{query}")
+            show_gap = r2_c4.checkbox("🕳️ 缺口色帶", value=True, key=f"t1_gap_{query}")
+
+            # 第三列：AI 型態幾何與老朱三層買點專屬控制列
+            r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.2, 2.6])
+            show_geometry = r3_c1.checkbox("📐 顯示 AI 型態幾何線 (切線/箱型/軌道)", value=True, key=f"t1_geom_{query}")
+            show_entry_tiers = r3_c2.checkbox("🎯 顯示老朱三層買點線 (B1/B2/B3)", value=True, key=f"t1_tiers_{query}")
             if show_geometry and pattern_geo.get("patterns_found"):
                 p_options = [p["name"] for p in pattern_geo["patterns_found"]]
-                chosen_pname = r2_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
+                chosen_pname = r3_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
                 p_match = next((p for p in pattern_geo["patterns_found"] if p["name"] == chosen_pname), None)
                 if p_match:
                     pattern_geo["active_pattern"] = p_match
