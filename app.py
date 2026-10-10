@@ -5408,19 +5408,28 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     (sig.get('iron_man', False) and not is_missed)
                 )
 
+                # 嚴格風控一票否決指標 (朱老師心法：前高反壓臨頭、T+4滯漲換股、探底觀望期絕不列入今日買進首選)
+                ov_item = item.get('overhead_analysis') or {}
+                mp_item = item.get('misprediction_diagnostic') or {}
+                is_imminent_resistance = bool(ov_item.get('is_imminent', False))  # 距前高反壓 < 3%
+                is_stagnant_misprediction = bool(mp_item.get('is_misprediction', False))  # 發動 T+4 滯漲未拉開建議換股
+                is_not_actionable_stage = (et_st in ['BOTTOMING', 'FIRST_LEG_RALLY']) or ('暫勿進場' in str(item.get('entry_tier_text', ''))) or ('切勿追高' in str(item.get('entry_tier_text', '')))
+
+                has_critical_buy_risk = is_imminent_resistance or is_stagnant_misprediction or is_not_actionable_stage
+
                 if not is_short_dir:
                     # 做多三區塊分流
-                    # 梯隊一【👑 純金首選】：滿足實體紅K/平盤站穩 + 🟢安全首選 + 成交量充足 + 新鮮買點(未連漲4天/未錯過第一腳) + 無暴跌假突破警訊
-                    if is_up and is_red_k and is_safe and has_enough_vol and not is_missed and is_fresh_trigger and not sig.get('is_drop_5pct_warning', False):
+                    # 梯隊一【👑 純金首選】：滿足實體紅K/平盤站穩 + 🟢安全首選 + 成交量充足 + 新鮮買點(未連漲4天/未錯過第一腳) + 無暴跌假突破警訊 + 零重大瑕疵 (無前高壓力臨頭、無T+4滯漲、非暫勿進場)
+                    if is_up and is_red_k and is_safe and has_enough_vol and not is_missed and is_fresh_trigger and not sig.get('is_drop_5pct_warning', False) and not has_critical_buy_risk:
                         gold_buys.append(item)
-                    # 梯隊二【⚡ 強勢進攻】：實體紅K + 站穩5MA + 成交量充足 + 未連漲4天 + 非淘汰致命股，允許輕微警訊，放量攻擊表態
-                    elif is_up and is_red_k and is_caution and above_5ma and has_enough_vol and not is_missed and not is_danger and not sig.get('is_drop_5pct_warning', False) and (item.get('change_pct', 0) >= 0.5 or sig.get('is_attack_vol', False)):
+                    # 梯隊二【⚡ 強勢進攻】：實體紅K + 站穩5MA + 成交量充足 + 未連漲4天 + 非淘汰致命股，允許輕微警訊，放量攻擊表態 (同樣排除滯漲與暫勿進場)
+                    elif is_up and is_red_k and is_caution and above_5ma and has_enough_vol and not is_missed and not is_danger and not sig.get('is_drop_5pct_warning', False) and not is_stagnant_misprediction and not is_not_actionable_stage and (item.get('change_pct', 0) >= 0.5 or sig.get('is_attack_vol', False)):
                         aggressive_buys.append(item)
-                    elif (not is_up or not is_red_k) and is_safe:
-                        # 區塊二【💎 明日鎖股追蹤】：結構健全之安全好股，今日拉回量縮(綠辣椒)或收黑測均線，今日不急買，列為明日優先鎖股！次日出轉折紅K過昨高即為買點！
+                    elif (not is_up or not is_red_k or is_imminent_resistance or is_not_actionable_stage) and is_safe and not is_stagnant_misprediction:
+                        # 區塊二【💎 明日鎖股追蹤】：結構健全之安全好股，但今日拉回量縮(綠辣椒)、收黑測均線、或即將挑戰前高壓力線(等放量突破)。今日不急買，列為明日優先鎖股！次日放量出轉折紅K過高即為買點！
                         ambush_stocks.append(item)
                     else:
-                        # 區塊三【🚀 波段行進續抱】：持股者續抱守5MA，或已連漲多日/帶有淘汰警訊，空手者切勿追高！
+                        # 區塊三【🚀 波段行進續抱】：持股者續抱守5MA，或已發動T+4滯漲換股/已連漲多日/帶有淘汰警訊，空手者切勿追高！
                         hold_stocks.append(item)
                 else:
                     # 做空三區塊分流
