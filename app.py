@@ -3087,79 +3087,66 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if signals_list:
                 render_strategy_signals_dashboard(signals_list, signals_dict, trend, info)
 
-            # 轉折控制列
-            col_t_ctrl1, col_t_ctrl2, col_t_ctrl3, col_t_ctrl4 = st.columns([1.6, 1.8, 2.4, 1.4])
-            with col_t_ctrl1:
-                t1_view_bars = st.selectbox("顯示範圍", ["45日 (最佳比例，最清晰)", "70日", "全區間"], index=0, key=f"t1_vb_{query}")
-            with col_t_ctrl2:
-                t1_filter_opt = st.selectbox("轉折波濾網", ["主要波段 (清爽推薦)", "完整細微轉折"], index=0, key=f"t1_fo_{query}")
-                t1_filter_mode = "standard" if "主要波段" in t1_filter_opt else "all"
-            with col_t_ctrl3:
-                t1_touch_mode = st.radio("📱 觸控模式", ["🔒 鎖定視角 (防誤觸)", "✋ 自由拖曳"], horizontal=True, key=f"t1_tm_{query}")
-            with col_t_ctrl4:
-                st.write("")
-                st.write("")
-                if st.button("🔄 恢復標準全貌", use_container_width=True, key=f"t1_rst_{query}", help="點擊瞬間還原標準波段圖"):
-                    st.session_state[f"chart_reset_{query}"] = st.session_state.get(f"chart_reset_{query}", 0) + 1
-                    st.rerun()
-
-            # 依使用者選擇重新計算轉折波
-            t1_points, t1_lines, t1_hp, t1_lt = calculate_turning_points(df, ma_period=5, filter_mode=t1_filter_mode)
-            trend = analyze_trend(df, t1_points)
-
-            # 跳空缺口偵測 (未回補支撐/壓力缺口)
-            gaps_data = detect_unfilled_gaps(df)
-
-            # AI 型態幾何作圖 (ABC切線 / 一字底 / 圓弧底 / 軌道線) 計算
-            from core.pattern_geometry import detect_pattern_geometries, apply_pattern_geometry_to_figure
-            pattern_geo = detect_pattern_geometries(df, signals_dict)
-
-            st.markdown("<div class='checkbox-panel'>", unsafe_allow_html=True)
-            # 第一列：核心均線與轉折波 (5 欄均勻分佈)
-            r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
-            show_5ma = r1_c1.checkbox("5MA 操盤線", value=True, key=f"t1_5ma_{query}")
-            show_20ma = r1_c2.checkbox("20MA 趨勢線", value=True, key=f"t1_20ma_{query}")
-            show_wave = r1_c3.checkbox("轉折波折線", value=True, key=f"t1_wave_{query}")
-            show_labels = r1_c4.checkbox("頭/暫高/底/暫底", value=True, key=f"t1_lbl_{query}")
-            show_target = r1_c5.checkbox("目標價 (金黃)", value=has_broken_res, key=f"t1_tgt_{query}")
-
-            # 第二列：壓力支撐、停損風控與缺口色帶 (4 欄寬敞完整，絕不擠壓截斷)
-            r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
-            show_res = r2_c1.checkbox("壓力線 (橘)", value=True, key=f"t1_res_{query}")
-            show_sup = r2_c2.checkbox("支撐線 (橘)", value=True, key=f"t1_sup_{query}")
-            show_stop = r2_c3.checkbox("🛑 停損/移動停利線", value=True, key=f"t1_stop_{query}")
-            show_gap = r2_c4.checkbox("🕳️ 缺口色帶", value=True, key=f"t1_gap_{query}")
-
-            # 第三列：AI 型態幾何與老朱三層買點專屬控制列
-            r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.2, 2.6])
-            show_geometry = r3_c1.checkbox("📐 顯示 AI 型態幾何線 (切線/箱型/軌道)", value=True, key=f"t1_geom_{query}")
-            show_entry_tiers = r3_c2.checkbox("🎯 顯示老朱三層買點線 (B1/B2/B3)", value=True, key=f"t1_tiers_{query}")
-            if show_geometry and pattern_geo.get("patterns_found"):
-                p_options = [p["name"] for p in pattern_geo["patterns_found"]]
-                chosen_pname = r3_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
-                p_match = next((p for p in pattern_geo["patterns_found"] if p["name"] == chosen_pname), None)
-                if p_match:
-                    pattern_geo["active_pattern"] = p_match
-                    if p_match.get("desc"):
-                        pattern_geo["summary_text"] = p_match["desc"]
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            if show_geometry and pattern_geo.get("summary_text"):
-                st.info(f"💡 **AI 型態幾何診斷**：{pattern_geo['summary_text']}")
-
-            if gaps_data.get("is_approaching_overhead_gap"):
-                st.warning(gaps_data["warning_message"])
-            elif gaps_data.get("summary_desc") and gaps_data["summary_desc"] != "近期無重大未補跳空缺口":
-                st.caption(f"🕳️ **未補缺口監控**：{gaps_data['summary_desc']}")
-
-            # 🧭 均線即時方向與位階狀態儀錶盤 (5MA/10MA/20MA/60MA 翻揚助漲 vs 下彎助跌)
+            # 🧭 均線即時方向與位階狀態儀錶盤 (5MA/10MA/20MA/60MA 翻揚助漲 vs 下彎助跌，整合於訊號診斷下方)
             from core.kline_cheat_sheet import render_ma_direction_dashboard
-            vis_mas_t1 = []
-            if show_5ma: vis_mas_t1.append('SMA_5')
-            if 'SMA_10' in df: vis_mas_t1.append('SMA_10')
-            if show_20ma: vis_mas_t1.append('SMA_20')
-            if 'SMA_60' in df: vis_mas_t1.append('SMA_60')
-            render_ma_direction_dashboard(df, close_price=float(info['close']), visible_mas=vis_mas_t1 if vis_mas_t1 else None)
+            render_ma_direction_dashboard(df, close_price=float(info['close']))
+
+            # =========================================================================
+            # 📊 轉折波趨勢主圖專屬整合控制面板（緊密貼齊在趨勢圖正上方，點選即見變化無須滑動）
+            # =========================================================================
+            with st.container(border=True):
+                # 第一排：轉折範圍、濾網與視角模式
+                col_t_ctrl1, col_t_ctrl2, col_t_ctrl3, col_t_ctrl4 = st.columns([1.6, 1.8, 2.4, 1.4])
+                with col_t_ctrl1:
+                    t1_view_bars = st.selectbox("顯示範圍", ["45日 (最佳比例，最清晰)", "70日", "全區間"], index=0, key=f"t1_vb_{query}")
+                with col_t_ctrl2:
+                    t1_filter_opt = st.selectbox("轉折波濾網", ["主要波段 (清爽推薦)", "完整細微轉折"], index=0, key=f"t1_fo_{query}")
+                    t1_filter_mode = "standard" if "主要波段" in t1_filter_opt else "all"
+                with col_t_ctrl3:
+                    t1_touch_mode = st.radio("📱 觸控模式", ["🔒 鎖定視角 (防誤觸)", "✋ 自由拖曳"], horizontal=True, key=f"t1_tm_{query}")
+                with col_t_ctrl4:
+                    st.write("")
+                    st.write("")
+                    if st.button("🔄 恢復標準全貌", use_container_width=True, key=f"t1_rst_{query}", help="點擊瞬間還原標準波段圖"):
+                        st.session_state[f"chart_reset_{query}"] = st.session_state.get(f"chart_reset_{query}", 0) + 1
+                        st.rerun()
+
+                # 依使用者選擇重新計算轉折波與型態幾何
+                t1_points, t1_lines, t1_hp, t1_lt = calculate_turning_points(df, ma_period=5, filter_mode=t1_filter_mode)
+                trend = analyze_trend(df, t1_points)
+                gaps_data = detect_unfilled_gaps(df)
+                from core.pattern_geometry import detect_pattern_geometries, apply_pattern_geometry_to_figure
+                pattern_geo = detect_pattern_geometries(df, signals_dict)
+
+                st.markdown("<hr style='margin: 8px 0 10px 0; border: none; border-top: 1px solid #2F3247;' />", unsafe_allow_html=True)
+
+                # 第二排：核心均線與轉折波 (5 欄均勻分佈)
+                r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
+                show_5ma = r1_c1.checkbox("5MA 操盤線", value=True, key=f"t1_5ma_{query}")
+                show_20ma = r1_c2.checkbox("20MA 趨勢線", value=True, key=f"t1_20ma_{query}")
+                show_wave = r1_c3.checkbox("轉折波折線", value=True, key=f"t1_wave_{query}")
+                show_labels = r1_c4.checkbox("頭/暫高/底/暫底", value=True, key=f"t1_lbl_{query}")
+                show_target = r1_c5.checkbox("目標價 (金黃)", value=has_broken_res, key=f"t1_tgt_{query}")
+
+                # 第三排：壓力支撐、停損風控與缺口色帶 (4 欄寬敞完整，絕不擠壓截斷)
+                r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
+                show_res = r2_c1.checkbox("壓力線 (橘)", value=True, key=f"t1_res_{query}")
+                show_sup = r2_c2.checkbox("支撐線 (橘)", value=True, key=f"t1_sup_{query}")
+                show_stop = r2_c3.checkbox("🛑 停損/移動停利線", value=True, key=f"t1_stop_{query}")
+                show_gap = r2_c4.checkbox("🕳️ 缺口色帶", value=True, key=f"t1_gap_{query}")
+
+                # 第四排：AI 型態幾何與老朱三層買點專屬控制列
+                r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.2, 2.6])
+                show_geometry = r3_c1.checkbox("📐 顯示 AI 型態幾何線 (切線/箱型/軌道)", value=True, key=f"t1_geom_{query}")
+                show_entry_tiers = r3_c2.checkbox("🎯 顯示老朱三層買點線 (B1/B2/B3)", value=True, key=f"t1_tiers_{query}")
+                if show_geometry and pattern_geo.get("patterns_found"):
+                    p_options = [p["name"] for p in pattern_geo["patterns_found"]]
+                    chosen_pname = r3_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
+                    p_match = next((p for p in pattern_geo["patterns_found"] if p["name"] == chosen_pname), None)
+                    if p_match:
+                        pattern_geo["active_pattern"] = p_match
+                        if p_match.get("desc"):
+                            pattern_geo["summary_text"] = p_match["desc"]
 
             # 繪製 Tab 1 專屬轉折波與支撐壓力圖
             # 為右側保留約 2.5 ~ 3 根交易日的安全留白邊距，避免最新 K 線、暫高/暫低圓圈與標籤被圖表右邊界裁切
@@ -3387,6 +3374,15 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             }
             c_key1 = f"t1_plot_{query}_{st.session_state.get(f'chart_reset_{query}', 0)}"
             st.plotly_chart(fig1, use_container_width=True, config=chart_config, key=c_key1)
+
+            # 趨勢圖正下方：AI 型態幾何診斷與缺口監控即時摘要
+            if show_geometry and pattern_geo.get("summary_text"):
+                st.info(f"💡 **AI 型態幾何診斷**：{pattern_geo['summary_text']}")
+
+            if gaps_data.get("is_approaching_overhead_gap"):
+                st.warning(gaps_data["warning_message"])
+            elif gaps_data.get("summary_desc") and gaps_data["summary_desc"] != "近期無重大未補跳空缺口":
+                st.caption(f"🕳️ **未補缺口監控**：{gaps_data['summary_desc']}")
 
             c_curr = float(info['close'])
 
