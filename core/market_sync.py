@@ -57,6 +57,141 @@ def get_market_benchmark(period: str = "6mo", force_refresh: bool = False) -> Tu
         return df_mkt.copy(), info_mkt
     return None, None
 
+def calculate_market_environment_guidance(df_mkt: pd.DataFrame, info_mkt: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    依據朱家泓老師最新實戰心法（理財達人秀節後攻勢篇）：
+    計算大盤指數 (^TWII) 之環境診斷、止跌/上攻條件與建議持股資金水位。
+
+    朱老師三大上攻條件：
+    1. 攻擊量基本要回到均量或 8000 億以上 (出攻擊量)
+    2. 突破前日黑K高點 (化解短線壓力)
+    3. 站回月線 (20MA) 且月線走平翻揚
+
+    朱老師操作資金紀律：
+    - 🟢 多頭攻擊波：持股 60%~70% (做多強勢股，守5MA續抱)
+    - 🟡 震盪量縮期：資金嚴格控制 40% 以下 (只做強勢多頭短線，嚴格風控)
+    - 🔴 空頭破線期：資金 0%~20% (多看少做，保留大量現金因應變化)
+    """
+    if df_mkt is None or df_mkt.empty or len(df_mkt) < 20:
+        return {
+            "status_code": "UNKNOWN",
+            "status_label": "⚪ 資料不足",
+            "capital_advice": "資金水位 4 成以下 (風控為先)",
+            "recommended_pct": 40,
+            "badge_color": "#64748B",
+            "action_strategy": "暫無法取得完整大盤數據，請保守觀望。",
+            "conditions": []
+        }
+
+    c = float(df_mkt['Close'].iloc[-1])
+    o = float(df_mkt['Open'].iloc[-1])
+    v = float(df_mkt['Volume'].iloc[-1])
+    
+    # 均線計算
+    sma5 = float(df_mkt['SMA_5'].iloc[-1]) if 'SMA_5' in df_mkt else float(df_mkt['Close'].rolling(5).mean().iloc[-1])
+    prev_sma5 = float(df_mkt['SMA_5'].iloc[-2]) if 'SMA_5' in df_mkt else sma5
+    sma20 = float(df_mkt['SMA_20'].iloc[-1]) if 'SMA_20' in df_mkt else float(df_mkt['Close'].rolling(20).mean().iloc[-1])
+    prev_sma20 = float(df_mkt['SMA_20'].iloc[-2]) if 'SMA_20' in df_mkt else sma20
+    
+    # 量能均線
+    vma5 = float(df_mkt['Volume'].rolling(5).mean().iloc[-1])
+    vma20 = float(df_mkt['Volume'].rolling(20).mean().iloc[-1])
+    vol_ratio_5 = v / (vma5 + 1e-9)
+    vol_ratio_20 = v / (vma20 + 1e-9)
+
+    # 前一根 K 棒
+    prev_bar = df_mkt.iloc[-2]
+    prev_h = float(prev_bar['High'])
+    prev_c = float(prev_bar['Close'])
+    prev_o = float(prev_bar['Open'])
+    prev_is_black = (prev_c < prev_o)
+
+    # 條件 1: 站回月線 (20MA) 且月線走平/向上
+    cond_ma20 = (c >= sma20)
+    cond_ma20_rising = (sma20 >= prev_sma20 * 0.999)
+    ma20_ok = cond_ma20 and cond_ma20_rising
+
+    # 條件 2: 站穩 5MA 操盤線且 5MA 翻揚
+    cond_5ma = (c >= sma5) and (sma5 >= prev_sma5 * 0.999)
+
+    # 條件 3: 攻擊量回升 (成交量放大至 5MA/20MA 均量之上)
+    cond_attack_vol = (vol_ratio_5 >= 1.0 or vol_ratio_20 >= 1.0)
+    
+    # 條件 4: 突破昨日高點 (若昨日為黑K，過昨黑K高點更具意義)
+    cond_over_prev_high = (c >= prev_h * 0.998)
+
+    conditions = [
+        {
+            "name": "站回月線 (20MA)",
+            "passed": ma20_ok,
+            "desc": f"大盤現價 {c:,.0f} 點 {'✅ 站穩' if c >= sma20 else '❌ 跌破'} 月線 ({sma20:,.0f} 點)，月線 {'走平翻揚' if cond_ma20_rising else '下彎助跌'}"
+        },
+        {
+            "name": "站上操盤線 (5MA)",
+            "passed": cond_5ma,
+            "desc": f"操盤線 5MA ({sma5:,.0f} 點) {'✅ 走升有守' if cond_5ma else '⚠️ 尚未站穩或下彎'}"
+        },
+        {
+            "name": "具備攻擊量 (≥均量)",
+            "passed": cond_attack_vol,
+            "desc": f"今日成交量為 5日均量之 {vol_ratio_5*100:.0f}%，{'✅ 達攻擊量' if cond_attack_vol else '⚠️ 量縮震盪'}"
+        },
+        {
+            "name": "過前日K線高點",
+            "passed": cond_over_prev_high,
+            "desc": f"{'✅ 突破昨高化解短線壓力' if cond_over_prev_high else '⚠️ 尚未過前一日高點 (' + f'{prev_h:,.0f} 點)'}"
+        }
+    ]
+
+    passed_cnt = sum(1 for item in conditions if item['passed'])
+
+    # 判定燈號與資金水位
+    if ma20_ok and cond_5ma and (cond_attack_vol or cond_over_prev_high):
+        status_code = "BULL_ATTACK"
+        status_label = "🟢 多頭攻擊波"
+        capital_advice = "持股水位 60% ～ 70% (標準波段)"
+        recommended_pct = 70
+        badge_color = "#10B981"
+        action_strategy = (
+            "【多頭攻擊確立】大盤站穩月線之上且操盤線 5MA 翻揚！"
+            "操作策略：主流多頭股順勢做多，精選四線多排與回後買上漲標的，買進後嚴格守穩 5MA 移動停利！"
+        )
+    elif not cond_ma20 and not cond_ma20_rising and not cond_5ma:
+        status_code = "BEAR_WEAK"
+        status_label = "🔴 空頭破線期"
+        capital_advice = "資金水位 0% ～ 20% (保留現金·防守)"
+        recommended_pct = 20
+        badge_color = "#EF4444"
+        action_strategy = (
+            "【空頭修正破線】大盤跌破月線且 20MA 下彎助跌，多頭架構破壞！"
+            "操作策略：嚴格遵守朱老師紀律，保留 8 成以上現金因應盤勢變化，切勿盲目接刀摸底！空方避險或多看少做。"
+        )
+    else:
+        status_code = "CHOPPY_DEFEND"
+        status_label = "🟡 震盪整理期"
+        capital_advice = "資金嚴格控制 40% 以下 (做短線)"
+        recommended_pct = 40
+        badge_color = "#F59E0B"
+        action_strategy = (
+            "【大盤量縮震盪】多空拉鋸、攻擊量尚未全面放大！"
+            "操作策略：按照朱家泓老師實戰紀律，現在要將資金嚴格控制在 4 成以下！只做強勢多頭龍頭股、做短線，不長抱！"
+        )
+
+    return {
+        "status_code": status_code,
+        "status_label": status_label,
+        "capital_advice": capital_advice,
+        "recommended_pct": recommended_pct,
+        "badge_color": badge_color,
+        "action_strategy": action_strategy,
+        "conditions": conditions,
+        "passed_count": passed_cnt,
+        "close": c,
+        "sma5": sma5,
+        "sma20": sma20,
+        "vol_ratio_5": vol_ratio_5
+    }
+
 def analyze_market_sync_single(
     df_stock: pd.DataFrame,
     df_mkt: pd.DataFrame,

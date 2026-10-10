@@ -678,6 +678,18 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals_dict['pullback_buy'] = True
         signals.append("回後準進場 (拉回測線有守，轉折紅K站回5MA)")
 
+        # 👑 創高無壓回後買上漲 (朱家泓老師 10/07 達人秀：日月光 3711、台達電 2308 歷史新高龍頭戰法)
+        # 過去 120 天最高價在近期 25 天內出現過 (或創歷史/波段新高)，上方無解套賣壓，回後買上漲勝率極高
+        is_ath_candidate = False
+        if len(df) >= 30:
+            past_max = float(df.iloc[-120:]['High'].max()) if len(df) >= 120 else float(df['High'].max())
+            recent_high = float(df.iloc[-25:]['High'].max())
+            if recent_high >= past_max * 0.985:
+                is_ath_candidate = True
+        if is_ath_candidate:
+            signals_dict['ath_pullback_buy'] = True
+            signals.append("👑 創高無壓回後買 (歷史新高龍頭·上方無解套賣壓·必過前高首選)")
+
     # ----------------------------------------------------
     # 策略 C-2：主升段第二波 (強勢飆股主升段：鎖第一波，做第二波)
     # 實戰心法鐵律：
@@ -1016,6 +1028,90 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
                     signals_dict['breakout_heavy_black_high'] = True
                     signals.append("⚡ 突破大量黑K高點 (飆股換手突破起漲)")
                     break
+
+    # ----------------------------------------------------
+    # 強勢連三紅 (朱家泓老師達人秀強勢股基因：反彈連三紅 或 突破上漲連三紅)
+    # 實戰心法：
+    # 1. 最近連續 3 根 K 棒收盤價大於等於開盤價 (收紅K)
+    # 2. 收盤價重心逐日墊高 (c > prev_c > prev2_c)
+    # 3. 站穩 5MA 操盤線且 5MA 翻揚助漲
+    # ----------------------------------------------------
+    is_consecutive_three_reds = False
+    if len(df) >= 3:
+        b0 = df.iloc[-1]
+        b1 = df.iloc[-2]
+        b2 = df.iloc[-3]
+        all_red = (float(b0['Close']) >= float(b0['Open'])) and (float(b1['Close']) >= float(b1['Open'])) and (float(b2['Close']) >= float(b2['Open']))
+        higher_closes = (float(b0['Close']) > float(b1['Close']) and float(b1['Close']) > float(b2['Close']))
+        if all_red and higher_closes and (c >= sma5) and is_5ma_rising:
+            is_consecutive_three_reds = True
+    signals_dict['consecutive_three_reds'] = is_consecutive_three_reds
+    if is_consecutive_three_reds:
+        signals.append("🔥 強勢連三紅 (連續三紅K重心墊高·朱老師飆股基因)")
+
+    # ----------------------------------------------------
+    # 策略 🏆：底部反轉強勢多頭 (朱家泓老師《理財達人秀》標準 5 步驟 SOP)
+    # SOP 條件：
+    # 1. 底部大量反彈，走出底底高打底 (或過去 40 天有扎實低點支撐)
+    # 2. 底部 1~2 個月 (20~45天) 橫盤打底整理，均線糾結或形成三線/四線多頭排列
+    # 3. 突破盤底高點 (過整理區頸線)
+    # 4. 反彈連三紅 或 突破上漲連三紅 (強勢股表現)
+    # 5. 5MA 翻揚助漲且站穩 5MA 之上
+    # 案例：穩懋 (3105)、中美晶 (5483)
+    # ----------------------------------------------------
+    is_bottom_reversal = False
+    if len(df) >= 20 and c >= sma5 and is_5ma_rising:
+        sub_base = df.iloc[-50:-1] if len(df) >= 50 else df.iloc[:-1]
+        base_low = float(sub_base['Low'].min())
+        base_high = float(sub_base['High'].max())
+        
+        # 低檔判定：現價距離基期低點不超過 32%，或均線在低檔
+        is_at_base = (c <= base_low * 1.32) or (sma20 <= sma60 * 1.05) or signals_dict.get('is_cons_over_2m', False) or (signals_dict.get('ma_squeeze_bars', 0) >= 15)
+
+        # 均線形態：三線或四線多排 (sma5 >= sma20 且 20MA 走平翻揚)
+        has_3ma_aligned = (sma5 >= sma20 and sma20 >= prev_sma20 * 0.998)
+        if 'SMA_10' in df:
+            has_3ma_aligned = has_3ma_aligned and (sma5 >= float(df.iloc[-1]['SMA_10']))
+
+        # 突破盤底高點：突破過去 15~40 天的收盤高點或最高點 99%
+        recent_box = df.iloc[-35:-1] if len(df) >= 35 else df.iloc[:-1]
+        neckline_high = float(recent_box['Close'].max())
+        is_breaking_neckline = (c >= neckline_high * 0.995) or signals_dict.get('box_range_breakout', False) or signals_dict.get('bottom_breakout', False)
+
+        # 連三紅 或 突破攻擊長紅
+        is_three_reds_or_attack = is_consecutive_three_reds or (is_red and (change_pct >= 1.2 or vol_ratio_5 >= 1.2))
+
+        # 底底高打底
+        has_higher_low_base = trend_info.get('higher_lows', False) or (float(df.iloc[-5:]['Low'].min()) >= base_low * 1.01)
+
+        if is_at_base and has_3ma_aligned and is_breaking_neckline and is_three_reds_or_attack and has_higher_low_base:
+            is_bottom_reversal = True
+
+    signals_dict['bottom_reversal_strong_bull'] = is_bottom_reversal
+    if is_bottom_reversal:
+        signals.append("🔥 底部反轉強勢多頭 (1~2月打底·連三紅突破·朱老師SOP)")
+
+    # ----------------------------------------------------
+    # 警示：四線尚未做好 / 均線未理順 (朱家泓老師達人秀盲點警示：東台 4526、漢磊 3707 案例)
+    # 盲點特徵：
+    # 1. 低檔出現反彈或帶量長紅突破，吸引學員急躁進場
+    # 2. 但 60MA (季線) 仍顯著下彎助跌 (SMA60 < prev_SMA60)
+    # 3. 或 20MA/60MA 仍呈空頭排列 (SMA20 < SMA60 * 0.985)，上方存在大量套牢與均線反壓！
+    # 實戰心法：宜列入鎖股名單觀察，等待均線理順或打第二隻腳，切忌第一根急躁重倉。
+    # ----------------------------------------------------
+    four_ma_not_ready = False
+    if len(df) >= 40:
+        prev_sma60 = float(df.iloc[-2].get('SMA_60', sma60))
+        is_60ma_falling = (sma60 < prev_sma60 * 0.999)
+        # 處於反彈或剛放量突破嘗試
+        is_rebound_attempt = (c >= sma5 and is_red) or (vol_ratio >= 1.15)
+        # 均線未理順：20MA 仍小於 60MA 且季線下彎助跌
+        if is_60ma_falling and (sma20 < sma60 * 0.985) and is_rebound_attempt:
+            four_ma_not_ready = True
+
+    signals_dict['four_ma_not_ready_warning'] = four_ma_not_ready
+    if four_ma_not_ready:
+        signals.append("⚠️ 四線尚未做好 (季線下彎助跌·上方均線反壓·朱老師提醒切勿急躁重倉)")
 
     # ====================================================
     # 做空波段與即時策略 (空方體系)
@@ -1906,6 +2002,9 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             if r not in safety_reasons:
                 safety_reasons.append(f"⚠️ {r}")
 
+    if signals_dict.get('four_ma_not_ready_warning', False):
+        safety_reasons.append("四線尚未做好：季線 (60MA) 仍下彎或未多頭排列，上方均線反壓沉重，依朱老師提醒宜先鎖股觀察，切勿過早重倉！")
+
     is_four_ma_launch = signals_dict.get('bullish_alignment', False) and (signals_dict.get('main_wave_2nd', False) or signals_dict.get('box_range_breakout', False) or signals_dict.get('pullback_buy', False)) and (c >= sma5 and c >= o)
 
     if is_false_breakout_dump or signals_dict.get('ma20_death_break', False):
@@ -1914,7 +2013,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals_dict['safety_rating'] = "🔴 命中淘汰" if elim_info['eliminated_count'] >= 2 else "🟡 警訊注意"
     elif up_days >= 4 or bias20 >= 12.0:
         signals_dict['safety_rating'] = "🔴 嚴禁追高"
-    elif (elim_info['is_eliminated'] and is_four_ma_launch) or (is_multi_bagger and not is_four_ma_launch) or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red) or (nearest_bearish_g and 0 <= nearest_bearish_g.get('distance_pct', 99) <= 3.0):
+    elif (elim_info['is_eliminated'] and is_four_ma_launch) or (is_multi_bagger and not is_four_ma_launch) or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red) or (nearest_bearish_g and 0 <= nearest_bearish_g.get('distance_pct', 99) <= 3.0) or signals_dict.get('four_ma_not_ready_warning', False):
         signals_dict['safety_rating'] = "🟡 警訊注意"
     else:
         signals_dict['safety_rating'] = "🟢 安全首選"
@@ -1932,13 +2031,13 @@ def categorize_signals(signals_list: list) -> dict:
         t_l = title.lower()
         if any(k in t_l for k in ['頭低', '死亡交叉', '下彎', '彈後', '起跌', '放空', '弱勢', '跌破', '並列紅k']):
             return 'bearish'
-        if any(k in t_l for k in ['停利', '警戒', '背離', '誘多', '重挫', '防出貨']):
+        if any(k in t_l for k in ['停利', '警戒', '背離', '誘多', '重挫', '防出貨', '四線尚未做好', '尚未做好']):
             return 'exit_risk'
-        if any(k in t_l for k in ['爆量', '攻擊量', '盤中強勢', '一點鐘', '換手', '止跌量']):
+        if any(k in t_l for k in ['爆量', '攻擊量', '盤中強勢', '一點鐘', '換手', '止跌量', '連三紅']):
             return 'volume_timing'
-        if any(k in t_l for k in ['黃金交叉', '無敵鐵金剛', '回後準', '第二波', '起漲', '長抱', '糾結突破']):
+        if any(k in t_l for k in ['黃金交叉', '無敵鐵金剛', '回後準', '第二波', '起漲', '長抱', '糾結突破', '創高無壓']):
             return 'ma'
-        if any(k in t_l for k in ['箱型', 'abc', '黑k', '紅k', '軌道', '底', '缺口', '橫盤']):
+        if any(k in t_l for k in ['箱型', 'abc', '黑k', '紅k', '軌道', '底', '缺口', '橫盤', '底部反轉']):
             return 'pattern'
         return 'ma'
 

@@ -73,7 +73,8 @@ from core.market_sync import (
     create_market_sync_comparison_figure,
     SECTOR_FLEETS,
     scan_sector_spillover_candidates,
-    create_pair_sync_comparison_figure
+    create_pair_sync_comparison_figure,
+    calculate_market_environment_guidance
 )
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
@@ -435,24 +436,6 @@ st.markdown("""
         top: 4px !important;
         right: 10px !important;
     }
-    /* 轉折波主圖專屬：選項控制面板與 Plotly 趨勢圖零縫隙緊湊貼齊，徹底消除中間黑色空白區域 */
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.t1-chart-controls-anchor) {
-        margin-bottom: -10px !important;
-        padding-bottom: 4px !important;
-    }
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.t1-chart-controls-anchor) > div[data-testid="stVerticalBlock"] {
-        gap: 0.35rem !important;
-    }
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.t1-chart-controls-anchor) div[data-testid="stCheckbox"] {
-        margin-bottom: -2px !important;
-    }
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.t1-chart-controls-anchor) div[data-testid="stSelectbox"] {
-        margin-bottom: -4px !important;
-    }
-    div[data-testid="stPlotlyChart"] {
-        margin-top: -6px !important;
-        padding-top: 0px !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -751,6 +734,18 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
 
     if item.get('main_wave_2nd') or sig.get('main_wave_2nd', False):
         badge_html += "<span style='background:linear-gradient(90deg, #1890FF, #722ED1); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block;'>🚀 主升第二波</span>"
+
+    if item.get('bottom_reversal_strong_bull') or sig.get('bottom_reversal_strong_bull', False):
+        badge_html += "<span style='background:linear-gradient(90deg, #EA580C, #C2410C); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block;'>🔥 底部反轉SOP</span>"
+
+    if item.get('ath_pullback_buy') or sig.get('ath_pullback_buy', False):
+        badge_html += "<span style='background:linear-gradient(90deg, #D97706, #B45309); color:white; font-weight:bold; padding:2px 7px; border-radius:3px; font-size:0.78rem; margin-right:4px; white-space:nowrap; display:inline-block;'>👑 創高無壓回後買</span>"
+
+    if item.get('consecutive_three_reds') or sig.get('consecutive_three_reds', False):
+        badge_html += "<span style='background:#831843; border:1px solid #DB2777; color:#FCE7F3; font-weight:bold; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:4px; white-space:nowrap; display:inline-block;'>🔥 連三紅</span>"
+
+    if item.get('four_ma_not_ready_warning') or sig.get('four_ma_not_ready_warning', False):
+        badge_html += "<span style='background:#2E1065; border:1px solid #8B5CF6; color:#DDD6FE; font-weight:bold; padding:2px 6px; border-radius:3px; font-size:0.75rem; margin-right:4px; white-space:nowrap; display:inline-block;'>⚠️ 四線未做好</span>"
 
     # 趨勢翻轉醒目標籤 (剛轉多 / 轉弱預警 / 剛轉空 / 剛轉盤整)
     trend_st = item.get('trend_status', '')
@@ -1132,6 +1127,10 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
         breakout_desc = f"底部密集打底逾 {c_m} 個月，籌碼沉澱徹底，首度破繭翻轉為多頭"
     elif is_fresh_trend or (days_chg <= 4 and trend_st.startswith("多頭趨勢")):
         breakout_desc = "走出「頭頭高、底底高」多頭架構，初升段起漲確立"
+    elif sig.get('bottom_reversal_strong_bull') or item.get('bottom_reversal_strong_bull'):
+        breakout_desc = "朱老師底部反轉SOP：打底1~2月 ＋ 三四線多排 ＋ 突破頸線 ＋ 連三紅強勢股"
+    elif sig.get('ath_pullback_buy') or item.get('ath_pullback_buy'):
+        breakout_desc = "朱老師歷史新高龍頭戰法：創歷史高上方無解套賣壓，回後買上漲必過前高首選"
     elif sig.get('pullback_buy'):
         breakout_desc = "回後買上漲：回測均線支撐有守，轉折紅K發動"
     elif not is_up and "安全" in safety_str:
@@ -1860,6 +1859,32 @@ def render_market_sync_radar(from_screener: bool = False):
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+        guidance = calculate_market_environment_guidance(df_mkt, info_mkt)
+        cond_html = "".join([
+            f"<div style='font-size:0.82rem; color:{'#4ADE80' if c['passed'] else '#F87171'};'>{'✅ ' if c['passed'] else '⚠️ '}<b>{c['name']}</b>: {c['desc']}</div>"
+            for c in guidance['conditions']
+        ])
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #1E202E 0%, #151824 100%); border: 1.5px solid {guidance['badge_color']}; border-radius: 10px; padding: 14px 18px; margin-top: 12px; margin-bottom: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.25);">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:1.08rem; font-weight:bold; color:#FFFFFF;">🧭 朱家泓老師大盤環境指引</span>
+                    <span style="background:{guidance['badge_color']}22; border:1px solid {guidance['badge_color']}; color:{guidance['badge_color']}; font-weight:bold; padding:2px 10px; border-radius:14px; font-size:0.85rem;">{guidance['status_label']}</span>
+                </div>
+                <div style="background:rgba(255,255,255,0.06); padding:4px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.12);">
+                    <span style="color:#94A3B8; font-size:0.82rem;">💰 建議持股水位：</span>
+                    <span style="color:{guidance['badge_color']}; font-weight:bold; font-size:0.95rem;">{guidance['capital_advice']}</span>
+                </div>
+            </div>
+            <div style="color:#CBD5E1; font-size:0.86rem; margin-top:8px; line-height:1.5;">
+                {guidance['action_strategy']}
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:8px; margin-top:10px; border-top:1px solid rgba(255,255,255,0.08); padding-top:8px;">
+                {cond_html}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # 雙分頁架構：1. 個股 vs 大盤同步滯後 / 2. 族群龍頭外溢·看大哥買小弟
     sync_tabs = st.tabs([
@@ -3113,7 +3138,6 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             # 📊 轉折波趨勢主圖專屬整合控制面板（緊密貼齊在趨勢圖正上方，點選即見變化無須滑動）
             # =========================================================================
             with st.container(border=True):
-                st.markdown("<span class='t1-chart-controls-anchor' style='display:none;'></span>", unsafe_allow_html=True)
                 # 第一排：轉折範圍、濾網與視角模式
                 col_t_ctrl1, col_t_ctrl2, col_t_ctrl3, col_t_ctrl4 = st.columns([1.6, 1.8, 2.4, 1.4])
                 with col_t_ctrl1:
@@ -3137,7 +3161,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 from core.pattern_geometry import detect_pattern_geometries, apply_pattern_geometry_to_figure
                 pattern_geo = detect_pattern_geometries(df, signals_dict)
 
-                st.markdown("<hr style='margin: 4px 0 6px 0; border: none; border-top: 1px solid #2F3247;' />", unsafe_allow_html=True)
+                st.markdown("<hr style='margin: 8px 0 10px 0; border: none; border-top: 1px solid #2F3247;' />", unsafe_allow_html=True)
 
                 # 第二排：核心均線與轉折波 (5 欄均勻分佈，融入線條圖示 ── / ··· 與色彩)
                 r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5)
@@ -3154,13 +3178,13 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 show_stop = r2_c3.checkbox("- - 🛑 :red[停損(紅虛線)] / 🏆 :blue[停利(青虛線)]", value=True, key=f"t1_stop_{query}")
                 show_gap = r2_c4.checkbox("▓▓ 🟣 :violet[空方(紫)] / 🟢 :green[多方(綠)] 缺口帶", value=True, key=f"t1_gap_{query}")
 
-                # 第四排：AI 型態幾何與老朱三層買點專屬控制列 (融入切線樣式與色彩，水平垂直對齊緊湊排列)
-                r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.4, 2.4], vertical_alignment="center")
+                # 第四排：AI 型態幾何與老朱三層買點專屬控制列 (融入切線樣式與色彩)
+                r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.4, 2.4])
                 show_geometry = r3_c1.checkbox("📐 :violet[AI型態幾何線 (切線/箱型/軌道)]", value=True, key=f"t1_geom_{query}")
                 show_entry_tiers = r3_c2.checkbox("🎯 老朱買點 (:green[── 🟢B1] / :orange[── 🔥B2] / :violet[- - 🚀B3])", value=True, key=f"t1_tiers_{query}")
                 if show_geometry and pattern_geo.get("patterns_found"):
                     p_options = [p["name"] for p in pattern_geo["patterns_found"]]
-                    chosen_pname = r3_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}", label_visibility="collapsed", help="切換顯示型態 (ABC切線/一字底/圓弧底/軌道線)")
+                    chosen_pname = r3_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
                     p_match = next((p for p in pattern_geo["patterns_found"] if p["name"] == chosen_pname), None)
                     if p_match:
                         pattern_geo["active_pattern"] = p_match
@@ -3205,19 +3229,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     y_maxs.append(og_top)
 
             curr_ymin, curr_ymax = min(y_mins), max(y_maxs)
-            vis_high_ref = float(vis_df['High'].max())
-            y_range = max(1.0, curr_ymax - curr_ymin)
-            y_pad_bot = max(0.4, y_range * 0.06)
-
-            # 智慧動態頂部留白：徹底解決「上方一大片黑色空白」問題
-            # 若 curr_ymax 是因為遠端壓力線 (例如 108.17) 或目標價而大幅高於實質 K 線高點：
-            # 此時下方已有充裕空間，上方僅需極小留白 (1.5%) 供標籤辨識，避免頂部留下一大片黑幕！
-            # 若以實質 K 線為頂，留 6.5% 空間供頭部圓圈與文字顯示即可。
-            if curr_ymax > vis_high_ref * 1.02:
-                y_pad_top = max(0.3, y_range * 0.015)
-            else:
-                y_pad_top = max(0.6, y_range * 0.065)
-
+            y_pad_bot = (curr_ymax - curr_ymin) * 0.085
+            y_pad_top = (curr_ymax - curr_ymin) * 0.15
             auto_y = [curr_ymin - y_pad_bot, curr_ymax + y_pad_top]
 
             fig1 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.038, row_heights=[0.75, 0.25])
@@ -3370,7 +3383,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             drag1 = 'pan' if "自由拖曳" in t1_touch_mode else False
             fig1.update_layout(
-                height=650, margin=dict(l=15, r=130, t=2, b=12),
+                height=650, margin=dict(l=15, r=130, t=25, b=15),
                 template="plotly_dark", annotations=annos1, shapes=shapes1,
                 showlegend=False,
                 dragmode=drag1, hovermode="x unified"
@@ -5048,6 +5061,8 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                         "波段核心子策略分類：",
                         [
                             "🏆 無敵鐵金剛 (三線合一·高勝率旗艦)",
+                            "🔥 底部反轉強勢多頭 (1~2月打底·連三紅突破)",
+                            "👑 創高無壓回後買 (歷史新高龍頭)",
                             "🚀 主升段第二波 (鎖一做二·飆股再發動)",
                             "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)",
                             "🔥 換手成功強勢股 (高檔爆量再創新高)",
@@ -5071,6 +5086,12 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     if "無敵鐵金剛" in sub_strat:
                         target_strategy = "無敵鐵金剛"
                         st.caption("💡 **無敵鐵金剛（三線合一）**：官方 App 勝率最高（7～8成）旗艦戰法！同時滿足「**轉折多頭確立（底底高＋頭頭高）** + **5MA/20MA雙線金叉翻揚** + **今日紅K站穩5MA**」。操盤紀律：**買進後守穩 5MA 一路續抱，跌破 5MA 立即紀律停利出場！**")
+                    elif "底部反轉強勢多頭" in sub_strat or "底部反轉" in sub_strat:
+                        target_strategy = "底部反轉強勢多頭"
+                        st.caption("💡 **【🔥 底部反轉強勢多頭 (朱家泓老師 5 步驟 SOP)】**：朱老師達人秀標準教案！(1) 底部出現大量反彈，底底高打底；(2) 底部 1~2 個月整理，三線或四線多排；(3) 突破盤底頸線高點；(4) 反彈或突破**連三紅**強勢股特徵！如穩懋 (3105)、中美晶 (5483)。")
+                    elif "創高無壓回後買" in sub_strat or "創高無壓" in sub_strat:
+                        target_strategy = "創高無壓回後買"
+                        st.caption("💡 **【👑 創歷史新高無壓回後買 (歷史新高龍頭戰法)】**：朱老師欽點『回後買上漲必過歷史前高』首選！股價創歷史（或一年）新高後上方**完全無解套賣壓**，回檔拉回測線有守、今日轉折紅K站回 5MA 翻揚！如日月光投控 (3711)、台達電 (2308)。")
                     elif "主升段第二波" in sub_strat:
                         target_strategy = "主升段第二波"
                         st.caption("💡 **【主升段第二波戰法】鎖第一波，做第二波 (強勢飆股波段)**：鎖定第一波連噴 15%~30% 的市場龍頭，拉回洗盤跌破 5MA 但守穩月線 (20MA)，今日出放量紅K過昨高站回 5MA，為第二波主升段絕佳買點！")

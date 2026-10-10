@@ -663,6 +663,14 @@ def calculate_three_tier_entry(
     if is_misprediction and "預測失準" not in stage_verdict:
         stage_verdict += f"（⏱️ 朱老師 10/07 贏家心法：{target_tier_name}發動已 T+{bars_since_trigger} 天原地打轉量縮屬預測失準，沒壞但不漲亦建議平盤附近微損換股，汰弱留強！）"
 
+    # 朱老師防呆提醒：四線尚未做好 (東台、漢磊案例)
+    if signals_dict.get('four_ma_not_ready_warning', False) and "四線尚未做好" not in stage_verdict:
+        stage_verdict += "（⚠️ 朱老師防呆提醒：本檔季線 60MA 仍下彎或未多頭排列，四線尚未理順！上方均線反壓沉重，不可看到低檔出量第一根就急躁重倉，宜先列入鎖股名單觀察！）"
+
+    # 朱老師龍頭戰法：創高無壓回後買 (日月光、台達電案例)
+    if signals_dict.get('ath_pullback_buy', False) and "創高無壓" not in stage_verdict:
+        stage_verdict += "（👑 朱老師龍頭戰法：創歷史/波段新高後回測均線守穩，上方無任何解套賣壓，為回後買上漲勝率最高之首選型態！）"
+
     return {
         "current_stage": current_stage,
         "current_price": round(c, 2),

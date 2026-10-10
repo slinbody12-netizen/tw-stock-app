@@ -171,6 +171,14 @@ def calculate_quality_score(s):
         score += 25.0
     if sig.get('pullback_buy', False):
         score += 25.0
+    if sig.get('bottom_reversal_strong_bull', False):
+        score += 35.0  # 底部反轉強勢多頭 (朱老師 5 步驟 SOP)
+    if sig.get('ath_pullback_buy', False):
+        score += 30.0  # 創歷史高無壓回後買 (歷史新高龍頭·上方無解套賣壓)
+    if sig.get('consecutive_three_reds', False):
+        score += 15.0  # 強勢連三紅飆股基因
+    if sig.get('four_ma_not_ready_warning', False):
+        score -= 20.0  # 四線尚未做好防呆扣分
     if sig.get('bottom_breakout', False):
         score += 20.0
     if sig.get('higher_highs_lows', False) or s.get('is_bull', False):
@@ -482,6 +490,10 @@ def _analyze_single_stock(item, realtime_map, chips_map):
             "iron_man": signals_dict.get('iron_man', False),
             "main_wave_2nd": signals_dict.get('main_wave_2nd', False),
             "box_range_breakout": signals_dict.get('box_range_breakout', False),
+            "bottom_reversal_strong_bull": signals_dict.get('bottom_reversal_strong_bull', False),
+            "ath_pullback_buy": signals_dict.get('ath_pullback_buy', False),
+            "consecutive_three_reds": signals_dict.get('consecutive_three_reds', False),
+            "four_ma_not_ready_warning": signals_dict.get('four_ma_not_ready_warning', False),
             "is_turnover_success": signals_dict.get('is_turnover_success', False),
             "is_false_breakout_dump": signals_dict.get('is_false_breakout_dump', False),
             "is_attack_vol": signals_dict.get('is_attack_vol', False),
@@ -968,6 +980,12 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 if (s.get('is_5ma_rising', True) or signals_dict.get('pullback_buy', False) or (s.get('change_pct', 0) > 0 and s.get('above_5ma', True))) and s.get('above_5ma', True):
                     match = True
             elif strategy == "回後準進場" and signals_dict.get('pullback_buy', False):
+                match = True
+            elif any(k in strategy for k in ["創高無壓回後買", "創高無壓", "歷史新高龍頭", "無壓回後買"]) and signals_dict.get('ath_pullback_buy', False):
+                match = True
+            elif any(k in strategy for k in ["底部反轉強勢多頭", "底部反轉", "連三紅突破", "底部反轉SOP"]) and signals_dict.get('bottom_reversal_strong_bull', False):
+                match = True
+            elif any(k in strategy for k in ["強勢連三紅", "連三紅"]) and signals_dict.get('consecutive_three_reds', False):
                 match = True
             elif strategy == "底部起漲" and (signals_dict.get('bottom_breakout', False) or signals_dict.get('flat_base_breakout', False) or signals_dict.get('n_pattern_bottom', False) or signals_dict.get('rounding_bottom', False)):
                 match = True
