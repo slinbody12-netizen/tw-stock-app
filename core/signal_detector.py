@@ -93,7 +93,11 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
             
     # 規則 6：前波爆量黑K重壓未化解
     if signals_dict.get('unresolved_blacks'):
-        reasons.append(f"【規則6·爆量黑K套牢重壓】前方有巨量黑K高點 ({signals_dict['unresolved_blacks'][-1]['high']}元) 重壓未化解")
+        latest_res = signals_dict['unresolved_blacks'][-1]
+        ratio_note = ""
+        if signals_dict.get('attack_vol_insufficient_for_res', False):
+            ratio_note = f" (攻擊量僅達壓力量 {signals_dict.get('vol_vs_res_ratio', 0)*100:.0f}%，未達助教10/13指導之50%門檻)"
+        reasons.append(f"【規則6·爆量黑K套牢重壓】前方有巨量黑K高點 ({latest_res['high']}元) 重壓未化解{ratio_note}")
         
     # 規則 7：高檔爆量長黑K
     if (is_high or signals_dict.get('is_multi_bagger', False)) and (c < o) and (vol_ratio >= 1.45):
@@ -225,6 +229,9 @@ def check_do_not_buy_rules(df: pd.DataFrame, trend_info: dict, last: pd.Series, 
         nearest_p_name, nearest_p_val = candidate_pressures[0]
         h = float(last['High'])
         is_pressing_forward = (h >= nearest_p_val * 0.995) or (signals_dict.get('bullish_alignment', False) and signals_dict.get('is_attack_vol', False) and c >= o) or signals_dict.get('box_range_breakout', False)
+        # 助教 10/13 華新指導：若攻擊量未達壓力量一半 (50%)，化解套牢機率極低，絕不可豁免衝關
+        if signals_dict.get('attack_vol_insufficient_for_res', False):
+            is_pressing_forward = False
         # 若收盤跌破5MA或收黑K，代表攻擊受阻拉回，絕不予豁免衝關
         if c < sma5 or c < o:
             is_pressing_forward = False
@@ -491,12 +498,23 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             heavy_black_ks.append({
                 "date": r['Date'].strftime('%m/%d'),
                 "high": round(float(r['High']), 2),
-                "ratio": round(vol / vma, 1)
+                "ratio": round(vol / vma, 1),
+                "volume": float(vol)
             })
 
     unresolved_blacks = [b for b in heavy_black_ks if b['high'] >= c]
     signals_dict['unresolved_blacks'] = unresolved_blacks
     signals_dict['has_unresolved_blacks'] = len(unresolved_blacks) > 0
+
+    # 助教 10/13 華新指導：攻擊量與壓力量比對，不用大於，但至少要到一半 (>= 50%)
+    if unresolved_blacks:
+        latest_res_vol = unresolved_blacks[-1].get('volume', 0)
+        signals_dict['res_black_vol'] = latest_res_vol
+        if latest_res_vol > 0:
+            vol_vs_res_ratio = round(v / latest_res_vol, 2)
+            signals_dict['vol_vs_res_ratio'] = vol_vs_res_ratio
+            if vol_vs_res_ratio < 0.5:
+                signals_dict['attack_vol_insufficient_for_res'] = True
     chili = 1
     vol_ratio = v / v_ma20 if v_ma20 > 0 else 1.0
     if vol_ratio >= 2.0 or abs(change_pct) >= 5.0:
@@ -1540,6 +1558,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         signals_dict['is_encounter_line'] = True
         absolute_warnings.append("⚠️ 高檔爆量遭遇線 (停利SOP：高獲利先出一半，另一半跌破大量低點出場)")
         signals.append("⚠️ 高檔爆量遭遇線 (停利SOP：高獲利先出一半，另一半跌破大量低點出場)")
+    if signals_dict.get('attack_vol_insufficient_for_res', False) and (c >= o):
+        signals.append("⚠️ 攻擊量未達壓力量50% (助教10/13華新指導：化解左側套牢重壓，攻擊量至少需達壓力量50%，防撞牆假突破)")
     if change_pct <= -9.5 or (sup_price > 0 and (sup_price - c) / sup_price >= 0.10):
         absolute_warnings.append("🛑 跌幅逾 10% 終極鐵律 (絕對停損·壯士斷腕)")
 
