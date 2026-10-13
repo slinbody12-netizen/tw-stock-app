@@ -76,6 +76,12 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
         is_four_ma_launch = signals_dict.get('bullish_alignment', False) and (signals_dict.get('main_wave_2nd', False) or signals_dict.get('box_range_breakout', False) or signals_dict.get('pullback_buy', False)) and (c >= sma5 and c >= o)
         if not is_four_ma_launch:
             reasons.append(f"【規則4·暴漲{bagger_m:.1f}倍高檔區】波段漲幅已翻倍，主力獲利豐厚隨時出貨，嚴禁長抱")
+        # 助教 10/13 AMAX-KY 指導：翻倍股高檔價平量縮 (末升段動能枯竭，嚴防回檔)
+        elif len(df) >= 5:
+            recent_amp = (df.iloc[-3:]['High'].max() - df.iloc[-3:]['Low'].min()) / (df.iloc[-3:]['Low'].min() + 1e-9)
+            vol_shrink = (df.iloc[-1]['Volume'] < df.iloc[-20:]['Volume'].mean() * 0.75)
+            if recent_amp <= 0.035 and vol_shrink:
+                reasons.append(f"【規則4·翻倍股高檔價平量縮】波段漲幅已大，高檔價平量縮動能耗盡，嚴防拉回")
         
     # 規則 5：高檔爆量連三黑
     if len(df) >= 3 and (is_high or signals_dict.get('is_multi_bagger', False)):
@@ -698,6 +704,11 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             signals_dict['ath_pullback_buy'] = True
             signals.append("👑 創高無壓回後買 (歷史新高龍頭·上方無解套賣壓·必過前高首選)")
 
+        # 助教 10/13 康舒指導：回後買上漲若季線(60MA)仍在上方且下彎，底部未完成，僅能短線操作，提防遇壓不漲
+        if c < sma60 and sma60 < prev_sma60 * 0.999:
+            signals_dict['pullback_ma60_resistance'] = True
+            signals.append("⚠️ 季線下彎反壓 (回後買僅短線操作·底部未完成防遇壓不漲)")
+
     # ----------------------------------------------------
     # 策略 C-2：主升段第二波 (強勢飆股主升段：鎖第一波，做第二波)
     # 實戰心法鐵律：
@@ -822,7 +833,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         # 一口氣站上/突破四線糾結
         is_standing_all_mas = (c >= sma5 and c >= sma10 and c >= sma20 and c >= (sma60 * 0.992))
 
-        if (amplitude <= 0.25 or sq_bars >= 30) and (is_ma_squeezed or sq_bars >= 30) and is_standing_all_mas and is_red and is_5ma_rising and (c >= rng_max * 0.98 or vol_ratio >= 1.05 or change_pct >= 0.8):
+        # 助教 10/13 大亞指導：一字底突破收盤必須實質過盤整最高點 (c >= rng_max * 0.995)，且上影線不可過長 (防假突破)
+        has_long_upper = signals_dict.get('has_long_upper_shadow', False)
+        is_breaking_high = (c >= rng_max * 0.995)
+        if (amplitude <= 0.25 or sq_bars >= 30) and (is_ma_squeezed or sq_bars >= 30) and is_standing_all_mas and is_red and is_5ma_rising and is_breaking_high and not has_long_upper and (vol_ratio >= 1.05 or change_pct >= 0.8):
             signals_dict['ma_squeeze_breakout'] = True
             signals_dict['flat_base_breakout'] = True
             if signals_dict['is_ma_squeeze_over_2m']:
@@ -1521,6 +1535,11 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         absolute_warnings.append("⚠️ 今日重挫逾 5% (風控警示股·準備賣出)")
     if is_high_position and is_black and vol_ratio_5 >= 1.5 and c < sma5:
         absolute_warnings.append("⚠️ 高檔爆量長黑反轉 (絕對停損·空頭確認)")
+    # 5. 高檔爆量遭遇線停利 SOP (助教 10/13 雷迪克指導：高獲利先出一半，另一半跌破大量低點出場)
+    if is_high_position and is_black and (vol_ratio >= 1.4 or vol_ratio_5 >= 1.4):
+        signals_dict['is_encounter_line'] = True
+        absolute_warnings.append("⚠️ 高檔爆量遭遇線 (停利SOP：高獲利先出一半，另一半跌破大量低點出場)")
+        signals.append("⚠️ 高檔爆量遭遇線 (停利SOP：高獲利先出一半，另一半跌破大量低點出場)")
     if change_pct <= -9.5 or (sup_price > 0 and (sup_price - c) / sup_price >= 0.10):
         absolute_warnings.append("🛑 跌幅逾 10% 終極鐵律 (絕對停損·壯士斷腕)")
 
