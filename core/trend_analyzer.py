@@ -202,7 +202,7 @@ def analyze_trend(df: pd.DataFrame, points: list):
             trend_badge = "盤整 🟡"
             trend_color = "#FFA94D"
             target = resistance
-            alerts.append(f"⚠️ 警訊：股價自波段低點 ({curr_trough['price']}) 反彈最高達 ({rebound_high:.1f})，已突破前高壓力 ({curr_peak['price']})，空頭架構遭到破壞，趨勢改變為盤整！")
+            alerts.append(f"⚠️ 警訊：股價自波段低點 ({curr_trough['price']}) 反彈最高達 ({rebound_high:.1f})，已突破前高壓力 ({curr_peak['price']})，空頭架構遭到破壞，趨勢改變為盤整！（助教10/14京元電指引：多頭反轉三步曲之第一步，後續觀察回檔不破前低＋再上漲多頭確認）")
             if not bars_since_trough.empty:
                 break_bars = bars_since_trough[(bars_since_trough['High'] >= curr_peak['price'] * 1.002) | (bars_since_trough['Close'] >= curr_peak['price'])]
                 if not break_bars.empty:

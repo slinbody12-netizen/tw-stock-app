@@ -292,7 +292,11 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "is_gap_breakout": False,     # ⚡ 盤整跳空缺口突破 (力道最強·CH6)
         "breakout_stage": "",         # 突破位階勝率 (初升段8成 / 第二波7成 / 高檔短線)
         "flat_base_breakout": False,  # 一字底 (2個月均線糾結10%區間內)
-        "n_pattern_bottom": False,    # N字底
+        "w_bottom": False,            # W底 (雙重底·兩腳落差小於4.5%)
+        "is_w_pattern_consolidation": False, # W型態整理 (半山腰/高檔W整理，非底部型態·助教10/14陽明指引)
+        "n_pattern_bottom": False,    # N字底 (第二隻腳顯著墊高·助教10/14華通指引)
+        "pullback_without_5ma_dip": False,  # 回檔未跌破5MA直接漲 (非標準回後買上漲，不可追高·助教10/14南亞指引)
+        "pullback_5ma_falling_warning": False, # 回後站回但5MA仍下彎 (助教10/14華通指引：須等5均走平翻揚)
         "rounding_bottom": False,     # 圓弧底
         "kline_consolidation_breakout": False, # 📊 6-3 K線橫盤突破 (3天橫盤放量突破·CH6)
         "abc_correction_breakout": False,      # 📐 6-5 突破ABC修正下降切線 (短空做頭失敗續噴·CH6)
@@ -693,7 +697,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     # ----------------------------------------------------
     # 策略 C：回後準進場 (經典回後買上漲進場訊號)
     # 實戰心法鐵律：
-    # 1. 前幾天拉回測均線 (5MA/20MA) 有守，支撐未破
+    # 1. 助教 10/14 鐵律 (華通 2313 & 南亞 1303)：
+    #    回檔期間必須曾「跌破 5MA 再站回」才算！若未曾跌破 5 均直接漲，非教學進場點，不可追高！
     # 2. 今日收轉折紅K站回 5MA 操盤線之上 (c >= sma5)
     # 3. 5MA 操盤線必須「走平或向上翻揚」(is_5ma_rising)，若操盤線仍在下彎，代表短線助跌，嚴禁買進！
     # ----------------------------------------------------
@@ -704,28 +709,45 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     not_broken_support = l >= support * 0.985
     stand_on_5ma = (c >= sma5)
 
+    # 助教 10/14 華通/南亞檢核：拉回波段 (過去 1~5 日) 必須曾實質回測並跌破 5MA (Close < SMA_5 或 Low < SMA_5 * 0.998)
+    has_dipped_5ma_in_pullback = False
+    if len(df) >= 3:
+        pullback_window = df.iloc[-5:-1] if len(df) >= 6 else df.iloc[:-1]
+        has_dipped_5ma_in_pullback = ((pullback_window['Close'] < pullback_window['SMA_5']) | (pullback_window['Low'] < pullback_window['SMA_5'] * 0.998)).any()
+
     is_5ma_turning = is_5ma_rising or (c >= sma5 and sma5 >= df.iloc[-2]['SMA_5'] * 0.99) or (sma20 >= df.iloc[-2]['SMA_20'] and c >= sma5)
-    if (is_bull or signals_dict['golden_cross_5_20'] or sma5 >= sma20) and tested_ma and not_broken_support and is_red and stand_on_5ma and is_5ma_turning:
-        signals_dict['pullback_buy'] = True
-        signals.append("回後準進場 (拉回測線有守，轉折紅K站回5MA)")
+    is_5ma_falling = (sma5 < prev_sma5 * 0.996) and not is_5ma_rising
 
-        # 👑 創高無壓回後買上漲 (朱家泓老師 10/07 達人秀：日月光 3711、台達電 2308 歷史新高龍頭戰法)
-        # 過去 120 天最高價在近期 25 天內出現過 (或創歷史/波段新高)，且上方絕無爆量黑K或長上影線套牢賣壓，回後買上漲勝率極高
-        is_ath_candidate = False
-        if len(df) >= 30 and not unresolved_blacks and not has_long_upper_shadow:
-            past_max = float(df.iloc[-120:]['High'].max()) if len(df) >= 120 else float(df['High'].max())
-            recent_high = float(df.iloc[-25:]['High'].max())
-            # 股價必須維持在高檔區間 (距最高點不超過 6%)，且未遭遇重挫或重壓
-            if recent_high >= past_max * 0.985 and c >= past_max * 0.94:
-                is_ath_candidate = True
-        if is_ath_candidate:
-            signals_dict['ath_pullback_buy'] = True
-            signals.append("👑 創高無壓回後買 (歷史新高龍頭·上方無解套賣壓·必過前高首選)")
+    if (is_bull or signals_dict['golden_cross_5_20'] or sma5 >= sma20) and tested_ma and not_broken_support and is_red and stand_on_5ma:
+        if has_dipped_5ma_in_pullback:
+            if is_5ma_turning and not is_5ma_falling:
+                signals_dict['pullback_buy'] = True
+                signals.append("回後準進場 (跌破5MA後轉折紅K強勢站回·助教10/14標準進場點)")
 
-        # 助教 10/13 康舒指導：回後買上漲若季線(60MA)仍在上方且下彎，底部未完成，僅能短線操作，提防遇壓不漲
-        if c < sma60 and sma60 < prev_sma60 * 0.999:
-            signals_dict['pullback_ma60_resistance'] = True
-            signals.append("⚠️ 季線下彎反壓 (回後買僅短線操作·底部未完成防遇壓不漲)")
+                # 👑 創高無壓回後買上漲 (朱家泓老師 10/07 達人秀：日月光 3711、台達電 2308 歷史新高龍頭戰法)
+                # 過去 120 天最高價在近期 25 天內出現過 (或創歷史/波段新高)，且上方絕無爆量黑K或長上影線套牢賣壓，回後買上漲勝率極高
+                is_ath_candidate = False
+                if len(df) >= 30 and not unresolved_blacks and not has_long_upper_shadow:
+                    past_max = float(df.iloc[-120:]['High'].max()) if len(df) >= 120 else float(df['High'].max())
+                    recent_high = float(df.iloc[-25:]['High'].max())
+                    # 股價必須維持在高檔區間 (距最高點不超過 6%)，且未遭遇重挫或重壓
+                    if recent_high >= past_max * 0.985 and c >= past_max * 0.94:
+                        is_ath_candidate = True
+                if is_ath_candidate:
+                    signals_dict['ath_pullback_buy'] = True
+                    signals.append("👑 創高無壓回後買 (歷史新高龍頭·上方無解套賣壓·必過前高首選)")
+
+                # 助教 10/13 康舒指導：回後買上漲若季線(60MA)仍在上方且下彎，底部未完成，僅能短線操作，提防遇壓不漲
+                if c < sma60 and sma60 < prev_sma60 * 0.999:
+                    signals_dict['pullback_ma60_resistance'] = True
+                    signals.append("⚠️ 季線下彎反壓 (回後買僅短線操作·底部未完成防遇壓不漲)")
+            else:
+                signals_dict['pullback_5ma_falling_warning'] = True
+                signals.append("⚠️ 回後站回但5MA仍下彎 (助教10/14華通指引：5均下彎具助跌性·須等走平翻揚)")
+        else:
+            # 未曾跌破 5 均直接漲 (如南亞 1303)
+            signals_dict['pullback_without_5ma_dip'] = True
+            signals.append("⚠️ 回檔未破5MA直接漲 (助教10/14南亞指引：非回後買上漲進場點·切忌追高)")
 
     # ----------------------------------------------------
     # 策略 C-2：主升段第二波 (強勢飆股主升段：鎖第一波，做第二波)
@@ -910,23 +932,38 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             signals_dict['breakout_stage'] = "盤整突破 (價漲量增線實)"
 
     # ----------------------------------------------------
-    # 策略 G：N字底 (第二隻腳不破前低，向上推升)
+    # 策略 G：N字底 vs W底 (雙腳型態精確判定·助教10/14華通/陽明指引)
+    # 1. 助教 10/14 華通指引：兩腳 (低點) 落差過大時，不能認定為 W 底，應認定為「N 字底」！
+    # 2. 兩腳落差在 4.5% 以內且具雙底打樁：判定為「W底」
+    # 3. 助教 10/14 陽明指引：W 底必須在波段低檔打底起漲；若在中高檔或半山腰，屬於「W型態整理」，非「底部型態」！
     # ----------------------------------------------------
     if len(df) >= 20:
         sub = df.iloc[-25:]
         min_idx = sub['Low'].idxmin()
         if min_idx < sub.index[-5]:
-            low1 = df.loc[min_idx, 'Low']
+            low1 = float(df.loc[min_idx, 'Low'])
             after_low1 = sub.loc[min_idx:]
             if len(after_low1) >= 6:
                 peak_idx = after_low1['High'].idxmax()
                 if peak_idx > min_idx and peak_idx < sub.index[-2]:
-                    peak1 = df.loc[peak_idx, 'High']
+                    peak1 = float(df.loc[peak_idx, 'High'])
                     after_peak = after_low1.loc[peak_idx:]
-                    low2 = after_peak['Low'].min()
-                    if low2 > low1 and c >= sma5 and is_red and c < peak1 * 1.05 and is_5ma_rising:
-                        signals_dict['n_pattern_bottom'] = True
-                        signals.append("N字底 (第二隻腳打樁有守突破)")
+                    low2 = float(after_peak['Low'].min())
+                    gap_pct = (low2 - low1) / (low1 + 1e-9)
+
+                    if low2 >= low1 * 0.985 and c >= sma5 and is_red and c < peak1 * 1.08 and is_5ma_rising:
+                        if gap_pct > 0.045:
+                            # 助教 10/14 華通指引：二腳落差太大，非 W 底，N 字比較合適！
+                            signals_dict['n_pattern_bottom'] = True
+                            signals.append("N字底 (第二隻腳顯著墊高·不破前低推升·助教10/14華通指導)")
+                        elif abs(gap_pct) <= 0.045:
+                            # 兩腳落差在 4.5% 以內，符合正統 W 底 (雙底)
+                            signals_dict['w_bottom'] = True
+                            if is_near_bottom:
+                                signals.append("W底 (雙底對稱有守·低檔底部起漲·助教10/14指導)")
+                            else:
+                                signals_dict['is_w_pattern_consolidation'] = True
+                                signals.append("W型態整理 (半山腰W整理·非低檔底部·助教10/14陽明指引)")
 
     # ----------------------------------------------------
     # 策略 H：圓弧底 (U型慢火打底·過頸線或底部翻揚·CH6-4)

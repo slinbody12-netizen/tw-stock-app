@@ -1009,13 +1009,17 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 match = True
             elif any(k in strategy for k in ["強勢連三紅", "連三紅"]) and signals_dict.get('consecutive_three_reds', False):
                 match = True
-            elif strategy == "底部起漲" and (signals_dict.get('bottom_breakout', False) or signals_dict.get('flat_base_breakout', False) or signals_dict.get('n_pattern_bottom', False) or signals_dict.get('rounding_bottom', False)):
+            elif strategy == "底部起漲" and (signals_dict.get('bottom_breakout', False) or signals_dict.get('flat_base_breakout', False) or signals_dict.get('n_pattern_bottom', False) or signals_dict.get('rounding_bottom', False) or (signals_dict.get('w_bottom', False) and not signals_dict.get('is_w_pattern_consolidation', False))):
                 match = True
             elif strategy == "高檔起漲" and signals_dict.get('high_breakout', False):
                 match = True
             elif strategy in ["雙線翻揚", "雙線黃金交叉"] and (signals_dict.get('golden_cross_5_20', False) or (s.get('is_5ma_rising', False) and s.get('sma5', 0) > s.get('sma20', 0))):
                 match = True
             elif strategy in ["一字底", "📦 一字底放量突破", "📦 一字底放量突破 (60天糾結·飆股第一根)"] and (signals_dict.get('flat_base_breakout', False) or signals_dict.get('ma_squeeze_breakout', False) or signals_dict.get('box_range_breakout', False)):
+                match = True
+            elif strategy in ["W底", "W底型態", "雙重底", "W底 (雙底)"] and (signals_dict.get('w_bottom', False) and not signals_dict.get('is_w_pattern_consolidation', False)):
+                match = True
+            elif strategy in ["W型態整理", "W整理"] and signals_dict.get('is_w_pattern_consolidation', False):
                 match = True
             elif strategy == "N字底" and signals_dict.get('n_pattern_bottom', False):
                 match = True
