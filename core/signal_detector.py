@@ -197,9 +197,10 @@ def check_do_not_buy_rules(df: pd.DataFrame, trend_info: dict, last: pd.Series, 
     if not is_three_ma_bull and not (signals_dict.get('bottom_breakout', False) or signals_dict.get('iron_man', False)):
         violations.append((1, "盤底未反轉無三線多排", "均線尚未形成 5MA > 10MA > 20MA 多頭排列，仍在打底或均線紊亂，不可盲目猜底進場"))
 
-    # 禁忌 2：上漲第 3 根以上位置勿追高
-    if up_days >= 3:
-        violations.append((2, f"連續上漲第 {up_days} 根位置勿追高", f"股價已連續推升 {up_days} 天，短線正乖離過大，極易遭遇獲利調節回檔，應耐心等拉回再切入"))
+    # 禁忌 2：上漲第 3 根以上位置勿追高 (包含連漲天數與連續紅K棒數)
+    consecutive_run = max(up_days, int(signals_dict.get('consecutive_red_days', 0)))
+    if consecutive_run >= 3:
+        violations.append((2, f"連續上漲/連紅第 {consecutive_run} 根位置勿追高", f"股價已連續推升/收紅 {consecutive_run} 天，短線正乖離過大，極易遭遇獲利調節回檔，應耐心等拉回再切入"))
 
     # 禁忌 3：重大壓力關卡前勿進場 (空間不足 3%，做多避開 7 位置鐵律)
     candidate_pressures = []
@@ -482,14 +483,26 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if sma5 > sma10 > sma20 > sma60:
         signals_dict['bullish_alignment'] = True
 
-    # 3. 連漲天數
+    # 3. 連漲天數與連續紅K棒數計算 (防追高核心指標)
     up_days = 0
-    for j in range(len(df) - 1, max(0, len(df) - 6), -1):
+    for j in range(len(df) - 1, max(0, len(df) - 15), -1):
         if df.iloc[j]['Close'] > df.iloc[j - 1]['Close']:
             up_days += 1
         else:
             break
-    signals_dict['up_days'] = up_days
+
+    consecutive_red_days = 0
+    for j in range(len(df) - 1, max(0, len(df) - 15), -1):
+        if df.iloc[j]['Close'] >= df.iloc[j]['Open']:
+            consecutive_red_days += 1
+        else:
+            break
+
+    # 取連漲或連紅兩者之大者作為實際衝刺天數
+    effective_run_days = max(up_days, consecutive_red_days)
+    signals_dict['up_days'] = effective_run_days
+    signals_dict['price_up_days'] = up_days
+    signals_dict['consecutive_red_days'] = consecutive_red_days
 
     # 4. 前方 30 天爆量長黑排查
     heavy_black_ks = []

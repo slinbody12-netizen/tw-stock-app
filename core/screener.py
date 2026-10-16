@@ -276,6 +276,15 @@ def calculate_quality_score(s):
     if mp.get('is_misprediction', False):
         score -= 35.0  # T+4 滯漲沒壞不漲預測失準換股扣分
 
+    # 12. 做多七大禁忌嚴格扣分機制 (嚴防推薦追高與違規位置)
+    do_not_buy = sig.get('ch11_do_not_buy') or {}
+    for v in do_not_buy.get('violations', []):
+        v_id = v[0]
+        if v_id == 2:
+            score -= 60.0  # 連續推升/連紅第3根以上，重扣60分徹底阻斷追高推薦！
+        else:
+            score -= 30.0
+
     return round(float(score), 1)
 
 def _analyze_single_stock(item, realtime_map, chips_map):
