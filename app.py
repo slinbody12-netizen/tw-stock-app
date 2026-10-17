@@ -289,7 +289,7 @@ st.markdown("""
 
     /* 自訂全站精準高質感滾動條 (永久可見、防消失、防遮擋、易拖曳) */
     html {
-        scroll-behavior: smooth;
+        scroll-behavior: auto !important;
     }
     ::-webkit-scrollbar {
         width: 10px !important;
@@ -696,7 +696,7 @@ def render_mini_kline(bars_data):
         yaxis=dict(visible=False, range=[y_min, y_max], fixedrange=True),
         plot_bgcolor='#161824',
         paper_bgcolor='rgba(0,0,0,0)',
-        dragmode='pan',
+        dragmode=False,
         hovermode=False
     )
     return fig
@@ -1312,13 +1312,13 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
             fig_mini = render_mini_kline(item.get('recent_bars', []))
             if fig_mini:
                 mini_config = {
+                    'staticPlot': True,
                     'scrollZoom': False,
                     'displayModeBar': False,
-                    'doubleClick': 'reset',
                     'responsive': True
                 }
                 st.plotly_chart(fig_mini, use_container_width=True, config=mini_config, key=f"mini_{key_prefix}_{item['code']}")
-                st.caption("↔️ 支援水平滑動查看近 60 日歷史 · 雙擊圖表重置視角")
+                st.caption("📈 完整近 60 日技術走勢預覽 · 點擊下方【📊 載入主圖】即可自由縮放與平移操盤")
         except Exception:
             pass
 
@@ -3211,7 +3211,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                     t1_filter_opt = st.selectbox("轉折波濾網", ["主要波段 (清爽推薦)", "完整細微轉折"], index=0, key=f"t1_fo_{query}")
                     t1_filter_mode = "standard" if "主要波段" in t1_filter_opt else "all"
                 with col_t_ctrl3:
-                    t1_touch_mode = st.radio("📱 觸控模式", ["🔒 鎖定視角 (防誤觸)", "✋ 自由拖曳"], horizontal=True, key=f"t1_tm_{query}")
+                    t1_touch_mode = st.radio("📱 圖表拖曳模式", ["✋ 自由拖曳 (支援滑動/縮放)", "🔒 鎖定視角 (防誤觸)"], index=0, horizontal=True, key=f"t1_tm_{query}")
                 with col_t_ctrl4:
                     st.write("")
                     st.write("")
@@ -3476,7 +3476,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             fig1 = resolve_right_badge_collisions(fig1, auto_y[0], auto_y[1])
 
             chart_config = {
-                'scrollZoom': False, 'displayModeBar': 'hover',
+                'scrollZoom': True if "自由拖曳" in t1_touch_mode else False,
+                'displayModeBar': 'hover',
                 'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
                 'displaylogo': False, 'doubleClick': 'reset+autosize', 'responsive': True
             }
@@ -4304,11 +4305,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 fig2.add_hline(y=80, line_dash="dot", line_color="#E03131", row=2, col=1)
                 fig2.add_hline(y=20, line_dash="dot", line_color="#2F9E44", row=2, col=1)
 
+            drag2 = 'pan' if "自由拖曳" in t1_touch_mode else False
             fig2.update_layout(
                 height=650, margin=dict(l=15, r=60, t=45, b=15),
                 template="plotly_dark",
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01),
-                dragmode=False, hovermode="x unified"
+                dragmode=drag2, hovermode="x unified"
             )
             fig2.update_xaxes(
                 rangeslider_visible=False, range=k_init_x,
