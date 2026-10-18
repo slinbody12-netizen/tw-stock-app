@@ -2999,10 +2999,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 show_gap = r2_c4.checkbox("▓▓ 🟣 :violet[空方(紫)] / 🟢 :green[多方(綠)] 缺口帶", value=True, key=f"t1_gap_{query}")
 
                 # 第四排：AI 型態幾何、短期加速防守線與老朱三層買點專屬控制列 (獨立選項，按了才出現)
-                r3_c1, r3_c2, r3_c3, r3_c4 = st.columns([2.8, 2.8, 2.6, 2.2])
-                show_geometry = r3_c1.checkbox("📐 :violet[AI型態幾何線 (切線/箱型/軌道)]", value=True, key=f"t1_geom_{query}")
-                show_acc_defense = r3_c2.checkbox("⚡ :cyan[短期加速防守線 (電光青藍)]", value=False, key=f"t1_acc_{query}", help="噴出加速段上升防守切線，跌破提示減碼或停利。獨立選項，預設關閉，按了才會出現")
-                show_entry_tiers = r3_c3.checkbox("🎯 老朱買點 (:green[── 🟢B1] / :orange[── 🔥B2] / :violet[- - 🚀B3])", value=True, key=f"t1_tiers_{query}")
+                r3_c1, r3_c2, r3_c3, r3_c4 = st.columns([2.6, 2.7, 2.7, 2.0])
+                show_geometry = r3_c1.checkbox("📐 :violet[AI型態幾何線 (切線/箱型)]", value=True, key=f"t1_geom_{query}")
+                show_acc_defense = r3_c2.checkbox("⚡ ── :blue[短期加速防守線 (青藍)]", value=False, key=f"t1_acc_{query}", help="噴出加速段上升防守切線，跌破提示減碼或停利。獨立選項，預設關閉，按了才會出現")
+                show_entry_tiers = r3_c3.checkbox("🎯 老朱買點 (:green[🟢B1] / :orange[🔥B2] / :violet[🚀B3])", value=True, key=f"t1_tiers_{query}")
                 if show_geometry and pattern_geo.get("patterns_found"):
                     p_options = [p["name"] for p in pattern_geo["patterns_found"]]
                     chosen_pname = r3_c4.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
