@@ -728,7 +728,13 @@ def _filter_scatter_markers_at_date(fig: go.Figure, marker_names: list, target_d
                         trace.hovertext = tuple(new_htxt)
 
 
-def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any], df: pd.DataFrame) -> go.Figure:
+def apply_pattern_geometry_to_figure(
+    fig: go.Figure, 
+    pattern_data: Dict[str, Any], 
+    df: pd.DataFrame,
+    show_patterns: bool = True,
+    show_accelerated: bool = False
+) -> go.Figure:
     """
     將計算出的型態幾何線段、頸線、箱體、弧線與目標價標籤直接繪製於 Plotly 主圖 (Row 1)
     """
@@ -739,9 +745,9 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
     trendlines = pattern_data.get("trendlines")
 
     # =========================================================================
-    # 1. 繪製主導型態 (Active Pattern)
+    # 1. 繪製主導型態 (Active Pattern) 與智慧切線 (依 show_patterns 控制)
     # =========================================================================
-    if active:
+    if show_patterns and active:
         pat_id = active.get("id")
 
         # --- A. 突破 ABC 修正下降切線 ---
@@ -1148,7 +1154,7 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
     # =========================================================================
     # 2. 若無特定主導型態，繪製主要智慧趨勢切線 (保證任何股票皆有切線指引)
     # =========================================================================
-    elif trendlines:
+    elif show_patterns and trendlines:
         tl = trendlines
         fig.add_trace(go.Scatter(
             x=[tl["x0"], tl["x1"]],
@@ -1169,34 +1175,35 @@ def apply_pattern_geometry_to_figure(fig: go.Figure, pattern_data: Dict[str, Any
         )
 
     # =========================================================================
-    # 3. ⚡ 疊加繪製近期短期加速防守線 (電光青藍色 #00F0FF，獨立於大波段切線)
+    # 3. ⚡ 疊加繪製近期短期加速防守線 (電光青藍色 #00F0FF，獨立選項，預設關閉)
     # =========================================================================
-    acc_line = pattern_data.get("accelerated_defense_line")
-    if acc_line:
-        fig.add_trace(go.Scatter(
-            x=[acc_line["t1_date"], acc_line["t2_date"], df.iloc[-1]['Date']],
-            y=[acc_line["p1"], acc_line["p2"], acc_line["y_today"]],
-            mode="lines",
-            name="近期加速防守線",
-            line=dict(color="#00F0FF", width=2.4, dash="solid"),
-            hoverinfo="text",
-            hovertext=f"📐 近期短期加速防守線 (今日切線價: {acc_line['y_today']:.2f} 元)",
-            showlegend=True
-        ), row=1, col=1)
+    if show_accelerated:
+        acc_line = pattern_data.get("accelerated_defense_line")
+        if acc_line:
+            fig.add_trace(go.Scatter(
+                x=[acc_line["t1_date"], acc_line["t2_date"], df.iloc[-1]['Date']],
+                y=[acc_line["p1"], acc_line["p2"], acc_line["y_today"]],
+                mode="lines",
+                name="近期加速防守線",
+                line=dict(color="#00F0FF", width=2.4, dash="solid"),
+                hoverinfo="text",
+                hovertext=f"📐 近期短期加速防守線 (今日切線價: {acc_line['y_today']:.2f} 元)",
+                showlegend=True
+            ), row=1, col=1)
 
-        # 右側端點切線價標註 (若跌破，高亮顯示紅底電光青框 🚨 跌破防守線，否則顯示深青底 📐 短線防守線)
-        # 完全整合破線預警於右側端點標籤，避免在當日 K 棒實體或「暫底」圓圈下方添加大面積色塊造成遮擋！
-        is_acc_broken = acc_line.get("is_broken", False)
-        acc_badge_text = f" 🚨 跌破防守線 {acc_line['y_today']:.2f} " if is_acc_broken else f" 📐 短線防守線 {acc_line['y_today']:.2f} "
-        acc_bg = "#DC2626" if is_acc_broken else "#083344"
-        acc_txt_color = "white" if is_acc_broken else "#00F0FF"
+            # 右側端點切線價標註 (若跌破，高亮顯示紅底電光青框 🚨 跌破防守線，否則顯示深青底 📐 短線防守線)
+            # 完全整合破線預警於右側端點標籤，避免在當日 K 棒實體或「暫底」圓圈下方添加大面積色塊造成遮擋！
+            is_acc_broken = acc_line.get("is_broken", False)
+            acc_badge_text = f" 🚨 跌破防守線 {acc_line['y_today']:.2f} " if is_acc_broken else f" 📐 短線防守線 {acc_line['y_today']:.2f} "
+            acc_bg = "#DC2626" if is_acc_broken else "#083344"
+            acc_txt_color = "white" if is_acc_broken else "#00F0FF"
 
-        fig.add_annotation(
-            x=df.iloc[-1]['Date'], y=acc_line["y_today"], xref="x", yref="y",
-            text=acc_badge_text,
-            showarrow=False, xanchor="left", xshift=22,
-            bgcolor=acc_bg, bordercolor="#00F0FF", borderwidth=1.5,
-            font=dict(color=acc_txt_color, size=9.5, family="Arial Black")
-        )
+            fig.add_annotation(
+                x=df.iloc[-1]['Date'], y=acc_line["y_today"], xref="x", yref="y",
+                text=acc_badge_text,
+                showarrow=False, xanchor="left", xshift=22,
+                bgcolor=acc_bg, bordercolor="#00F0FF", borderwidth=1.5,
+                font=dict(color=acc_txt_color, size=9.5, family="Arial Black")
+            )
 
     return fig

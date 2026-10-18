@@ -2944,260 +2944,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
         # TAB 1: 🎯 技術分析 (頭底/壓力支撐) - 旗艦核心視覺
         # =========================================================================
         with tab_tech:
-            # 5 大核心技術面指標盒
-            c1, c2, c3, c4, c5 = st.columns(5)
-            with c1:
-                t_status = trend.get('trend_status', '整理中')
-                chg_date_str = trend.get('trend_change_date_str', '')
-                days_since_chg = trend.get('days_since_change', 99)
-                is_fresh_chg = trend.get('is_fresh_change', False)
-                major_d = trend.get('major_trend_date_str', '')
-                days_major = trend.get('days_since_major', 99)
-                is_fresh_trend = trend.get('is_fresh_trend_start', False)
-                reb_d = trend.get('swing_rebound_date_str', '')
-                days_reb = trend.get('days_since_rebound', 99)
-                is_fresh_reb = trend.get('is_fresh_rebound', False)
-
-                is_cons_2m = trend.get('is_cons_over_2m', False)
-                cons_m = trend.get('cons_duration_months', 2.0)
-                is_ma_sq_2m = signals_dict.get('is_ma_squeeze_over_2m', False)
-                sq_m = signals_dict.get('ma_squeeze_months', 2.0)
-                sq_b = signals_dict.get('ma_squeeze_bars', 40)
-
-                lz_badge = ""
-                if is_cons_2m:
-                    c_s_date = trend.get('cons_start_date_str', '')
-                    c_bars = trend.get('cons_duration_bars', 0)
-                    c_low = trend.get('cons_box_low', 0.0)
-                    c_high = trend.get('cons_box_high', 0.0)
-                    c_amp = trend.get('cons_amp_pct', 0.0)
-                    lz_tip = f"title='{c_s_date}～{chg_date_str} 密集箱型共 {c_bars} 天 ({c_low}～{c_high}元，振幅{c_amp}%)'" if c_s_date else ""
-                    lz_badge = f"<span {lz_tip} style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>盤整{cons_m}月轉多 🔥</span>"
-
-                sq_badge = ""
-                if is_ma_sq_2m:
-                    sq_tip = f"title='老朱戰法：5/10/20/60MA 四線平躺糾結 {sq_b} 天 ({sq_m}個月)，一箭穿心突破！'"
-                    sq_badge = f"<span {sq_tip} style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>四線糾結{sq_m}月 🌀</span>"
-
-                date_html = ""
-                if t_status.startswith("多頭趨勢"):
-                    if is_fresh_trend:
-                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
-                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 剛轉多 {major_d} · {d_txt} <span style='background:#16A34A; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉多</span>{lz_badge}{sq_badge}</div>"
-                    elif major_d:
-                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
-                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 多頭趨勢 · {major_d} 起漲 ({d_txt}){lz_badge}{sq_badge}</div>"
-                elif t_status.startswith("空頭趨勢"):
-                    if is_fresh_trend:
-                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
-                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 剛轉空 {major_d} · {d_txt} <span style='background:#DC2626; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉空</span></div>"
-                    elif major_d:
-                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
-                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 空頭趨勢 · {major_d} 起跌 ({d_txt})</div>"
-                elif chg_date_str:
-                    d_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
-                    fresh_badge = "<span style='background:#D97706; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉盤整</span>" if is_fresh_chg else ""
-                    date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 轉盤整 {chg_date_str} · {d_txt} {fresh_badge}</div>"
-                elif is_ma_sq_2m:
-                    date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>{sq_badge}</div>"
-
-                if " (" in t_status and t_status.endswith(")"):
-                    t_main, t_sub = t_status.split(" (", 1)
-                    t_sub = t_sub.rstrip(")")
-                    t_display = f"{t_main}<br><span style='font-size:0.82rem; font-weight:normal; opacity:0.9;'>({t_sub})</span>{date_html}"
-                else:
-                    t_display = f"{t_status}{date_html}"
-                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>趨勢架構</div><div style='font-size:1.05rem; font-weight:bold; color:{trend['trend_color']}; line-height:1.25;'>{t_display}</div></div>", unsafe_allow_html=True)
-            with c2:
-                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>壓力線 (前高)</div><div style='font-size:1.25rem; font-weight:bold; color:#FF922B;'>{trend['resistance']}</div></div>", unsafe_allow_html=True)
-            with c3:
-                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>支撐線 (前低)</div><div style='font-size:1.25rem; font-weight:bold; color:#FFA94D;'>{trend['support']}</div></div>", unsafe_allow_html=True)
-            with c4:
-                hp_text = f"{highest_peak['price']} ({highest_peak['date'].strftime('%m/%d')})" if highest_peak else "無"
-                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>🏆 區間最高頭</div><div style='font-size:1.15rem; font-weight:bold; color:#FF4D4F;'>{hp_text}</div></div>", unsafe_allow_html=True)
-            with c5:
-                lt_text = f"{lowest_trough['price']} ({lowest_trough['date'].strftime('%m/%d')})" if lowest_trough else "無"
-                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>⚓ 區間最低底</div><div style='font-size:1.15rem; font-weight:bold; color:#52C41A;'>{lt_text}</div></div>", unsafe_allow_html=True)
-
-            # 多頭轉弱 / 提前翻盤整或翻空之預警橫幅 (老朱實戰風控)
-            rev_warns = trend.get('reversal_warnings', [])
-            if rev_warns:
-                warn_bullets = "".join([f"<li style='margin-bottom:3px;'><b>{w['badge']}</b>：{w['detail']}</li>" for w in rev_warns])
-                st.markdown(
-                    f"<div style='background:rgba(217, 119, 6, 0.15); border-left:4px solid #D97706; border-radius:6px; padding:8px 12px; margin:8px 0; color:#FDE68A; font-size:0.83rem; line-height:1.6;'>"
-                    f"⚠️ <b>【老朱戰法 · 多頭轉弱／盤整翻空提前預警】</b><br>"
-                    f"<ul style='margin:4px 0 0 18px; padding:0;'>{warn_bullets}</ul>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
-
-            # 專業目標價機制判斷 (未突破前高壓力前暫不啟動，過壓才啟動滿足點)
-            has_broken_res = (info['close'] >= trend['resistance']) if trend.get('resistance') else False
-            if trend.get('target'):
-                if has_broken_res:
-                    st.success(f"🚀 **【目標價已正式啟動！】** 收盤價 ({info['close']} 元) 已成功站上壓力線 ({trend['resistance']} 元)！波段 N 字等距對稱目標價上看：**{trend['target']}** 元！")
-                else:
-                    st.info(f"🔒 **【目標價機制】** 目前股價 ({info['close']} 元) 尚未突破壓力線 ({trend['resistance']} 元)，波段等距目標價 ({trend['target']} 元) 暫未啟動。（實戰心法：過壓才算起漲，未過壓前依箱型區間操作，嚴禁預設立場！）")
-
-            # 盤整與警示訊息
-            if signals_dict.get('consolidation_breakout_imminent', False):
-                st.success("⏳ **【盤整末端即將表態預警】**：目前均線高度糾結、成交量極度萎縮至窒息量，收盤逼近箱頂！實戰操盤心法：等待第一根放量突破長紅棒進場！")
-            elif signals_dict.get('is_consolidation', False):
-                st.warning("⏸️ **【目前進入箱型盤整】**：尚未走出底底高或頭頭高。實戰操盤心法：盤整期不躁進追價，觀望等待放量突破！")
-            if signals_dict.get('is_multi_bagger', False):
-                st.error(f"⚠️ **【波段暴漲 {signals_dict['bagger_multiple']:.1f} 倍高檔警示】**：累積漲幅達 {int((signals_dict['bagger_multiple']-1)*100)}%！高檔隨時有獲利賣壓，嚴禁長抱！")
-            three_ma_info = signals_dict.get('three_ma_strategy', {})
-            if three_ma_info.get('advice'):
-                three_held = three_ma_info.get('held_shares', 0)
-                badge = "🟢" if three_held == 3 else ("🟡" if three_held == 2 else ("🟠" if three_held == 1 else "🔴"))
-                st.info(f"🧭 **【三均線短中長綜合部位（3張部位管理）】**：{badge} 持有水位 **{three_held}/3** | {three_ma_info['advice']}")
-            else:
-                two_tr = signals_dict.get('two_tranches', {})
-                if two_tr.get('advice'):
-                    st.info(f"💡 **【買兩張（長短配）實戰操盤指引】**：{two_tr['advice']}")
-            # 老朱三層進場階梯戰法 (Three-Tier Entry Hierarchy) 操盤導航看板
+            # 預先計算進場階梯與突破狀態，供控制選項與主圖標註調用
             entry_tier = core.entry_point_analyzer.calculate_three_tier_entry(df, points, trend, signals_dict)
-            core.entry_point_analyzer.render_three_tier_entry_dashboard(entry_tier)
-
-            with st.expander("📋 查看【老朱三階進場戰法 (B1/B2/B3 買點與部位配置規範)】實戰說明", expanded=False):
-                st.markdown("""
-                #### 🧭 什麼是 B1、B2、B3？「B」代表什麼？
-                「**B**」即為英文 **Buy（買進 / 買點）**！朱家泓老師實戰操盤將多頭起漲劃分為三大漸進階梯：
-
-                1. **🟢 B1（第 1 買點 · 底部轉折試單）**：
-                   - **技術要件**：股價自低點反彈後，拉回**打第二隻腳不破前低**（底底高雏形），當日**收紅 K 站上 5MA 操盤線**！
-                   - **部位配置**：**20% ～ 30%（輕倉試單）**。
-                   - **操盤目的**：買在成本最低處。看錯跌破第二隻腳低點立刻微損停損；看對等 B2 正式加碼。
-                2. **🔥 B2（第 2 買點 · 標準多頭確立 · 老朱勝率最高核心買點！）**：
-                   - **技術要件**：股價帶量長紅**突破前高頸線 / 箱頂**！「頭頭高 ↗ ＋ 底底高 ↗」完全 100% 成立！
-                   - **部位配置**：**60% ～ 70%（標準重倉進場）**。
-                   - **操盤目的**：多頭趨勢正式成形，主力攻擊最猛烈、賺錢速度最快的黃金進場點！停損設守突破頸線或長紅低點。
-                3. **🚀 B3（第 3 買點 · 波段加碼追價 / 主升段奔馳）**：
-                   - **技術要件**：放量突破大格局壓力線/大箱頂，或「回後買上漲」再創波段新高。
-                   - **部位配置**：已持股者順勢加碼；空手者屬強勢追價（部位不宜大，手腳要快）。
-                   - **操盤目的**：主升段飆漲加速，一律嚴守 5MA 移動停利抱緊大波段。
-
-                ---
-                #### 🎯 進場區間與禁追天花板紀律：
-                - **建議進場區（突破價 +0% ～ +2.5%）**：最佳安全買點，盈虧比良好，按建議比例標準進場。
-                - **輕度追價區（突破價 +2.5% ～ +5.0%）**：稍離發動點，進場建議部位減半，防短線震盪洗盤。
-                - **禁追天花板（突破價 > +5.0%）**：**嚴禁追高！** 寧等量縮回測守穩 5MA，切勿幫主力抬轎。
-
-                ---
-                #### ⏱️ 朱老師 10/07 贏家心法 · 預測失準（時間停損）換股 SOP：
-                - **買進 3~5 天不衝即屬預測失準**：進場後 T+3~T+5 天股價仍在成本區原地打轉（-2%~+2%）、成交量萎縮，代表多頭攻擊動能不足。
-                - **沒壞但不漲也要出場**：時間也是資金成本，應在平盤附近微損主動換股，嚴格落實「汰弱留強」，將資金轉向已發動的飆股！
-                """)
-
-            # =========================================================================
-            # ⚡ 極簡 1-Click 買進登記 · 納入每日全自動評估守護神
-            # =========================================================================
-            curr_copilot_u = st.session_state.get("copilot_user", {"user_id": "master"})
-            copilot_uid = curr_copilot_u.get("user_id", "master")
-            current_user_h = [h for h in load_portfolio(user_id=copilot_uid) if h.get("code") == info["code"] and h.get("status") == "HOLDING"]
-
-            with st.container():
-                if current_user_h:
-                    h_item = current_user_h[0]
-                    h_shares_str = f"{h_item['shares'] // 1000} 張" if h_item['shares'] % 1000 == 0 else f"{h_item['shares'] / 1000:.2f} 張"
-                    st.markdown(
-                        f'<div style="background: #14231E; border: 1.5px solid #52C41A; border-radius: 10px; padding: 12px 16px; margin: 12px 0 14px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">'
-                        f'<div>'
-                        f'<span style="font-size: 1.1rem; font-weight: bold; color: #52C41A;">🛡️【{info["name"]}】在庫守護中</span> · '
-                        f'<span style="color: #E2E8F0; font-size: 0.92rem;">持有數量：<b>{h_shares_str}</b> ({h_item.get("trade_type", "現股")}) · 平均成本：<b>{h_item["buy_price"]} 元</b></span>'
-                        f'</div>'
-                        f'<div style="color: #8892B0; font-size: 0.82rem;">🤖 每日副駕駛全自動評估【優先續抱 vs 建議換股 vs 果斷退場】</div>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
-                    with st.expander(f"➕ 加碼登記買進【{info['name']}】", expanded=False):
-                        with st.form(f"form_quick_add_{query}", clear_on_submit=False):
-                            c_qa1, c_qa2, c_qa3, c_qa4 = st.columns(4)
-                            with c_qa1:
-                                qa_buy_p = st.number_input("加碼成交價 (元)", value=float(info['close']), step=0.1, key=f"qa_p_{query}")
-                            with c_qa2:
-                                qa_shares = st.number_input("加碼張數", value=1.0, min_value=0.1, step=0.5, format="%.2f", key=f"qa_s_{query}")
-                            with c_qa3:
-                                qa_stop = st.number_input("防守停損價 (元)", value=float(entry_tier.get('stop_loss', round(float(info['close']) * 0.95, 2))), step=0.1, key=f"qa_sl_{query}")
-                            with c_qa4:
-                                qa_tgt = st.number_input("波段目標價 (元)", value=float(entry_tier.get('target_price', round(float(info['close']) * 1.10, 2))), step=0.1, key=f"qa_tp_{query}")
-                            qa_btn = st.form_submit_button(f"⚡ 確認加碼買進【{info['name']}】", type="primary", use_container_width=True)
-                            if qa_btn:
-                                add_holding(
-                                    code=info['code'],
-                                    name=info['name'],
-                                    buy_price=qa_buy_p,
-                                    stop_loss=qa_stop,
-                                    target_price=qa_tgt,
-                                    strategy=entry_tier.get('stage_name', '階梯加碼'),
-                                    buy_reason=f"{entry_tier.get('stage_name', '階梯戰術')} 加碼建倉",
-                                    shares=int(round(qa_shares * 1000)),
-                                    trade_type="現股",
-                                    user_id=copilot_uid
-                                )
-                                if "copilot_inspected_cache" in st.session_state:
-                                    del st.session_state["copilot_inspected_cache"]
-                                st.success(f"🎉 成功登記加碼【{info['name']}】{qa_shares} 張！每日自動評估守護中！")
-                                st.rerun()
-                else:
-                    default_sl = float(entry_tier.get('stop_loss', round(float(info['close']) * 0.95, 2)))
-                    default_tp = float(entry_tier.get('target_price', round(float(info['close']) * 1.10, 2)))
-                    stage_label = entry_tier.get('stage_name', '黃金階梯進場')
-
-                    st.markdown(
-                        f'<div style="background: #181E2E; border: 1.5px solid #3B82F6; border-radius: 10px; padding: 14px 16px; margin: 12px 0 14px 0;">'
-                        f'<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">'
-                        f'<div>'
-                        f'<span style="font-size: 1.15rem; font-weight: bold; color: #60A5FA;">⚡ 極簡 1-Click 買進登記</span>'
-                        f'<span style="color: #94A3B8; font-size: 0.88rem; margin-left: 8px;">登錄後天天全自動評估【🟢 優先續抱 vs 🔄 建議換股 vs 🔴 果斷退場】</span>'
-                        f'</div>'
-                        f'<span style="background: #2563EB22; color: #93C5FD; border: 1px solid #3B82F6; padding: 2px 8px; border-radius: 4px; font-size: 0.82rem; font-weight: bold;">{stage_label}</span>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
-                    with st.form(f"form_quick_buy_direct_{query}", clear_on_submit=False):
-                        cq1, cq2, cq3, cq4, cq5 = st.columns([1.3, 1.1, 1.1, 1.2, 1.2])
-                        with cq1:
-                            qb_price = st.number_input("買進成交價 (元)", value=float(info['close']), step=0.1, key=f"qb_p_{query}")
-                        with cq2:
-                            qb_shares = st.number_input("買進張數", value=1.0, min_value=0.1, step=0.5, format="%.2f", key=f"qb_s_{query}")
-                        with cq3:
-                            qb_type = st.selectbox("交易類別", ["現股", "融資"], index=0, key=f"qb_t_{query}")
-                        with cq4:
-                            qb_sl = st.number_input("防守停損價 (元)", value=default_sl, step=0.1, key=f"qb_sl_{query}")
-                        with cq5:
-                            qb_tp = st.number_input("波段目標價 (元)", value=default_tp, step=0.1, key=f"qb_tp_{query}")
-                        
-                        btn_qb_submit = st.form_submit_button(
-                            f"⚡ 一鍵登記買進【{info['name']}】（立即啟動天天智能守護評估）",
-                            type="primary",
-                            use_container_width=True
-                        )
-                        if btn_qb_submit:
-                            add_holding(
-                                code=info['code'],
-                                name=info['name'],
-                                buy_price=qb_price,
-                                stop_loss=qb_sl,
-                                target_price=qb_tp,
-                                strategy=stage_label,
-                                buy_reason=f"{stage_label} 階梯進場",
-                                shares=int(round(qb_shares * 1000)),
-                                trade_type=qb_type,
-                                user_id=copilot_uid
-                            )
-                            if "copilot_inspected_cache" in st.session_state:
-                                del st.session_state["copilot_inspected_cache"]
-                            st.success(f"🎉 成功登記買進【{info['name']} ({info['code']})】！副駕駛已啟動每日【續抱 vs 換股 vs 退場】自動評估！")
-                            st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-            if signals_list:
-                render_strategy_signals_dashboard(signals_list, signals_dict, trend, info)
-
-            # 🧭 均線即時方向與位階狀態儀錶盤 (5MA/10MA/20MA/60MA 翻揚助漲 vs 下彎助跌，整合於訊號診斷下方)
-            from core.kline_cheat_sheet import render_ma_direction_dashboard
-            render_ma_direction_dashboard(df, close_price=float(info['close']))
+            has_broken_res = (info['close'] >= trend['resistance']) if trend.get('resistance') else False
 
             # =========================================================================
             # 📊 轉折波趨勢主圖專屬整合控制面板（緊密貼齊在趨勢圖正上方，點選即見變化無須滑動）
@@ -3243,13 +2992,14 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 show_stop = r2_c3.checkbox("- - 🛑 :red[停損(紅虛線)] / 🏆 :blue[停利(青虛線)]", value=True, key=f"t1_stop_{query}")
                 show_gap = r2_c4.checkbox("▓▓ 🟣 :violet[空方(紫)] / 🟢 :green[多方(綠)] 缺口帶", value=True, key=f"t1_gap_{query}")
 
-                # 第四排：AI 型態幾何與老朱三層買點專屬控制列 (融入切線樣式與色彩)
-                r3_c1, r3_c2, r3_c3 = st.columns([3.2, 3.4, 2.4])
+                # 第四排：AI 型態幾何、短期加速防守線與老朱三層買點專屬控制列 (獨立選項，按了才出現)
+                r3_c1, r3_c2, r3_c3, r3_c4 = st.columns([2.8, 2.8, 2.6, 2.2])
                 show_geometry = r3_c1.checkbox("📐 :violet[AI型態幾何線 (切線/箱型/軌道)]", value=True, key=f"t1_geom_{query}")
-                show_entry_tiers = r3_c2.checkbox("🎯 老朱買點 (:green[── 🟢B1] / :orange[── 🔥B2] / :violet[- - 🚀B3])", value=True, key=f"t1_tiers_{query}")
+                show_acc_defense = r3_c2.checkbox("⚡ :cyan[短期加速防守線 (電光青藍)]", value=False, key=f"t1_acc_{query}", help="噴出加速段上升防守切線，跌破提示減碼或停利。獨立選項，預設關閉，按了才會出現")
+                show_entry_tiers = r3_c3.checkbox("🎯 老朱買點 (:green[── 🟢B1] / :orange[── 🔥B2] / :violet[- - 🚀B3])", value=True, key=f"t1_tiers_{query}")
                 if show_geometry and pattern_geo.get("patterns_found"):
                     p_options = [p["name"] for p in pattern_geo["patterns_found"]]
-                    chosen_pname = r3_c3.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
+                    chosen_pname = r3_c4.selectbox("切換顯示型態：", p_options, index=0, key=f"t1_p_sel_{query}")
                     p_match = next((p for p in pattern_geo["patterns_found"] if p["name"] == chosen_pname), None)
                     if p_match:
                         pattern_geo["active_pattern"] = p_match
@@ -3288,6 +3038,10 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 act_tgt = pattern_geo['active_pattern'].get('target_d')
                 if act_tgt and act_tgt <= max(y_maxs) * 1.35:
                     y_maxs.append(act_tgt)
+            if show_acc_defense and pattern_geo.get('accelerated_defense_line'):
+                acc_y = pattern_geo['accelerated_defense_line'].get('y_today')
+                if acc_y and acc_y <= max(y_maxs) * 1.25:
+                    y_maxs.append(acc_y)
             if show_gap and gaps_data.get('nearest_overhead_gap'):
                 og_top = gaps_data['nearest_overhead_gap']['rem_top']
                 if og_top <= max(y_maxs) * 1.25:
@@ -3469,8 +3223,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             if show_gap:
                 fig1 = apply_gaps_to_figure(fig1, gaps_data, df)
 
-            if show_geometry:
-                fig1 = apply_pattern_geometry_to_figure(fig1, pattern_geo, df)
+            if show_geometry or show_acc_defense:
+                fig1 = apply_pattern_geometry_to_figure(
+                    fig1, pattern_geo, df,
+                    show_patterns=show_geometry,
+                    show_accelerated=show_acc_defense
+                )
 
             # 自動檢測並排除右側標籤 (壓力 / 支撐 / 停損 / 目標 / 移動停利 / 等距目標價) 垂直重疊碰撞
             fig1 = resolve_right_badge_collisions(fig1, auto_y[0], auto_y[1])
@@ -3492,6 +3250,266 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 st.warning(gaps_data["warning_message"])
             elif gaps_data.get("summary_desc") and gaps_data["summary_desc"] != "近期無重大未補跳空缺口":
                 st.caption(f"🕳️ **未補缺口監控**：{gaps_data['summary_desc']}")
+
+
+            st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
+
+            # 5 大核心技術面指標盒
+            c1, c2, c3, c4, c5 = st.columns(5)
+            with c1:
+                t_status = trend.get('trend_status', '整理中')
+                chg_date_str = trend.get('trend_change_date_str', '')
+                days_since_chg = trend.get('days_since_change', 99)
+                is_fresh_chg = trend.get('is_fresh_change', False)
+                major_d = trend.get('major_trend_date_str', '')
+                days_major = trend.get('days_since_major', 99)
+                is_fresh_trend = trend.get('is_fresh_trend_start', False)
+                reb_d = trend.get('swing_rebound_date_str', '')
+                days_reb = trend.get('days_since_rebound', 99)
+                is_fresh_reb = trend.get('is_fresh_rebound', False)
+
+                is_cons_2m = trend.get('is_cons_over_2m', False)
+                cons_m = trend.get('cons_duration_months', 2.0)
+                is_ma_sq_2m = signals_dict.get('is_ma_squeeze_over_2m', False)
+                sq_m = signals_dict.get('ma_squeeze_months', 2.0)
+                sq_b = signals_dict.get('ma_squeeze_bars', 40)
+
+                lz_badge = ""
+                if is_cons_2m:
+                    c_s_date = trend.get('cons_start_date_str', '')
+                    c_bars = trend.get('cons_duration_bars', 0)
+                    c_low = trend.get('cons_box_low', 0.0)
+                    c_high = trend.get('cons_box_high', 0.0)
+                    c_amp = trend.get('cons_amp_pct', 0.0)
+                    lz_tip = f"title='{c_s_date}～{chg_date_str} 密集箱型共 {c_bars} 天 ({c_low}～{c_high}元，振幅{c_amp}%)'" if c_s_date else ""
+                    lz_badge = f"<span {lz_tip} style='background:linear-gradient(90deg, #E11D48, #BE185D); color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>盤整{cons_m}月轉多 🔥</span>"
+
+                sq_badge = ""
+                if is_ma_sq_2m:
+                    sq_tip = f"title='老朱戰法：5/10/20/60MA 四線平躺糾結 {sq_b} 天 ({sq_m}個月)，一箭穿心突破！'"
+                    sq_badge = f"<span {sq_tip} style='background:linear-gradient(90deg, #9333EA, #A855F7); color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:3px; white-space:nowrap;'>四線糾結{sq_m}月 🌀</span>"
+
+                date_html = ""
+                if t_status.startswith("多頭趨勢"):
+                    if is_fresh_trend:
+                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 剛轉多 {major_d} · {d_txt} <span style='background:#16A34A; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉多</span>{lz_badge}{sq_badge}</div>"
+                    elif major_d:
+                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 多頭趨勢 · {major_d} 起漲 ({d_txt}){lz_badge}{sq_badge}</div>"
+                elif t_status.startswith("空頭趨勢"):
+                    if is_fresh_trend:
+                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 剛轉空 {major_d} · {d_txt} <span style='background:#DC2626; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉空</span></div>"
+                    elif major_d:
+                        d_txt = "今日" if days_major <= 1 else f"{days_major}天前"
+                        date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 空頭趨勢 · {major_d} 起跌 ({d_txt})</div>"
+                elif chg_date_str:
+                    d_txt = "今日" if days_since_chg <= 1 else f"{days_since_chg}天前"
+                    fresh_badge = "<span style='background:#D97706; color:white; border-radius:3px; padding:1px 4px; font-size:0.68rem; font-weight:bold; margin-left:2px;'>剛轉盤整</span>" if is_fresh_chg else ""
+                    date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>📅 轉盤整 {chg_date_str} · {d_txt} {fresh_badge}</div>"
+                elif is_ma_sq_2m:
+                    date_html = f"<div style='margin-top:3px; font-size:0.73rem; font-weight:normal; color:#DDD;'>{sq_badge}</div>"
+
+                if " (" in t_status and t_status.endswith(")"):
+                    t_main, t_sub = t_status.split(" (", 1)
+                    t_sub = t_sub.rstrip(")")
+                    t_display = f"{t_main}<br><span style='font-size:0.82rem; font-weight:normal; opacity:0.9;'>({t_sub})</span>{date_html}"
+                else:
+                    t_display = f"{t_status}{date_html}"
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>趨勢架構</div><div style='font-size:1.05rem; font-weight:bold; color:{trend['trend_color']}; line-height:1.25;'>{t_display}</div></div>", unsafe_allow_html=True)
+            with c2:
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>壓力線 (前高)</div><div style='font-size:1.25rem; font-weight:bold; color:#FF922B;'>{trend['resistance']}</div></div>", unsafe_allow_html=True)
+            with c3:
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>支撐線 (前低)</div><div style='font-size:1.25rem; font-weight:bold; color:#FFA94D;'>{trend['support']}</div></div>", unsafe_allow_html=True)
+            with c4:
+                cur_hp = t1_hp if t1_hp else highest_peak
+                hp_text = f"{cur_hp['price']} ({cur_hp['date'].strftime('%m/%d')})" if cur_hp else "無"
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>🏆 區間最高頭</div><div style='font-size:1.15rem; font-weight:bold; color:#FF4D4F;'>{hp_text}</div></div>", unsafe_allow_html=True)
+            with c5:
+                cur_lt = t1_lt if t1_lt else lowest_trough
+                lt_text = f"{cur_lt['price']} ({cur_lt['date'].strftime('%m/%d')})" if cur_lt else "無"
+                st.markdown(f"<div class='metric-box'><div style='color:#AAA; font-size:0.85rem;'>⚓ 區間最低底</div><div style='font-size:1.15rem; font-weight:bold; color:#52C41A;'>{lt_text}</div></div>", unsafe_allow_html=True)
+
+            # 多頭轉弱 / 提前翻盤整或翻空之預警橫幅 (老朱實戰風控)
+            rev_warns = trend.get('reversal_warnings', [])
+            if rev_warns:
+                warn_bullets = "".join([f"<li style='margin-bottom:3px;'><b>{w['badge']}</b>：{w['detail']}</li>" for w in rev_warns])
+                st.markdown(
+                    f"<div style='background:rgba(217, 119, 6, 0.15); border-left:4px solid #D97706; border-radius:6px; padding:8px 12px; margin:8px 0; color:#FDE68A; font-size:0.83rem; line-height:1.6;'>"
+                    f"⚠️ <b>【老朱戰法 · 多頭轉弱／盤整翻空提前預警】</b><br>"
+                    f"<ul style='margin:4px 0 0 18px; padding:0;'>{warn_bullets}</ul>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+            # 專業目標價機制判斷 (未突破前高壓力前暫不啟動，過壓才啟動滿足點)
+            has_broken_res = (info['close'] >= trend['resistance']) if trend.get('resistance') else False
+            if trend.get('target'):
+                if has_broken_res:
+                    st.success(f"🚀 **【目標價已正式啟動！】** 收盤價 ({info['close']} 元) 已成功站上壓力線 ({trend['resistance']} 元)！波段 N 字等距對稱目標價上看：**{trend['target']}** 元！")
+                else:
+                    st.info(f"🔒 **【目標價機制】** 目前股價 ({info['close']} 元) 尚未突破壓力線 ({trend['resistance']} 元)，波段等距目標價 ({trend['target']} 元) 暫未啟動。（實戰心法：過壓才算起漲，未過壓前依箱型區間操作，嚴禁預設立場！）")
+
+            # 盤整與警示訊息
+            if signals_dict.get('consolidation_breakout_imminent', False):
+                st.success("⏳ **【盤整末端即將表態預警】**：目前均線高度糾結、成交量極度萎縮至窒息量，收盤逼近箱頂！實戰操盤心法：等待第一根放量突破長紅棒進場！")
+            elif signals_dict.get('is_consolidation', False):
+                st.warning("⏸️ **【目前進入箱型盤整】**：尚未走出底底高或頭頭高。實戰操盤心法：盤整期不躁進追價，觀望等待放量突破！")
+            if signals_dict.get('is_multi_bagger', False):
+                st.error(f"⚠️ **【波段暴漲 {signals_dict['bagger_multiple']:.1f} 倍高檔警示】**：累積漲幅達 {int((signals_dict['bagger_multiple']-1)*100)}%！高檔隨時有獲利賣壓，嚴禁長抱！")
+            three_ma_info = signals_dict.get('three_ma_strategy', {})
+            if three_ma_info.get('advice'):
+                three_held = three_ma_info.get('held_shares', 0)
+                badge = "🟢" if three_held == 3 else ("🟡" if three_held == 2 else ("🟠" if three_held == 1 else "🔴"))
+                st.info(f"🧭 **【三均線短中長綜合部位（3張部位管理）】**：{badge} 持有水位 **{three_held}/3** | {three_ma_info['advice']}")
+            else:
+                two_tr = signals_dict.get('two_tranches', {})
+                if two_tr.get('advice'):
+                    st.info(f"💡 **【買兩張（長短配）實戰操盤指引】**：{two_tr['advice']}")
+            # 老朱三層進場階梯戰法 (Three-Tier Entry Hierarchy) 操盤導航看板
+            entry_tier = core.entry_point_analyzer.calculate_three_tier_entry(df, points, trend, signals_dict)
+            core.entry_point_analyzer.render_three_tier_entry_dashboard(entry_tier)
+
+            with st.expander("📋 查看【老朱三階進場戰法 (B1/B2/B3 買點與部位配置規範)】實戰說明", expanded=False):
+                st.markdown("""
+                #### 🧭 什麼是 B1、B2、B3？「B」代表什麼？
+                「**B**」即為英文 **Buy（買進 / 買點）**！朱家泓老師實戰操盤將多頭起漲劃分為三大漸進階梯：
+
+                1. **🟢 B1（第 1 買點 · 底部轉折試單）**：
+                   - **技術要件**：股價自低點反彈後，拉回**打第二隻腳不破前低**（底底高雏形），當日**收紅 K 站上 5MA 操盤線**！
+                   - **部位配置**：**20% ～ 30%（輕倉試單）**。
+                   - **操盤目的**：買在成本最低處。看錯跌破第二隻腳低點立刻微損停損；看對等 B2 正式加碼。
+                2. **🔥 B2（第 2 買點 · 標準多頭確立 · 老朱勝率最高核心買點！）**：
+                   - **技術要件**：股價帶量長紅**突破前高頸線 / 箱頂**！「頭頭高 ↗ ＋ 底底高 ↗」完全 100% 成立！
+                   - **部位配置**：**60% ～ 70%（標準重倉進場）**。
+                   - **操盤目的**：多頭趨勢正式成形，主力攻擊最猛烈、賺錢速度最快的黃金進場點！停損設守突破頸線或長紅低點。
+                3. **🚀 B3（第 3 買點 · 波段加碼追價 / 主升段奔馳）**：
+                   - **技術要件**：放量突破大格局壓力線/大箱頂，或「回後買上漲」再創波段新高。
+                   - **部位配置**：已持股者順勢加碼；空手者屬強勢追價（部位不宜大，手腳要快）。
+                   - **操盤目的**：主升段飆漲加速，一律嚴守 5MA 移動停利抱緊大波段。
+
+                ---
+                #### 🎯 進場區間與禁追天花板紀律：
+                - **建議進場區（突破價 +0% ～ +2.5%）**：最佳安全買點，盈虧比良好，按建議比例標準進場。
+                - **輕度追價區（突破價 +2.5% ～ +5.0%）**：稍離發動點，進場建議部位減半，防短線震盪洗盤。
+                - **禁追天花板（突破價 > +5.0%）**：**嚴禁追高！** 寧等量縮回測守穩 5MA，切勿幫主力抬轎。
+
+                ---
+                #### ⏱️ 朱老師 10/07 贏家心法 · 預測失準（時間停損）換股 SOP：
+                - **買進 3~5 天不衝即屬預測失準**：進場後 T+3~T+5 天股價仍在成本區原地打轉（-2%~+2%）、成交量萎縮，代表多頭攻擊動能不足。
+                - **沒壞但不漲也要出場**：時間也是資金成本，應在平盤附近微損主動換股，嚴格落實「汰弱留強」，將資金轉向已發動的飆股！
+                """)
+
+            # =========================================================================
+            # ⚡ 極簡 1-Click 買進登記 · 納入每日全自動評估守護神
+            # =========================================================================
+            curr_copilot_u = st.session_state.get("copilot_user", {"user_id": "master"})
+            copilot_uid = curr_copilot_u.get("user_id", "master")
+            current_user_h = [h for h in load_portfolio(user_id=copilot_uid) if h.get("code") == info["code"] and h.get("status") == "HOLDING"]
+
+            with st.container():
+                if current_user_h:
+                    h_item = current_user_h[0]
+                    h_shares_str = f"{h_item['shares'] // 1000} 張" if h_item['shares'] % 1000 == 0 else f"{h_item['shares'] / 1000:.2f} 張"
+                    st.markdown(
+                        f'<div style="background: #14231E; border: 1.5px solid #52C41A; border-radius: 10px; padding: 12px 16px; margin: 12px 0 14px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">'
+                        f'<div>'
+                        f'<span style="font-size: 1.1rem; font-weight: bold; color: #52C41A;">🛡️【{info["name"]}】在庫守護中</span> · '
+                        f'<span style="color: #E2E8F0; font-size: 0.92rem;">持有數量：<b>{h_shares_str}</b> ({h_item.get("trade_type", "現股")}) · 平均成本：<b>{h_item["buy_price"]} 元</b></span>'
+                        f'</div>'
+                        f'<div style="color: #8892B0; font-size: 0.82rem;">🤖 每日副駕駛全自動評估【優先續抱 vs 建議換股 vs 果斷退場】</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+                    with st.expander(f"➕ 加碼登記買進【{info['name']}】", expanded=False):
+                        with st.form(f"form_quick_add_{query}", clear_on_submit=False):
+                            c_qa1, c_qa2, c_qa3, c_qa4 = st.columns(4)
+                            with c_qa1:
+                                qa_buy_p = st.number_input("加碼成交價 (元)", value=float(info['close']), step=0.1, key=f"qa_p_{query}")
+                            with c_qa2:
+                                qa_shares = st.number_input("加碼張數", value=1.0, min_value=0.1, step=0.5, format="%.2f", key=f"qa_s_{query}")
+                            with c_qa3:
+                                qa_stop = st.number_input("防守停損價 (元)", value=float(entry_tier.get('stop_loss', round(float(info['close']) * 0.95, 2))), step=0.1, key=f"qa_sl_{query}")
+                            with c_qa4:
+                                qa_tgt = st.number_input("波段目標價 (元)", value=float(entry_tier.get('target_price', round(float(info['close']) * 1.10, 2))), step=0.1, key=f"qa_tp_{query}")
+                            qa_btn = st.form_submit_button(f"⚡ 確認加碼買進【{info['name']}】", type="primary", use_container_width=True)
+                            if qa_btn:
+                                add_holding(
+                                    code=info['code'],
+                                    name=info['name'],
+                                    buy_price=qa_buy_p,
+                                    stop_loss=qa_stop,
+                                    target_price=qa_tgt,
+                                    strategy=entry_tier.get('stage_name', '階梯加碼'),
+                                    buy_reason=f"{entry_tier.get('stage_name', '階梯戰術')} 加碼建倉",
+                                    shares=int(round(qa_shares * 1000)),
+                                    trade_type="現股",
+                                    user_id=copilot_uid
+                                )
+                                if "copilot_inspected_cache" in st.session_state:
+                                    del st.session_state["copilot_inspected_cache"]
+                                st.success(f"🎉 成功登記加碼【{info['name']}】{qa_shares} 張！每日自動評估守護中！")
+                                st.rerun()
+                else:
+                    default_sl = float(entry_tier.get('stop_loss', round(float(info['close']) * 0.95, 2)))
+                    default_tp = float(entry_tier.get('target_price', round(float(info['close']) * 1.10, 2)))
+                    stage_label = entry_tier.get('stage_name', '黃金階梯進場')
+
+                    st.markdown(
+                        f'<div style="background: #181E2E; border: 1.5px solid #3B82F6; border-radius: 10px; padding: 14px 16px; margin: 12px 0 14px 0;">'
+                        f'<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">'
+                        f'<div>'
+                        f'<span style="font-size: 1.15rem; font-weight: bold; color: #60A5FA;">⚡ 極簡 1-Click 買進登記</span>'
+                        f'<span style="color: #94A3B8; font-size: 0.88rem; margin-left: 8px;">登錄後天天全自動評估【🟢 優先續抱 vs 🔄 建議換股 vs 🔴 果斷退場】</span>'
+                        f'</div>'
+                        f'<span style="background: #2563EB22; color: #93C5FD; border: 1px solid #3B82F6; padding: 2px 8px; border-radius: 4px; font-size: 0.82rem; font-weight: bold;">{stage_label}</span>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+                    with st.form(f"form_quick_buy_direct_{query}", clear_on_submit=False):
+                        cq1, cq2, cq3, cq4, cq5 = st.columns([1.3, 1.1, 1.1, 1.2, 1.2])
+                        with cq1:
+                            qb_price = st.number_input("買進成交價 (元)", value=float(info['close']), step=0.1, key=f"qb_p_{query}")
+                        with cq2:
+                            qb_shares = st.number_input("買進張數", value=1.0, min_value=0.1, step=0.5, format="%.2f", key=f"qb_s_{query}")
+                        with cq3:
+                            qb_type = st.selectbox("交易類別", ["現股", "融資"], index=0, key=f"qb_t_{query}")
+                        with cq4:
+                            qb_sl = st.number_input("防守停損價 (元)", value=default_sl, step=0.1, key=f"qb_sl_{query}")
+                        with cq5:
+                            qb_tp = st.number_input("波段目標價 (元)", value=default_tp, step=0.1, key=f"qb_tp_{query}")
+                        
+                        btn_qb_submit = st.form_submit_button(
+                            f"⚡ 一鍵登記買進【{info['name']}】（立即啟動天天智能守護評估）",
+                            type="primary",
+                            use_container_width=True
+                        )
+                        if btn_qb_submit:
+                            add_holding(
+                                code=info['code'],
+                                name=info['name'],
+                                buy_price=qb_price,
+                                stop_loss=qb_sl,
+                                target_price=qb_tp,
+                                strategy=stage_label,
+                                buy_reason=f"{stage_label} 階梯進場",
+                                shares=int(round(qb_shares * 1000)),
+                                trade_type=qb_type,
+                                user_id=copilot_uid
+                            )
+                            if "copilot_inspected_cache" in st.session_state:
+                                del st.session_state["copilot_inspected_cache"]
+                            st.success(f"🎉 成功登記買進【{info['name']} ({info['code']})】！副駕駛已啟動每日【續抱 vs 換股 vs 退場】自動評估！")
+                            st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+            if signals_list:
+                render_strategy_signals_dashboard(signals_list, signals_dict, trend, info)
+
+            # 🧭 均線即時方向與位階狀態儀錶盤 (5MA/10MA/20MA/60MA 翻揚助漲 vs 下彎助跌，整合於訊號診斷下方)
+            from core.kline_cheat_sheet import render_ma_direction_dashboard
+            render_ma_direction_dashboard(df, close_price=float(info['close']))
 
             c_curr = float(info['close'])
 
