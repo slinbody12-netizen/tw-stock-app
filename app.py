@@ -2972,6 +2972,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 t1_points, t1_lines, t1_hp, t1_lt = calculate_turning_points(df, ma_period=5, filter_mode=t1_filter_mode)
                 trend = analyze_trend(df, t1_points)
                 gaps_data = detect_unfilled_gaps(df)
+                import importlib
+                import core.pattern_geometry
+                try:
+                    importlib.reload(core.pattern_geometry)
+                except Exception:
+                    pass
                 from core.pattern_geometry import detect_pattern_geometries, apply_pattern_geometry_to_figure
                 pattern_geo = detect_pattern_geometries(df, signals_dict)
 
@@ -3224,11 +3230,19 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 fig1 = apply_gaps_to_figure(fig1, gaps_data, df)
 
             if show_geometry or show_acc_defense:
-                fig1 = apply_pattern_geometry_to_figure(
-                    fig1, pattern_geo, df,
-                    show_patterns=show_geometry,
-                    show_accelerated=show_acc_defense
-                )
+                try:
+                    fig1 = apply_pattern_geometry_to_figure(
+                        fig1, pattern_geo, df,
+                        show_patterns=show_geometry,
+                        show_accelerated=show_acc_defense
+                    )
+                except TypeError:
+                    try:
+                        fig1 = apply_pattern_geometry_to_figure(
+                            fig1, pattern_geo, df, show_geometry, show_acc_defense
+                        )
+                    except TypeError:
+                        fig1 = apply_pattern_geometry_to_figure(fig1, pattern_geo, df)
 
             # 自動檢測並排除右側標籤 (壓力 / 支撐 / 停損 / 目標 / 移動停利 / 等距目標價) 垂直重疊碰撞
             fig1 = resolve_right_badge_collisions(fig1, auto_y[0], auto_y[1])

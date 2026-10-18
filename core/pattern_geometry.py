@@ -733,11 +733,22 @@ def apply_pattern_geometry_to_figure(
     pattern_data: Dict[str, Any], 
     df: pd.DataFrame,
     show_patterns: bool = True,
-    show_accelerated: bool = False
+    show_accelerated: bool = False,
+    *args,
+    **kwargs
 ) -> go.Figure:
     """
     將計算出的型態幾何線段、頸線、箱體、弧線與目標價標籤直接繪製於 Plotly 主圖 (Row 1)
     """
+    if 'show_patterns' in kwargs:
+        show_patterns = kwargs['show_patterns']
+    if 'show_accelerated' in kwargs:
+        show_accelerated = kwargs['show_accelerated']
+    if len(args) >= 1:
+        show_patterns = args[0]
+    if len(args) >= 2:
+        show_accelerated = args[1]
+
     if fig is None or not pattern_data:
         return fig
 
