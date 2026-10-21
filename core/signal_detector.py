@@ -73,10 +73,11 @@ def check_14_elimination_rules(df: pd.DataFrame, trend_info: dict, last: pd.Seri
     # 屬於「初升段整理完成，準備走主升段」，並非出貨末升段，豁免規則4淘汰！
     if signals_dict.get('is_multi_bagger', False):
         bagger_m = signals_dict.get('bagger_multiple', 1.0)
-        is_four_ma_launch = signals_dict.get('bullish_alignment', False) and (signals_dict.get('main_wave_2nd', False) or signals_dict.get('box_range_breakout', False) or signals_dict.get('pullback_buy', False)) and (c >= sma5 and c >= o)
-        if not is_four_ma_launch:
-            reasons.append(f"【規則4·暴漲{bagger_m:.1f}倍高檔區】波段漲幅已翻倍，主力獲利豐厚隨時出貨，嚴禁長抱")
-        # 助教 10/13 AMAX-KY 指導：翻倍股高檔價平量縮 (末升段動能枯竭，嚴防回檔)
+        # 助教 10/17 南亞指導：翻倍股維持多頭且今日站上5MA出紅K，依然能進場，策略轉為短線操作(守5MA)！
+        # 僅在跌破5MA、收黑或高檔動能枯竭時才列為淘汰。
+        is_bull_playable = (c >= sma5 and c >= o and (sma20 >= prev_sma20 * 0.999))
+        if not is_bull_playable:
+            reasons.append(f"【規則4·暴漲{bagger_m:.1f}倍高檔轉弱】波段漲幅已翻倍且跌破5MA/收黑，主力獲利豐厚隨時出貨，嚴禁做多")
         elif len(df) >= 5:
             recent_amp = (df.iloc[-3:]['High'].max() - df.iloc[-3:]['Low'].min()) / (df.iloc[-3:]['Low'].min() + 1e-9)
             vol_shrink = (df.iloc[-1]['Volume'] < df.iloc[-20:]['Volume'].mean() * 0.75)

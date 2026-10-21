@@ -686,8 +686,10 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         if not str(s.get('safety_rating', '')).startswith('🟢'):
             continue
 
-        # 8. 操盤線 5MA 走升且收盤站穩 5MA
-        if not (s.get('is_5ma_rising', True) and s.get('above_5ma', True)):
+        # 8. 操盤線 5MA 檢驗：收盤必須站穩 5MA (回後買上漲依助教指引無須等5MA向上；突破起漲則需5MA走升)
+        if not s.get('above_5ma', True):
+            continue
+        if not is_pullback and not s.get('is_5ma_rising', True):
             continue
             
         # 9. 避雷針剔除
