@@ -661,11 +661,36 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
         if not (is_main_wave or is_turnover or is_pullback or is_bottom or is_bull_break or is_gold_cross or is_squeeze):
             continue
             
-        # 2. 操盤線 5MA 走升且收盤站穩 5MA
+        # 2. 實戰魔鬼鐵律：必須通過朱老師當日零瑕疵買進檢驗 (嚴格淘汰9成不適合標的)
+        if not s.get('is_today_buyable', False):
+            continue
+
+        # 3. 今日必須是實體紅K棒 (收盤價 >= 開盤價，黑K一票否決！)
+        if not s.get('is_red', True):
+            continue
+
+        # 4. 必須完美避開做多七大禁忌
+        do_not_buy = sig.get('ch11_do_not_buy') or {}
+        if not do_not_buy.get('pass_all', False):
+            continue
+
+        # 5. 不得處於高檔等回檔 (連續推升過熱，嚴禁追高)
+        if sig.get('watchlist_stage') == '高檔等回檔' or s.get('watchlist_stage') == '高檔等回檔':
+            continue
+
+        # 6. 基本成交量門檻 (流動性保障 >= 300張)
+        if float(s.get('volume', 0) or 0) < 300000:
+            continue
+
+        # 7. 必須是 🟢 安全首選 (排除警訊注意與淘汰)
+        if not str(s.get('safety_rating', '')).startswith('🟢'):
+            continue
+
+        # 8. 操盤線 5MA 走升且收盤站穩 5MA
         if not (s.get('is_5ma_rising', True) and s.get('above_5ma', True)):
             continue
             
-        # 3. 避雷針剔除
+        # 9. 避雷針剔除
         if sig.get('has_long_upper_shadow', False):
             continue
             
@@ -752,14 +777,17 @@ def get_copilot_recommendation(force_refresh: bool = False, enable_realtime: boo
             "industry": "",
             "close": 0.0,
             "change_pct": 0.0,
-            "strategy": "",
+            "strategy": "今日全市場無合格買進標的",
             "stop_loss": 0.0,
             "target_price": 0.0,
             "risk_pct": 0.0,
             "reward_pct": 0.0,
             "rr_ratio": 0.0,
-            "why_buy": ["今日盤面無符合『主升段第二波/換手成功/回後準進場/均線糾結突破』之頂級高勝率標的，建議空手觀望保持耐心！"],
-            "action_plan": "無推薦個股。嚴守量化操盤心法：寧可錯過，絕不做錯！"
+            "ma5": 0.0,
+            "chili_count": 0,
+            "rank_badge": "🛡️ 現金為王",
+            "why_buy": ["今日全市場股票經『朱老師六大進場心法與做多七大禁忌』嚴格審核後，無任何一檔達到 100% 零瑕疵進場標準！", "依朱老師大師紀律：『寧可錯過，絕不做錯！』大盤回檔或缺乏帶量紅K攻擊時，空手抱滿現金才是最高明的操作！"],
+            "action_plan": "今日嚴禁開新倉！維持 100% 現金部位觀望，等待盤面出現真正帶量過昨高的多頭轉折紅K再進場。"
         }
         
     # 依分數排序，並實施【主流族群優先 + 適度產業分散濾網】：

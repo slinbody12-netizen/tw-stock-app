@@ -255,9 +255,16 @@ def check_do_not_buy_rules(df: pd.DataFrame, trend_info: dict, last: pd.Series, 
     if is_high and vol_ratio >= 2.2 and (c >= o * 1.035):
         violations.append((6, "高檔爆大量長紅K誘多出貨", "連續急漲後在高檔爆出巨量長紅K，往往是主力末升段吸引散戶追高的誘多出貨棒，嚴禁追價"))
 
-    # 禁忌 7：多頭進場位置出現價漲黑K
-    if (c > prev_c) and (c < o):
-        violations.append((7, "價漲收實體黑K (開高走低出貨)", "今日雖然價格微幅上漲，但K線收實體黑K棒，代表開高走低有籌碼逢高倒貨，不符強勢紅K進場標準"))
+    # 禁忌 7：進場位置收實體黑K (開高走低出貨或走弱，不符紅K表態標準)
+    if c < o:
+        if c >= prev_c:
+            violations.append((7, "價平/價漲收實體黑K (開高走低逢高出貨)", "今日K線收實體黑K棒，代表盤中開高走低有主力逢高出貨或賣壓沉重，不符紅K進場標準！"))
+        else:
+            violations.append((7, "跌勢收實體黑K (空方摜壓未見止跌)", "今日K線收實體黑K下跌，代表空方佔據主導，尚未出現止跌或轉折紅K，嚴禁盲目進場！"))
+
+    # 禁忌 8：收盤跌破 5MA 操盤線
+    if c < sma5:
+        violations.append((8, f"收盤跌破 5MA 操盤線 ({sma5:.2f}元)", f"股價收盤落在 5MA ({sma5:.2f}元) 之下，短期多頭動能不足，依朱老師紀律做多必須站穩 5MA！"))
 
     pass_all = (len(violations) == 0)
     return {
@@ -2104,13 +2111,22 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
 
     is_four_ma_launch = signals_dict.get('bullish_alignment', False) and (signals_dict.get('main_wave_2nd', False) or signals_dict.get('box_range_breakout', False) or signals_dict.get('pullback_buy', False)) and (c >= sma5 and c >= o)
 
-    if is_false_breakout_dump or signals_dict.get('ma20_death_break', False):
+    # 做多七大禁忌強制連動安全評級 (淘汰9成不適合標的)
+    v_count = do_not_buy_info.get('violation_count', 0)
+    has_chase_violation = any(v[0] in [2, 6] for v in do_not_buy_info.get('violations', []))
+    has_fatal_violation = any(v[0] in [1, 4, 5] for v in do_not_buy_info.get('violations', []))
+
+    if not do_not_buy_info.get('pass_all', True):
+        for v in do_not_buy_info.get('violations', []):
+            safety_reasons.append(f"⚠️ 做多禁忌：{v[1]} ({v[2]})")
+
+    if is_false_breakout_dump or signals_dict.get('ma20_death_break', False) or (has_fatal_violation and v_count >= 2):
         signals_dict['safety_rating'] = "🔴 命中淘汰"
     elif elim_info['is_eliminated'] and not is_four_ma_launch:
         signals_dict['safety_rating'] = "🔴 命中淘汰" if elim_info['eliminated_count'] >= 2 else "🟡 警訊注意"
-    elif up_days >= 4 or bias20 >= 12.0:
+    elif up_days >= 4 or bias20 >= 12.0 or has_chase_violation:
         signals_dict['safety_rating'] = "🔴 嚴禁追高"
-    elif (elim_info['is_eliminated'] and is_four_ma_launch) or (is_multi_bagger and not is_four_ma_launch) or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red) or (nearest_bearish_g and 0 <= nearest_bearish_g.get('distance_pct', 99) <= 3.0) or signals_dict.get('four_ma_not_ready_warning', False):
+    elif (elim_info['is_eliminated'] and is_four_ma_launch) or (is_multi_bagger and not is_four_ma_launch) or unresolved_blacks or has_long_upper_shadow or (up_days >= 3 and bias20 >= 8.0) or (vol_ratio >= 3.5 and is_red) or (nearest_bearish_g and 0 <= nearest_bearish_g.get('distance_pct', 99) <= 3.0) or signals_dict.get('four_ma_not_ready_warning', False) or (v_count > 0) or (c < o) or (c < sma5):
         signals_dict['safety_rating'] = "🟡 警訊注意"
     else:
         signals_dict['safety_rating'] = "🟢 安全首選"

@@ -276,14 +276,23 @@ def calculate_quality_score(s):
     if mp.get('is_misprediction', False):
         score -= 35.0  # T+4 滯漲沒壞不漲預測失準換股扣分
 
-    # 12. 做多七大禁忌嚴格扣分機制 (嚴防推薦追高與違規位置)
+    # 12. 做多七大禁忌嚴格扣分機制 (嚴防推薦追高與違規位置，淘汰9成不適合標的)
     do_not_buy = sig.get('ch11_do_not_buy') or {}
-    for v in do_not_buy.get('violations', []):
-        v_id = v[0]
-        if v_id == 2:
-            score -= 60.0  # 連續推升/連紅第3根以上，重扣60分徹底阻斷追高推薦！
-        else:
-            score -= 30.0
+    if not do_not_buy.get('pass_all', True):
+        v_cnt = do_not_buy.get('violation_count', 1)
+        score -= min(150.0, v_cnt * 50.0)
+
+    # 黑K實體懲罰 (朱老師進場第一鐵律：進場必須紅K，黑K一票否決)
+    if not s.get('is_red', True):
+        score -= 80.0
+
+    # 跌破 5MA 操盤線懲罰
+    if not s.get('above_5ma', True):
+        score -= 60.0
+
+    # 處於「高檔等回檔」階段 (非進場點，僅限續抱或等待拉回)
+    if s.get('watchlist_stage') == '高檔等回檔':
+        score -= 50.0
 
     return round(float(score), 1)
 
@@ -559,6 +568,34 @@ def _analyze_single_stock(item, realtime_map, chips_map):
             "overhead_analysis": entry_tier.get("overhead_analysis", {}),
             "misprediction_diagnostic": entry_tier.get("misprediction_diagnostic", {})
         }
+        # 朱老師六大進場心法·當日零瑕疵買進檢驗 (嚴格淘汰9成不適合標的)
+        do_not_buy = signals_dict.get('ch11_do_not_buy') or {}
+        pass_do_not_buy = bool(do_not_buy.get('pass_all', False))
+        is_real_red = bool(recent_data[-1]['close'] >= recent_data[-1]['open']) if recent_data else bool(info['change'] >= 0)
+        is_above_5ma = bool(above_5ma)
+        has_min_vol = bool(info.get('volume', 0) >= 300000) # >= 300張
+        is_safe_rating = str(signals_dict.get('safety_rating', '')).startswith('🟢')
+        not_cooling = (stage != '高檔等回檔')
+
+        buyable_flaws = []
+        if not pass_do_not_buy:
+            for v in do_not_buy.get('violations', []):
+                buyable_flaws.append(f"觸犯做多禁忌：{v[1]}")
+        if not is_real_red:
+            buyable_flaws.append("今日收實體黑K (開高走低出貨/走弱)")
+        if not is_above_5ma:
+            buyable_flaws.append(f"未站上 5MA 操盤線 ({cur_sma5:.2f}元)")
+        if not has_min_vol:
+            buyable_flaws.append(f"成交量不足 300 張 (流動性差)")
+        if not is_safe_rating:
+            buyable_flaws.append(f"安全評級非安全首選 ({signals_dict.get('safety_rating')})")
+        if not not_cooling:
+            buyable_flaws.append("處於高檔等回檔階段 (短線急漲過熱，嚴禁追高)")
+
+        is_today_buyable = (len(buyable_flaws) == 0)
+        stock_record['is_today_buyable'] = is_today_buyable
+        stock_record['buyable_flaws'] = buyable_flaws
+
         stock_record['quality_score'] = calculate_quality_score(stock_record)
         return stock_record
     except Exception:
@@ -831,7 +868,7 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True, rebuild_f
         pass
     return analyzed
 
-def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True, filter_no_upper_shadow=False, universe_scope="全部", hot_sub_type="綜合熱門", sector_filter="全部", *args, **kwargs):
+def scan_stocks(strategy="全部", direction="多", price_filter="全部", watchlist_stage="全部", limit=50, force_refresh=False, enable_realtime=True, filter_no_upper_shadow=False, universe_scope="全部", hot_sub_type="綜合熱門", sector_filter="全部", filter_strict_buyable=False, *args, **kwargs):
     """
     高效過濾篩選並按「最佳品質強度 (Quality Score)」由上至下排序 (支援盤中即時行情)
     universe_scope: "全部" (全市場股票) 或 "熱門優先" (量大/主流族群)
@@ -846,6 +883,8 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         hot_sub_type = kwargs['hot_sub_type']
     if 'sector_filter' in kwargs:
         sector_filter = kwargs['sector_filter']
+    if 'filter_strict_buyable' in kwargs:
+        filter_strict_buyable = kwargs['filter_strict_buyable']
 
     all_stocks = get_all_analyzed_stocks(force_refresh=force_refresh, enable_realtime=enable_realtime)
 
@@ -916,6 +955,10 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
 
         # 3.5 長上影線過濾 (僅限多方做多進場：剔除衝高拉回避雷針，只留收在相對高點的實體紅K)
         if direction == "多" and filter_no_upper_shadow and signals_dict.get('has_long_upper_shadow', False):
+            continue
+
+        # 3.6 朱老師嚴選當日可買過濾 (淘汰9成不適合標的)
+        if direction == "多" and filter_strict_buyable and not s.get('is_today_buyable', False):
             continue
 
         # 4. 策略精準過濾

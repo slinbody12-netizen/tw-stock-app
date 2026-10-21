@@ -5401,16 +5401,16 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             active_tag = st.session_state.get('screener_last_tag', scope_tag)
             active_strat = st.session_state.get('screener_last_strat', target_strategy)
 
-            col_stat1, col_stat2, col_stat3 = st.columns([2.5, 1.3, 1.8])
+            col_stat1, col_stat2, col_stat3 = st.columns([2.0, 1.8, 1.8])
             with col_stat1:
                 st.markdown(f"**掃描結果（{active_tag}）：符合【{active_strat}】共 `{len(results)}` 檔標的**")
                 st.caption(f"💡 **助教安全把關**：🟢 安全首選 `{safe_count}` 檔 ｜ 🟡 警訊注意 `{caution_count}` 檔 ｜ 🔴 嚴禁追高/已淘汰 `{danger_count}` 檔")
             with col_stat2:
-                filter_safe_only = st.toggle(
-                    "🛡️ 僅看【🟢 安全首選】",
-                    value=False,
-                    key=f"filter_safe_only_{target_strategy}",
-                    help="開啟後，系統會自動剔除被 14 大淘汰法淘汰、綠色辣椒或帶有警訊之標的，只保留純金首選！"
+                filter_buyable_only = st.toggle(
+                    "🏆 朱老師六大進場零瑕疵 (淘汰9成不適合)",
+                    value=True,
+                    key=f"filter_buyable_only_{target_strategy}",
+                    help="預設開啟！嚴格執行朱老師實戰紀律：一票否決黑K、跌破5MA、做多七大禁忌、高檔等回檔與警訊標的！只呈現100%可買的完美標的。"
                 )
             with col_stat3:
                 tier_filter_opt = st.selectbox(
@@ -5421,10 +5421,10 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                 )
 
             final_display = results
-            if filter_safe_only:
-                final_display = [s for s in results if "安全" in s.get('safety_rating', '')]
+            if filter_buyable_only:
+                final_display = [s for s in results if s.get('is_today_buyable', False)]
                 if not final_display:
-                    st.warning(f"在【{target_strategy}】中，目前暫無符合【🟢 安全首選】之完美標的（現有標的皆帶有淘汰瑕疵或警訊，建議空手觀望或切換其他策略）。")
+                    st.warning(f"🎯 **【朱老師實戰紀律 · 寧可錯過絕不做錯】**：在【{target_strategy}】中，今日全市場無任何一檔達到 100% 零瑕疵買進標準！（其餘標的皆觸犯黑K、跌破5MA、壓力臨頭或急漲過熱等禁忌）。依大師心法：此時空手抱滿現金才是最高明的操作！", icon="🛡️")
 
             if tier_filter_opt != "全部階梯":
                 if "第 1 買點" in tier_filter_opt:
