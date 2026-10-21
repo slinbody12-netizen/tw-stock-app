@@ -228,16 +228,8 @@ def check_do_not_buy_rules(df: pd.DataFrame, trend_info: dict, last: pd.Series, 
     if candidate_pressures:
         candidate_pressures.sort(key=lambda x: x[1])
         nearest_p_name, nearest_p_val = candidate_pressures[0]
-        h = float(last['High'])
-        is_pressing_forward = (h >= nearest_p_val * 0.995) or (signals_dict.get('bullish_alignment', False) and signals_dict.get('is_attack_vol', False) and c >= o) or signals_dict.get('box_range_breakout', False)
-        # 助教 10/13 華新指導：若攻擊量未達壓力量一半 (50%)，化解套牢機率極低，絕不可豁免衝關
-        if signals_dict.get('attack_vol_insufficient_for_res', False):
-            is_pressing_forward = False
-        # 若收盤跌破5MA或收黑K，代表攻擊受阻拉回，絕不予豁免衝關
-        if c < sma5 or c < o:
-            is_pressing_forward = False
-
-        if nearest_p_val > c and (nearest_p_val - c) / c <= 0.03 and not is_pressing_forward:
+        # 朱老師鐵律：重大壓力關卡前勿進場 (嚴禁賭突破，收盤未實質突破前距離 <= 2.5% 一律列為壓力臨頭禁忌)
+        if nearest_p_val > c and (nearest_p_val - c) / c <= 0.025:
             room_p = ((nearest_p_val - c) / c) * 100
             violations.append((3, f"重大壓力關卡前 ({nearest_p_name} {nearest_p_val:.2f}元)", f"距離上方重壓僅剩 {room_p:.1f}% 空間，依朱老師 10/07 贏家鐵律『做多避開 7 位置：壓力前勿進』，風報比極差，嚴禁賭突破，寧等帶量突破站穩再進！"))
 

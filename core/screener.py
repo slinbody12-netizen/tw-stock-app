@@ -576,11 +576,18 @@ def _analyze_single_stock(item, realtime_map, chips_map):
         has_min_vol = bool(info.get('volume', 0) >= 300000) # >= 300張
         is_safe_rating = str(signals_dict.get('safety_rating', '')).startswith('🟢')
         not_cooling = (stage != '高檔等回檔')
+        overhead_info = entry_tier.get("overhead_analysis", {})
+        is_pressure_imminent = bool(overhead_info.get('is_imminent', False))
 
         buyable_flaws = []
         if not pass_do_not_buy:
             for v in do_not_buy.get('violations', []):
                 buyable_flaws.append(f"觸犯做多禁忌：{v[1]}")
+        if is_pressure_imminent:
+            p_dist = overhead_info.get('distance_pct', 0.0)
+            p_price = overhead_info.get('nearest_pressure_price', 0.0)
+            p_name = overhead_info.get('nearest_pressure_name', '壓力線')
+            buyable_flaws.append(f"壓力臨頭 (距離 {p_name} {p_price:.2f}元 僅剩 {p_dist:+.1f}%)，嚴禁賭突破")
         if not is_real_red:
             buyable_flaws.append("今日收實體黑K (開高走低出貨/走弱)")
         if not is_above_5ma:
