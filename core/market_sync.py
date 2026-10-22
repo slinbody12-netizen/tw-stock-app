@@ -167,13 +167,13 @@ def calculate_market_environment_guidance(df_mkt: pd.DataFrame, info_mkt: Option
         )
     else:
         status_code = "CHOPPY_DEFEND"
-        status_label = "🟡 震盪整理期"
-        capital_advice = "資金嚴格控制 40% 以下 (做短線)"
-        recommended_pct = 40
+        status_label = "🟡 震盪整理期 (反彈逃命波)"
+        capital_advice = "資金嚴格控制 2～3 成 (保留 7～8 成現金·反彈波)"
+        recommended_pct = 30
         badge_color = "#F59E0B"
         action_strategy = (
-            "【大盤量縮震盪】多空拉鋸、攻擊量尚未全面放大！"
-            "操作策略：按照朱家泓老師實戰紀律，現在要將資金嚴格控制在 4 成以下！只做強勢多頭龍頭股、做短線，不長抱！"
+            "【大盤多單反彈逃命波】加權指數站上 5MA 操盤線，但中期月線仍下彎，屬破前低後的技術性反彈！"
+            "操作策略：按照 10/22 晨間操盤導航與朱老師實戰紀律，資金嚴格控制在 2～3 成（保留 7～8 成現金）！弱勢破線股把握逃命波逢高減碼汰弱，多單嚴守 5MA 絕不可跌破！"
         )
 
     return {
@@ -567,6 +567,9 @@ def create_market_sync_comparison_figure(
     return fig
 
 
+# ==============================================================================
+# 大盤同盤型 · 主流熱門類股晚漲潛伏雷達 (CH12 & 自己的想法·核心戰略)
+# ==============================================================================
 # ==============================================================================
 # 族群龍頭外溢·看大哥買小弟量化比對模組 (Sector Leader Spillover & Laggard Catch-Up)
 # ==============================================================================
@@ -1070,4 +1073,110 @@ def create_pair_sync_comparison_figure(
     )
     fig.update_xaxes(rangeslider_visible=False)
     return fig
+
+
+# ==============================================================================
+# 大盤同盤型 · 主流熱門類股晚漲潛伏雷達 (CH12 & 自己的想法·核心戰略)
+# ==============================================================================
+def scan_hot_sector_lagging_candidates(
+    top_sectors_count: int = 5,
+    min_shape_corr: float = 65.0,
+    min_lag_gap: float = 1.0,
+    top_n: int = 20,
+    force_refresh: bool = False
+) -> List[Dict[str, Any]]:
+    """
+    【大盤先漲，熱門類股晚漲潛伏選股引擎】
+    依據《自己的想法.txt》與朱家泓老師 CH5/CH12 核心戰略：
+    鎖定當前資金風口前 3~5 大熱門主流類股，
+    篩選出『K線結構與大盤高度同步(同盤型)，但大盤已率先攻堅/站上5MA，
+    該主流個股晚了 1~3 天仍在整理末端蓄勢、尚未噴出』之高勝率潛伏標的！
+    """
+    df_mkt, info_mkt = get_market_benchmark(period="3mo", force_refresh=force_refresh)
+    if df_mkt is None or df_mkt.empty:
+        return []
+
+    # 1. 取得全市場族群熱度排行，鎖定目前市場 Top 主流族群
+    top_hot_sectors = set()
+    try:
+        from core.sector_radar import calculate_sector_heat_rankings, resolve_broad_sector
+        sector_ranks = calculate_sector_heat_rankings(force_refresh=force_refresh)
+        if sector_ranks:
+            for sec in sector_ranks[:top_sectors_count]:
+                sec_name = sec.get('sector_name', '')
+                if sec_name:
+                    top_hot_sectors.add(sec_name)
+    except Exception:
+        pass
+
+    stock_list = load_stock_list()
+
+    # 盤中即時行情
+    realtime_map = {}
+    try:
+        realtime_map = batch_fetch_realtime_quotes(stock_list)
+    except Exception:
+        realtime_map = {}
+
+    has_realtime = bool(realtime_map)
+    candidates = []
+
+    for s in stock_list:
+        code = s['code']
+        raw_ind = s.get('industry', '')
+        broad_sec = resolve_broad_sector(raw_ind) if 'resolve_broad_sector' in locals() else raw_ind
+        is_in_hot_sector = (broad_sec in top_hot_sectors) or (raw_ind in top_hot_sectors)
+
+        q_live = realtime_map.get(code)
+        df_s, info_s = fetch_stock_kline(code, period="3mo", force_refresh=force_refresh, enable_realtime=has_realtime, realtime_quote=q_live)
+        res = analyze_market_sync_single(df_s, df_mkt, s, lookback_bars=40)
+        if not res:
+            continue
+
+        shape_corr = res.get("shape_corr", 0.0)
+        lag_gap_5d = res.get("lag_gap_5d", 0.0)
+        lag_gap_15d = res.get("lag_gap_15d", 0.0)
+        is_struct_safe = res.get("is_struct_safe", False)
+
+        # 核心過濾條件：
+        # 1. 型態與大盤高度相似 (>= min_shape_corr)
+        # 2. 存在滯後補漲空間 (5日或15日落後於大盤)
+        # 3. 技術面結構安全 (守月線/前低，非空頭破線，無高檔爆量長黑)
+        if shape_corr >= min_shape_corr and (lag_gap_5d >= min_lag_gap or lag_gap_15d >= 1.5) and is_struct_safe:
+            # 判斷潛伏 vs 點火狀態
+            diff_ma5 = res.get("diff_ma5", 0.0)
+            above_5ma = res.get("above_5ma", False)
+            sig_dict = res.get("signals_dict", {})
+            is_attack_vol = sig_dict.get("is_attack_vol", False)
+
+            if above_5ma and is_attack_vol:
+                sub_status = "🚀 點火起漲 (主流晚漲帶量表態)"
+                stage_priority = 1
+            elif -1.5 <= diff_ma5 <= 2.2:
+                sub_status = "🔥 蓄勢末端 (先買好等發作·潛伏區)"
+                stage_priority = 2
+            else:
+                sub_status = "⏳ 均線整理 (同盤型補漲觀望)"
+                stage_priority = 3
+
+            res["is_hot_sector"] = is_in_hot_sector
+            res["sector_name"] = broad_sec
+            res["hot_sector_badge"] = "🔥 主流風口" if is_in_hot_sector else "📊 同構個股"
+            res["sub_status"] = sub_status
+            res["stage_priority"] = stage_priority
+            candidates.append(res)
+
+    # 排序：是否屬於主流風口 (最前) -> 狀態階段 (點火/蓄勢末端) -> 安全首選 -> 綜合評分 -> 滯後空間
+    def _hot_sort_key(x):
+        hot_flag = 0 if x.get("is_hot_sector") else 1
+        stage_p = x.get("stage_priority", 5)
+        safety = x.get("safety_rating", "")
+        safety_rank = 0 if "安全首選" in safety else (1 if "警訊注意" in safety else 2)
+        score = x.get("sync_score", 0)
+        gap = max(x.get("lag_gap_5d", 0), x.get("lag_gap_15d", 0))
+        return (hot_flag, stage_p, safety_rank, -score, -gap)
+
+    candidates.sort(key=_hot_sort_key)
+    return candidates[:top_n]
+
 

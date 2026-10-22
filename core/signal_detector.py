@@ -290,6 +290,11 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "ma_squeeze_months": 0.0,     # 均線糾結月數
         "is_ma_squeeze_over_2m": False,# 均線糾結是否超過2個月 (>=40天)
         "box_range_breakout": False,  # 📦 箱型整理大突破 (一棒過頂·蓄勢噴發起漲第一根)
+        "darvas_breakout": False,     # 📦 達瓦斯箱頂突破 (帶量衝破箱頂·開啟新箱子)
+        "darvas_support_held": False, # 💎 達瓦斯回測有守 (箱頂變新地板·回後買上漲起漲)
+        "darvas_false_breakout": False, # ⚠️ 達瓦斯假突破預警 (軟回箱體內·停損防守)
+        "darvas_consolidating": False,# 📦 達瓦斯箱內整理 (等待方向)
+        "darvas_info": {},            # 達瓦斯詳細指標 (box_top, box_bottom, target_d 等)
         "is_gap_breakout": False,     # ⚡ 盤整跳空缺口突破 (力道最強·CH6)
         "breakout_stage": "",         # 突破位階勝率 (初升段8成 / 第二波7成 / 高檔短線)
         "flat_base_breakout": False,  # 一字底 (2個月均線糾結10%區間內)
@@ -297,7 +302,12 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "is_w_pattern_consolidation": False, # W型態整理 (半山腰/高檔W整理，非底部型態·助教10/14陽明指引)
         "n_pattern_bottom": False,    # N字底 (第二隻腳顯著墊高·助教10/14華通指引)
         "pullback_without_5ma_dip": False,  # 回檔未跌破5MA直接漲 (非標準回後買上漲，不可追高·助教10/14南亞指引)
-        "pullback_5ma_falling_warning": False, # 回後站回但5MA仍下彎 (助教10/14華通指引：須等5均走平翻揚)
+        "pullback_5ma_falling_warning": False, # 回後站回時5MA仍微幅下彎 (助教10/22南亞指引：回後買上漲無5均向上條件，僅作提示不阻擋)
+        "deep_pullback_trend_change_warning": False, # ⚠️ 深回檔或長上影黑K易趨勢改變 (助教10/22川寶/TPK-KY指引)
+        "breakout_heavy_vol_watch_next": False,      # ⚠️ 盤整突破爆量留上影注意後續走勢 (助教10/22晶碩指引)
+        "abc_approaching_cutline": False,            # ⏳ 強勢紅K逼近ABC下降切線尚未破切 (助教10/22華新科指引：先鎖股等破切)
+        "breakout_heavy_black_high_pos_warning": False, # ⚠️ 突破大量黑K符合但位置偏高 (助教10/22冠西電指引)
+        "heavy_black_trend_intact_watch_next": False,   # 👀 爆量黑K但未破5均與前波底撐先看次日 (助教10/22德宏指引)
         "rounding_bottom": False,     # 圓弧底
         "kline_consolidation_breakout": False, # 📊 6-3 K線橫盤突破 (3天橫盤放量突破·CH6)
         "abc_correction_breakout": False,      # 📐 6-5 突破ABC修正下降切線 (短空做頭失敗續噴·CH6)
@@ -731,19 +741,38 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     is_5ma_turning = is_5ma_rising or (c >= sma5 and sma5 >= df.iloc[-2]['SMA_5'] * 0.99) or (sma20 >= df.iloc[-2]['SMA_20'] and c >= sma5)
     is_5ma_falling = (sma5 < prev_sma5 * 0.996) and not is_5ma_rising
 
-    if (is_bull or signals_dict['golden_cross_5_20'] or sma5 >= sma20) and tested_ma and not_broken_support and is_red and stand_on_5ma:
+    # 助教 10/22 川寶(1595)/TPK-KY(3673) 檢核：回檔是否過深 (距近15日高點回撤逾11%或吃掉前波漲幅逾55%)
+    recent15_high = float(df.iloc[-15:-1]['High'].max()) if len(df) >= 15 else h
+    pullback_depth_pct = (recent15_high - min(recent_lows, l)) / (recent15_high + 1e-9)
+    wave_span = max(0.01, recent15_high - support)
+    wave_retrace_ratio = (recent15_high - min(recent_lows, l)) / wave_span
+    is_deep_pullback = (pullback_depth_pct >= 0.11) or (wave_retrace_ratio >= 0.55)
+
+    if (is_bull or signals_dict['golden_cross_5_20'] or sma5 >= sma20 or is_20ma_rising) and tested_ma and not_broken_support and stand_on_5ma:
         if has_dipped_5ma_in_pullback:
-            if is_5ma_turning and not is_5ma_falling:
+            if not is_red or has_long_upper_shadow:
+                # 助教 10/22 TPK-KY (3673) 指引：雖然位置是回後買上漲，但回檔深或上漲是長上影線的黑K，要留意趨勢改變
+                if c >= prev_c or stand_on_5ma:
+                    signals_dict['deep_pullback_trend_change_warning'] = True
+                    signals.append("⚠️ 位置回後買但收長上影/黑K (助教10/22 TPK-KY指引：雖位置是回後買上漲，但上漲是長上影黑K，留意趨勢改變)")
+            else:
+                # 助教 10/22 南亞 (1303) 官方定調：「回後買上漲沒有 5 均要向上的條件，除非是自己新增的進場條件。」
                 signals_dict['pullback_buy'] = True
-                signals.append("回後準進場 (跌破5MA後轉折紅K強勢站回·助教10/14標準進場點)")
+                if is_5ma_falling:
+                    signals_dict['pullback_5ma_falling_warning'] = True
+                    signals.append("回後準進場 (跌破5MA後紅K站回·助教10/22南亞指引：回後買上漲無5均向上條件)")
+                else:
+                    signals.append("回後準進場 (跌破5MA後轉折紅K強勢站回·標準進場點)")
+
+                if is_deep_pullback or (resistance > c and (resistance - c) / (c + 1e-9) <= 0.045):
+                    signals_dict['deep_pullback_trend_change_warning'] = True
+                    signals.append("⚠️ 回檔深/逼近前高壓 (助教10/22川寶/TPK指引：可做多但容易趨勢改變，注意前高壓是否能過)")
 
                 # 👑 創高無壓回後買上漲 (朱家泓老師 10/07 達人秀：日月光 3711、台達電 2308 歷史新高龍頭戰法)
-                # 過去 120 天最高價在近期 25 天內出現過 (或創歷史/波段新高)，且上方絕無爆量黑K或長上影線套牢賣壓，回後買上漲勝率極高
                 is_ath_candidate = False
                 if len(df) >= 30 and not unresolved_blacks and not has_long_upper_shadow:
                     past_max = float(df.iloc[-120:]['High'].max()) if len(df) >= 120 else float(df['High'].max())
                     recent_high = float(df.iloc[-25:]['High'].max())
-                    # 股價必須維持在高檔區間 (距最高點不超過 6%)，且未遭遇重挫或重壓
                     if recent_high >= past_max * 0.985 and c >= past_max * 0.94:
                         is_ath_candidate = True
                 if is_ath_candidate:
@@ -754,11 +783,8 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
                 if c < sma60 and sma60 < prev_sma60 * 0.999:
                     signals_dict['pullback_ma60_resistance'] = True
                     signals.append("⚠️ 季線下彎反壓 (回後買僅短線操作·底部未完成防遇壓不漲)")
-            else:
-                signals_dict['pullback_5ma_falling_warning'] = True
-                signals.append("⚠️ 回後站回但5MA仍下彎 (助教10/14華通指引：5均下彎具助跌性·須等走平翻揚)")
-        else:
-            # 未曾跌破 5 均直接漲 (如南亞 1303)
+        elif is_red:
+            # 未曾跌破 5 均直接漲 (如南亞 1303 10/14)
             signals_dict['pullback_without_5ma_dip'] = True
             signals.append("⚠️ 回檔未破5MA直接漲 (助教10/14南亞指引：非回後買上漲進場點·切忌追高)")
 
@@ -928,6 +954,10 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     if is_box_breakout:
         signals_dict['box_range_breakout'] = True
         signals.append("📦 箱型整理大突破 (一棒過頂·放量衝破箱頂壓力)")
+        # 助教 10/22 晶碩 (6491) 指引：盤整突破若伴隨爆量(或留上影線)，要注意後續走勢
+        if (vol_ratio_5 >= 1.8 or vol_ratio_20 >= 2.0) and (upper_shadow >= total_range * 0.20 or vol_ratio_5 >= 2.2):
+            signals_dict['breakout_heavy_vol_watch_next'] = True
+            signals.append("⚠️ 突破爆量留上影 (助教10/22晶碩指引：爆量突破要注意後續走勢，防短線拉回)")
         # CH6-1: 盤整突破是跳空上漲的缺口，力道最強
         if o > prev_h:
             signals_dict['is_gap_breakout'] = True
@@ -943,6 +973,80 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             signals_dict['breakout_stage'] = "高檔盤整突破 (防假突破/長紅騙線，僅限短線)"
         else:
             signals_dict['breakout_stage'] = "盤整突破 (價漲量增線實)"
+
+    # ----------------------------------------------------
+    # 策略 F-2：達瓦斯箱型理論 (Nicolas Darvas Box Theory - 突破開新箱、回測變地板、假突破預警)
+    # ----------------------------------------------------
+    if len(df) >= 15:
+        v_sma5_val = float(df.iloc[-1]['VOL_SMA5']) if ('VOL_SMA5' in df.columns and float(df.iloc[-1]['VOL_SMA5']) > 0) else (float(df.iloc[-5:]['Volume'].mean()) if len(df) >= 5 else 1.0)
+        vol_ratio_now = float(df.iloc[-1]['Volume']) / (v_sma5_val + 1e-9)
+
+        found_d_break = False
+        d_break_idx = 0
+        d_top_f = 0.0
+        d_bot_f = 0.0
+        for off in range(1, min(9, len(df) - 12)):
+            i_b = len(df) - off
+            sl_b = df.iloc[max(0, i_b - 25):i_b]
+            if len(sl_b) < 12:
+                continue
+            bt = float(sl_b['High'].max())
+            bb = float(sl_b['Low'].min())
+            bh = bt - bb
+            b_amp = bh / (bb + 1e-9)
+            if float(df.iloc[i_b]['Close']) >= bt * 0.998 and b_amp <= 0.32:
+                found_d_break = True
+                d_break_idx = i_b
+                d_top_f = bt
+                d_bot_f = bb
+                break
+
+        if found_d_break:
+            d_box_top = d_top_f
+            d_box_bot = d_bot_f
+            d_box_h = d_box_top - d_box_bot
+            d_box_amp = d_box_h / (d_box_bot + 1e-9)
+            d_target_next = round(d_box_top + d_box_h, 2)
+
+            if c < d_box_top * 0.99:
+                signals_dict['darvas_false_breakout'] = True
+                signals.append("⚠️ 達瓦斯假突破預警 (軟回箱體內·嚴守停損防守)")
+                d_status = "⚠️ 跌回箱內假突破"
+            elif c >= d_box_top * 0.995 and (l <= d_box_top * 1.025 or float(df.iloc[-2]['Low']) <= d_box_top * 1.025) and c <= d_box_top * 1.06:
+                signals_dict['darvas_support_held'] = True
+                signals.append("💎 達瓦斯回測有守 (箱頂變新地板·回後買上漲起漲·CH6)")
+                d_status = "💎 回測箱頂有守 (新地板起漲)"
+            else:
+                signals_dict['darvas_breakout'] = True
+                signals.append("📦 達瓦斯箱頂突破 (帶量衝破箱頂·開啟新箱子·CH6)")
+                d_status = "🔥 帶量突破箱頂 (開新箱子)"
+        else:
+            lookback_d = min(25, len(df))
+            sl_curr = df.iloc[-lookback_d:]
+            d_box_top = float(sl_curr['High'].max())
+            d_box_bot = float(sl_curr['Low'].min())
+            d_box_h = d_box_top - d_box_bot
+            d_box_amp = d_box_h / (d_box_bot + 1e-9)
+            d_target_next = round(d_box_top + d_box_h, 2)
+
+            if c >= d_box_top * 0.998 and (is_red or vol_ratio_now >= 1.2):
+                signals_dict['darvas_breakout'] = True
+                signals.append("📦 達瓦斯箱頂突破 (今日放量衝破箱頂·開新箱子·CH6)")
+                d_status = "🔥 今日帶量突破箱頂"
+            elif c < d_box_bot:
+                d_status = "🛑 跌破箱底轉弱"
+            else:
+                signals_dict['darvas_consolidating'] = True
+                d_status = "📦 箱內整理磨盤 (等待方向)"
+
+        signals_dict['darvas_info'] = {
+            "box_top": d_box_top,
+            "box_bottom": d_box_bot,
+            "box_height": round(d_box_h, 2),
+            "amplitude_pct": round(d_box_amp * 100, 1),
+            "target_d": d_target_next,
+            "status": d_status
+        }
 
     # ----------------------------------------------------
     # 策略 G：N字底 vs W底 (雙腳型態精確判定·助教10/14華通/陽明指引)
@@ -1116,7 +1220,11 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
             if b_vma > 0 and b_v >= b_vma * 1.2 and b_is_black:
                 if c > float(b_row['High']):
                     signals_dict['breakout_heavy_black_high'] = True
-                    signals.append("⚡ 突破大量黑K高點 (飆股換手突破起漲)")
+                    if is_high_position or is_multi_bagger:
+                        signals_dict['breakout_heavy_black_high_pos_warning'] = True
+                        signals.append("⚡ 突破大量黑K高點 (助教10/22冠西電指引：符合進場點，但位置有點高要注意，採短線守5MA)")
+                    else:
+                        signals.append("⚡ 突破大量黑K高點 (飆股換手突破起漲)")
                     break
 
     # ----------------------------------------------------
@@ -1603,11 +1711,14 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         absolute_warnings.append("⚠️ 今日重挫逾 5% (風控警示股·準備賣出)")
     if is_high_position and is_black and vol_ratio_5 >= 1.5 and c < sma5:
         absolute_warnings.append("⚠️ 高檔爆量長黑反轉 (絕對停損·空頭確認)")
-    # 5. 高檔爆量遭遇線停利 SOP (助教 10/13 雷迪克指導：高獲利先出一半，另一半跌破大量低點出場)
+    # 5. 高檔爆量遭遇線停利 SOP (助教 10/13 雷迪克 & 10/22 德宏指導)
     if is_high_position and is_black and (vol_ratio >= 1.4 or vol_ratio_5 >= 1.4):
         signals_dict['is_encounter_line'] = True
         absolute_warnings.append("⚠️ 高檔爆量遭遇線 (停利SOP：高獲利先出一半，另一半跌破大量低點出場)")
         signals.append("⚠️ 高檔爆量遭遇線 (停利SOP：高獲利先出一半，另一半跌破大量低點出場)")
+        if is_bull and c >= sma5 and l >= sup_price * 0.99:
+            signals_dict['heavy_black_trend_intact_watch_next'] = True
+            signals.append("👀 爆量黑K但未破5均與前波底撐 (助教10/22德宏指引：前低指前波轉折底而非昨低；趨勢不變支撐沒破先看次日，觸-5%則依紀律)")
     if signals_dict.get('attack_vol_insufficient_for_res', False) and (c >= o):
         signals.append("⚠️ 攻擊量未達壓力量50% (助教10/13華新指導：化解左側套牢重壓，攻擊量至少需達壓力量50%，防撞牆假突破)")
     if change_pct <= -9.5 or (sup_price > 0 and (sup_price - c) / sup_price >= 0.10):

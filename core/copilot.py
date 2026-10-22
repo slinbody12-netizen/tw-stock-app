@@ -1386,6 +1386,11 @@ def inspect_portfolio(portfolio: list) -> list:
                     status_badge = "🔴 破月線3天未回·多頭終結！"
                     status_color = "#FF4D4F"
                     status_desc = f"🚨 <b>【趨勢線鐵律·多頭終結清倉】</b>：當前股價已連續 3 天跌在月線 (20MA, {sma20:.2f}元) 之下，且月線已向下彎助跌！核心鐵律：『做多要在月線上，跌破月線3天助漲不上來且月線下彎，多頭徹底終結變空頭！』絕不可再心存僥倖，請於今日尾盤全數獲利結算或清倉離場！"
+                elif pnl_pct >= 20.0 and curr_p < sma5:
+                    status_type = "PROFIT_20PCT_EXIT_ALL"
+                    status_badge = "💰 獲利逾20%破5MA·全數停利入袋！"
+                    status_color = "#FAAD14"
+                    status_desc = f"💰 <b>【CH8 三均線部位管理終極停利】</b>：單一波段急漲獲利已達 <b>+{pnl_pct}% (>20%)</b>，今日收盤跌破 5MA ({sma5:.2f}元)！老朱三張部位管理終極心法：『單一波段急漲獲利超過 20% 跌破 5MA，3 張全數停利出場！』將大賺波段利潤百分之百鎖進口袋，恭喜大獲全勝！"
                 elif is_trailing_stop:
                     # 停損的改變：獲利達 7% 以上，放棄原停損，改為設定移動停利 (Trailing Stop)
                     if curr_p < sma5:
@@ -1398,6 +1403,11 @@ def inspect_portfolio(portfolio: list) -> list:
                         status_badge = "🏆 獲利>7%·移動停利守護中"
                         status_color = "#13C2C2"
                         status_desc = f"🎉 <b>【移動停利守護中】</b>：持股獲利已達 <b>+{pnl_pct}% (>7%)</b>！依據停損改變原則：已遠離原停損點，原停損自動升級為【移動停利】模式！防守點拉高至買進成本保本線 (<b>{buy_p:.2f}元</b>) 與 5MA 操盤線 (<b>{sma5:.2f}元</b>)，絕不讓獲利單轉為虧損！只要收盤守穩 5MA，就安心續抱讓獲利持續奔馳！"
+                elif 3 <= days_held <= 6 and abs(pnl_pct) <= 2.8 and (curr_p <= sma5 * 1.01):
+                    status_type = "TIME_STOP_STAGNANT"
+                    status_badge = "⏱️ T+3~5 時間停損·汰弱換強"
+                    status_color = "#EAB308"
+                    status_desc = f"⏱️ <b>【10/07 助教時間停損鐵律】</b>：買進持有已 <b>{days_held} 天</b>，股價在成本區 (<b>{pnl_pct:+.2f}%</b>) 量縮原地打轉！老朱與助教鐵律：『買進後 3~5 天沒壞但不漲，代表多頭爆發力預測失準，應主動微損/平手換股、汰弱留強！』避免寶貴資金被死魚盤卡住，建議尋找當日有明確第一根攻擊量表態之強勢飆股換股！"
                 elif high_p >= custom_target or curr_p >= custom_target:
                     status_type = "TARGET_HIT"
                     status_badge = "🏁 達標停利！"

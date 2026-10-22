@@ -1050,7 +1050,13 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 match = True
             elif strategy in ["均線糾結突破", "四線糾結突破", "均線糾結突破 (四線糾結起漲第一根)"] and (signals_dict.get('ma_squeeze_breakout', False) or signals_dict.get('flat_base_breakout', False)):
                 match = True
-            elif strategy in ["箱型大突破", "箱型整理大突破", "📦 箱型整理大突破", "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)"] and signals_dict.get('box_range_breakout', False):
+            elif strategy in ["箱型大突破", "箱型整理大突破", "📦 箱型整理大突破", "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)"] and (signals_dict.get('box_range_breakout', False) or signals_dict.get('darvas_breakout', False)):
+                match = True
+            elif any(k in strategy for k in ["達瓦斯箱頂突破", "達瓦斯突破", "📦 達瓦斯箱頂突破", "達瓦斯開新箱"]) and (signals_dict.get('darvas_breakout', False) or signals_dict.get('box_range_breakout', False)):
+                match = True
+            elif any(k in strategy for k in ["達瓦斯回測有守", "回測箱頂有守", "💎 達瓦斯回測有守", "達瓦斯地板起漲"]) and signals_dict.get('darvas_support_held', False):
+                match = True
+            elif any(k in strategy for k in ["達瓦斯假突破", "⚠️ 達瓦斯假突破", "跌回箱內"]) and signals_dict.get('darvas_false_breakout', False):
                 match = True
             elif strategy in ["智慧K線續抱", "🐅 飆股智慧K線", "🐅 飆股智慧K線 (未破昨低續抱)", "🐅 飆股智慧K線 (未破昨低續抱·CH6)"] and signals_dict.get('smart_kline_safe', False) and (signals_dict.get('is_attack_vol', False) or signals_dict.get('box_range_breakout', False) or s.get('change_pct', 0) >= 1.5):
                 match = True

@@ -3265,6 +3265,31 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             elif gaps_data.get("summary_desc") and gaps_data["summary_desc"] != "近期無重大未補跳空缺口":
                 st.caption(f"🕳️ **未補缺口監控**：{gaps_data['summary_desc']}")
 
+            # 達瓦斯箱型理論實戰分析盒 (Nicolas Darvas Box Theory)
+            d_info = signals_dict.get('darvas_info') or {}
+            d_pat = next((p for p in pattern_geo.get("patterns_found", []) if p.get("id") == "darvas_box"), None)
+            if d_info or d_pat:
+                d_top_val = float(d_info.get('box_top') or (d_pat.get('box_top') if d_pat else 0) or 0)
+                d_bot_val = float(d_info.get('box_bottom') or (d_pat.get('box_bottom') if d_pat else 0) or 0)
+                d_target_val = float(d_info.get('target_d') or (d_pat.get('target_d') if d_pat else 0) or 0)
+                d_amp_val = float(d_info.get('amplitude_pct') or (d_pat.get('amplitude_pct') if d_pat else 0) or 0)
+                d_st_badge = d_info.get('status') or (d_pat.get('status') if d_pat else "📦 箱型分析")
+                d_desc_val = d_pat.get('desc') if d_pat else f"當前箱頂 {d_top_val:.2f} 元，箱底 {d_bot_val:.2f} 元。"
+                is_active_darvas = bool(signals_dict.get('darvas_breakout') or signals_dict.get('darvas_support_held') or signals_dict.get('darvas_false_breakout'))
+
+                with st.expander(f"📦 達瓦斯箱型理論 (Darvas Box) 實戰診斷 · {d_st_badge}", expanded=True):
+                    dc1, dc2, dc3, dc4 = st.columns(4)
+                    dc1.metric("📦 當前箱頂 (壓力/新地板)", f"{d_top_val:.2f} 元", help="箱頂頸線壓力；若帶量突破有守，此處轉化為下一個箱子的地板支撐！")
+                    dc2.metric("🛑 當前箱底 (防守線)", f"{d_bot_val:.2f} 元", help="箱底支撐防守線，跌破代表箱型結構破壞。")
+                    dc3.metric("📐 箱型振幅 / 高度", f"{d_amp_val:.1f}%", f"{d_top_val - d_bot_val:.2f} 元", help="箱體震盪幅度，振幅適中(10~25%)之箱型突破爆發力最強。")
+                    dc4.metric("🚀 下一個箱頂等幅目標", f"{d_target_val:.2f} 元", f"+{(d_target_val/info['close'] - 1)*100:.1f}%" if info.get('close') else None, help="依箱型等幅測距向上疊加一個新箱子的目標天花板。")
+
+                    st.markdown(f"""
+                    <div style='background:rgba(245, 158, 11, 0.08); border-left:4px solid #F59E0B; padding:10px 14px; border-radius:4px; margin-top:8px; font-size:0.86rem; color:#E2E8F0; line-height:1.5;'>
+                        <b>【實戰解析】</b>：{d_desc_val}<br/>
+                        <span style='color:#FBBF24; font-size:0.8rem; margin-top:4px; display:inline-block;'>💡 <b>Nicolas Darvas 傳奇心法</b>：『「突破」代表的是強，不是一定到頂！如果價格帶量突破箱頂，而且回測箱頂還守得住，那這個「高」很可能只是下一個箱子的「地板」。』</span>
+                    </div>
+                    """, unsafe_allow_html=True)
 
             st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
 
@@ -4974,6 +4999,8 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                         [
                             "👑 無敵鐵金剛 (三線合一·勝率7~8成黃金起漲)",
                             "🚀 剛轉多起漲 (盤整逾2月/四線糾結大突破)",
+                            "📦 達瓦斯箱頂突破 (帶量開新箱·突破起漲)",
+                            "💎 達瓦斯回測有守 (箱頂變地板·回後買)",
                             "⏰ 尾盤一點鐘買點 (短線 3 至 5 天價差首選)",
                             "🌊 資金風口主流龍頭 (Top 5 族群領頭羊)"
                         ],
@@ -4990,6 +5017,14 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                         direction = "🔄 剛變多頭起漲"
                         main_mode = "🔄 趨勢翻轉雷達 (近4日結構改變)"
                         st.caption("💡 **剛轉多起漲**：專門抓取打底逾 2 個月破繭翻多、或四線黏合糾結一箭穿心之初升段起漲第一根！")
+                    elif "達瓦斯箱頂突破" in simp_strat:
+                        target_strategy = "達瓦斯箱頂突破"
+                        main_mode = "📈 波段策略 (起漲關鍵)"
+                        st.caption("💡 **【📦 達瓦斯箱頂突破 (Nicolas Darvas 傳奇箱型理論)】**：股價在 15~35 天箱型整理後，今日帶量衝破箱頂壓力！達瓦斯核心心法：『突破代表的是強，不是一定到頂！如果價格帶量突破箱頂，代表它要去開下一個箱子！』")
+                    elif "達瓦斯回測有守" in simp_strat:
+                        target_strategy = "達瓦斯回測有守"
+                        main_mode = "📈 波段策略 (起漲關鍵)"
+                        st.caption("💡 **【💎 達瓦斯回測有守 (箱頂變地板·回後買上漲)】**：突破箱頂後拉回測試，前波箱頂天花板成功轉化為『下一個箱子的地板』！今日回測守穩不破出紅K，完全符合老朱教科書級回後買上漲安全起漲點！")
                     elif "尾盤一點鐘" in simp_strat:
                         target_strategy = "一點鐘"
                         main_mode = "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)"
@@ -5163,6 +5198,9 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                             "🔥 底部反轉強勢多頭 (1~2月打底·連三紅突破)",
                             "👑 創高無壓回後買 (歷史新高龍頭)",
                             "🚀 主升段第二波 (鎖一做二·飆股再發動)",
+                            "📦 達瓦斯箱頂突破 (開新箱子·突破起漲)",
+                            "💎 達瓦斯回測有守 (箱頂變地板·回後買)",
+                            "⚠️ 達瓦斯假突破預警 (跌回箱內·防守出局)",
                             "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)",
                             "🔥 換手成功強勢股 (高檔爆量再創新高)",
                             "⚡ 突破大量黑K高點 (飆股換手·突破起漲)",
@@ -5194,6 +5232,15 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     elif "主升段第二波" in sub_strat:
                         target_strategy = "主升段第二波"
                         st.caption("💡 **【主升段第二波戰法】鎖第一波，做第二波 (強勢飆股波段)**：鎖定第一波連噴 15%~30% 的市場龍頭，拉回洗盤跌破 5MA 但守穩月線 (20MA)，今日出放量紅K過昨高站回 5MA，為第二波主升段絕佳買點！")
+                    elif "達瓦斯箱頂突破" in sub_strat or "開新箱子" in sub_strat:
+                        target_strategy = "達瓦斯箱頂突破"
+                        st.caption("💡 **【📦 達瓦斯箱頂突破 (Nicolas Darvas 傳奇箱型理論)】**：股價在 15~35 天箱型整理後，今日帶量衝破箱頂壓力！達瓦斯核心心法：『突破代表的是強，不等於到頂！如果價格帶量突破箱頂，代表它要去開下一個箱子！』")
+                    elif "達瓦斯回測有守" in sub_strat or "箱頂變地板" in sub_strat:
+                        target_strategy = "達瓦斯回測有守"
+                        st.caption("💡 **【💎 達瓦斯回測有守 (箱頂變地板·回後買上漲)】**：突破箱頂後拉回測試，前波箱頂天花板成功轉化為『下一個箱子的地板』！今日回測守穩不破出紅K，完全符合老朱教科書級回後買上漲安全起漲點！")
+                    elif "達瓦斯假突破" in sub_strat or "跌回箱內" in sub_strat:
+                        target_strategy = "達瓦斯假突破"
+                        st.caption("💡 **【⚠️ 達瓦斯假突破預警 (軟回箱體內·停損防守)】**：衝出箱頂後無力，今日收盤跌回原箱體內部！達瓦斯警語：『衝出箱頂又軟回箱內才是真的要小心，跌回去才叫假突破！』應果斷停損或減碼防守！")
                     elif "箱型整理大突破" in sub_strat or "箱型" in sub_strat:
                         target_strategy = "箱型整理大突破"
                         st.caption("💡 **【箱型整理大突破 (一棒過頂)】**：股價在 12~35 天箱型區間（振幅 12%~25%）反覆洗盤震盪蓄勢後，今日以**實體長紅放量一棒摜破過去一個月的箱頂壓力線**！主力洗盤換手完畢，上方無套牢賣壓，通常為**新一波波段主升段起漲第一根**！")

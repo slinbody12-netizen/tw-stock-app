@@ -42,6 +42,9 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
     n = len(df)
     c_today = float(df.iloc[-1]['Close'])
     o_today = float(df.iloc[-1]['Open'])
+    h_today = float(df.iloc[-1]['High'])
+    l_today = float(df.iloc[-1]['Low'])
+    v_today = float(df.iloc[-1]['Volume']) if 'Volume' in df.columns else 0.0
     sma5_today = float(df.iloc[-1]['SMA_5'])
     sma20_today = float(df.iloc[-1]['SMA_20'])
     is_ma20_rising = (sma20_today >= float(df.iloc[-3]['SMA_20']) * 0.998) if n >= 3 else True
@@ -372,6 +375,122 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
         }
 
     # =========================================================================
+    # 3.5. 📦 達瓦斯箱型 (Darvas Box 理論 - 突破開新箱、回測變地板、假突破預警)
+    # =========================================================================
+    darvas_pat = None
+    if n >= 15:
+        v_sma5_today = float(df.iloc[-1]['VOL_SMA5']) if ('VOL_SMA5' in df.columns and float(df.iloc[-1]['VOL_SMA5']) > 0) else (float(df.iloc[-5:]['Volume'].mean()) if n >= 5 else 1.0)
+        vol_ratio_today = v_today / (v_sma5_today + 1e-9)
+
+        found_darvas_break = False
+        break_offset = 0
+        break_idx = 0
+        b_top_found = 0.0
+        b_bot_found = 0.0
+        b_slice_found = None
+
+        # 檢測近 1~8 日內是否剛發生突破箱頂
+        for offset in range(1, min(9, n - 12)):
+            idx_b = n - offset
+            slice_b = df.iloc[max(0, idx_b - 25):idx_b]
+            if len(slice_b) < 12:
+                continue
+            bt = float(slice_b['High'].max())
+            bb = float(slice_b['Low'].min())
+            bh = bt - bb
+            b_amp = bh / (bb + 1e-9)
+            c_b = float(df.iloc[idx_b]['Close'])
+            if c_b >= bt * 0.998 and b_amp <= 0.32:
+                found_darvas_break = True
+                break_offset = offset
+                break_idx = idx_b
+                b_top_found = bt
+                b_bot_found = bb
+                b_slice_found = slice_b
+                break
+
+        if found_darvas_break:
+            d_top = b_top_found
+            d_bot = b_bot_found
+            d_h = d_top - d_bot
+            d_amp = d_h / (d_bot + 1e-9)
+            target_next = round(d_top + d_h, 2)
+            d_x0 = b_slice_found.iloc[0]['Date']
+            break_date = str(df.iloc[break_idx]['Date'])[:10]
+
+            if c_today < d_top * 0.99:
+                d_status_type = "false_breakout"
+                d_status_badge = "⚠️ 跌回箱內假突破"
+                d_desc = f"⚠️ 達瓦斯假突破警示：股價於 {break_date} 突破箱頂 ({d_top:.2f} 元) 後，未能守穩新地板，今日收盤 ({c_today:.2f} 元) 軟回箱體內！『衝出箱頂又軟回箱內才是真的要小心』，確認為假突破，請嚴格執行停損防守。"
+                is_break_darvas = False
+            elif c_today >= d_top * 0.995 and (l_today <= d_top * 1.025 or float(df.iloc[-2]['Low']) <= d_top * 1.025) and c_today <= d_top * 1.06:
+                d_status_type = "support_held"
+                d_status_badge = "💎 回測箱頂有守 (新地板起漲)"
+                d_desc = f"💎 達瓦斯新地板確認：前波突破箱頂 ({d_top:.2f} 元) 後拉回測試，箱頂天花板成功轉化為『下一個箱子的地板』！今日守穩不破 (收 {c_today:.2f} 元)，符合老朱教科書級回後買上漲，等幅目標價看 {target_next} 元。"
+                is_break_darvas = True
+            else:
+                d_status_type = "breakout"
+                d_status_badge = "🔥 帶量突破箱頂 (開新箱子)"
+                d_desc = f"🔥 達瓦斯帶量突破：股價一棒衝破前波整理箱頂 ({d_top:.2f} 元，振幅 {d_amp*100:.1f}%)！『突破代表的是強，不等於到頂』，目前正前往下一個箱子，等幅目標價看 {target_next} 元。"
+                is_break_darvas = True
+        else:
+            lookback = min(25, n)
+            slice_curr = df.iloc[-lookback:]
+            d_top = float(slice_curr['High'].max())
+            d_bot = float(slice_curr['Low'].min())
+            d_h = d_top - d_bot
+            d_amp = d_h / (d_bot + 1e-9)
+            target_next = round(d_top + d_h, 2)
+            d_x0 = slice_curr.iloc[0]['Date']
+
+            if c_today >= d_top * 0.998 and (c_today >= o_today or vol_ratio_today >= 1.2):
+                d_status_type = "breakout"
+                d_status_badge = "🔥 今日帶量突破箱頂"
+                d_desc = f"🔥 達瓦斯帶量突破：今日以實體紅K衝破 {lookback} 日箱頂天花板 ({d_top:.2f} 元)！『突破代表的是強，不等於到頂』，宣告開展新箱子行情，等幅目標價看 {target_next} 元。"
+                is_break_darvas = True
+            elif c_today < d_bot:
+                d_status_type = "breakdown"
+                d_status_badge = "🛑 跌破箱底轉弱"
+                d_desc = f"🛑 達瓦斯跌破箱底：收盤價 ({c_today:.2f} 元) 摜破 {lookback} 日箱底防守線 ({d_bot:.2f} 元)，箱型支撐失效，短線空方主導。"
+                is_break_darvas = False
+            else:
+                d_status_type = "consolidating"
+                d_status_badge = "📦 箱內整理磨盤 (等待方向)"
+                pct_in = (c_today - d_bot) / (d_h + 1e-9) * 100
+                d_desc = f"📦 達瓦斯箱內整理：目前在箱體 (箱底 {d_bot:.2f} 元 ~ 箱頂 {d_top:.2f} 元，振幅 {d_amp*100:.1f}%) 內磨盤整理 (位於箱體 {pct_in:.0f}% 位置)。達瓦斯心法：『箱子裡磨來磨去不動作，靜待帶量突破箱頂再行動』！"
+                is_break_darvas = False
+
+        darvas_pat = {
+            "id": "darvas_box",
+            "name": "── 📦 達瓦斯箱型 (Darvas Box 理論)",
+            "direction": "多" if d_status_type in ["breakout", "support_held", "consolidating"] else "空",
+            "status": d_status_badge,
+            "status_type": d_status_type,
+            "is_breakout": is_break_darvas,
+            "box": {
+                "x0": d_x0,
+                "x1": df.iloc[-1]['Date'],
+                "y0": d_bot,
+                "y1": d_top
+            },
+            "next_box": {
+                "x0": d_x0,
+                "x1": df.iloc[-1]['Date'],
+                "y0": d_top,
+                "y1": target_next
+            } if d_status_type in ["breakout", "support_held"] else None,
+            "box_top": d_top,
+            "box_bottom": d_bot,
+            "box_height": round(d_h, 2),
+            "amplitude_pct": round(d_amp * 100, 1),
+            "target_d": target_next,
+            "breakout_point": {"date": df.iloc[-1]['Date'], "price": c_today, "label": "🚀 衝出箱頂開新箱"} if is_break_darvas else None,
+            "color": "#F59E0B", # Amber / Golden
+            "desc": d_desc,
+            "darvas_mindset": "突破代表的是強，不是一定到頂！如果價格帶量突破箱頂，而且回測箱頂還守得住，那這個『高』很可能只是下一個箱子的地板。"
+        }
+
+    # =========================================================================
     # 4. 🥣 圓弧底 (U型慢火打底二次拋物線擬合)
     # =========================================================================
     round_pat = None
@@ -530,7 +649,7 @@ def detect_pattern_geometries(df: pd.DataFrame, signals_dict: dict = None) -> Di
     # =========================================================================
     # 6. 組織候選型態清單 (保證 4 大經典型態皆可切換，突破發動者置頂優先)
     # =========================================================================
-    candidates = [p for p in [flat_pat, round_pat, abc_pat, channel_pat, abc_short_pat] if p is not None]
+    candidates = [p for p in [darvas_pat, flat_pat, round_pat, abc_pat, channel_pat, abc_short_pat] if p is not None]
     breakouts = [p for p in candidates if p.get("is_breakout", False)]
     non_breakouts = [p for p in candidates if not p.get("is_breakout", False)]
     result["patterns_found"] = breakouts + non_breakouts
@@ -1082,6 +1201,101 @@ def apply_pattern_geometry_to_figure(
                     showarrow=False, xanchor="left", xshift=22,
                     bgcolor="#7E22CE", font=dict(color="white", size=10, family="Arial Black")
                 )
+
+        # --- C2. 達瓦斯箱型 (Darvas Box 理論 - 開新箱/新地板/假突破) ---
+        elif pat_id == "darvas_box":
+            bx = active.get("box", {})
+            st_type = active.get("status_type", "consolidating")
+            b_top = float(active.get("box_top", bx.get("y1", 0)))
+            b_bot = float(active.get("box_bottom", bx.get("y0", 0)))
+            tgt_d = active.get("target_d")
+
+            if bx:
+                # 依達瓦斯狀態設定主箱體色彩
+                if st_type in ["breakout", "support_held"]:
+                    box_border_color = "#10B981" # Emerald Green
+                    box_fill_color = "rgba(16, 185, 129, 0.12)"
+                    top_badge_color = "#047857"
+                    top_label = f" 💎 達瓦斯新地板(原箱頂支撐): {b_top:.2f} 元 "
+                elif st_type == "false_breakout":
+                    box_border_color = "#EF4444" # Red
+                    box_fill_color = "rgba(239, 68, 68, 0.12)"
+                    top_badge_color = "#991B1B"
+                    top_label = f" ⚠️ 跌回箱內(假突破反壓): {b_top:.2f} 元 "
+                else:
+                    box_border_color = "#F59E0B" # Amber / Gold
+                    box_fill_color = "rgba(245, 158, 11, 0.12)"
+                    top_badge_color = "#B45309"
+                    top_label = f" 📦 達瓦斯箱頂(壓力): {b_top:.2f} 元 "
+
+                # 繪製基準箱體矩形
+                fig.add_shape(
+                    type="rect",
+                    x0=bx["x0"], x1=bx["x1"],
+                    y0=b_bot, y1=b_top,
+                    fillcolor=box_fill_color,
+                    line=dict(color=box_border_color, width=2.0, dash="solid" if st_type != "consolidating" else "dash"),
+                    layer="below",
+                    row=1, col=1
+                )
+
+                # 箱頂頸線
+                fig.add_shape(
+                    type="line",
+                    x0=bx["x0"], x1=df.iloc[-1]['Date'],
+                    y0=b_top, y1=b_top,
+                    line=dict(color=box_border_color, width=2.5),
+                    row=1, col=1
+                )
+                fig.add_annotation(
+                    x=bx["x0"], y=b_top, xref="x", yref="y",
+                    text=top_label,
+                    showarrow=False, xanchor="left", yanchor="bottom",
+                    bgcolor=top_badge_color, bordercolor=box_border_color,
+                    font=dict(color="white", size=10, family="Arial Black")
+                )
+
+                # 箱底防守線
+                fig.add_shape(
+                    type="line",
+                    x0=bx["x0"], x1=df.iloc[-1]['Date'],
+                    y0=b_bot, y1=b_bot,
+                    line=dict(color="#EF4444", width=1.8, dash="dash"),
+                    row=1, col=1
+                )
+                fig.add_annotation(
+                    x=bx["x0"], y=b_bot, xref="x", yref="y",
+                    text=f" 🛑 達瓦斯箱底防守: {b_bot:.2f} 元 ",
+                    showarrow=False, xanchor="right", yanchor="top",
+                    bgcolor="#991B1B", bordercolor="#EF4444",
+                    font=dict(color="white", size=9)
+                )
+
+                # 若為突破或回測有守：繪製投影「下一個箱子 (Next Box)」
+                if st_type in ["breakout", "support_held"] and tgt_d:
+                    fig.add_shape(
+                        type="rect",
+                        x0=bx["x0"], x1=df.iloc[-1]['Date'],
+                        y0=b_top, y1=tgt_d,
+                        fillcolor="rgba(59, 130, 246, 0.08)",
+                        line=dict(color="#3B82F6", width=1.5, dash="dot"),
+                        layer="below",
+                        row=1, col=1
+                    )
+                    fig.add_shape(
+                        type="line",
+                        x0=bx["x0"], x1=df.iloc[-1]['Date'],
+                        y0=tgt_d, y1=tgt_d,
+                        line=dict(color="#8B5CF6", width=2.0, dash="dashdot"),
+                        row=1, col=1
+                    )
+                    fig.add_annotation(
+                        x=df.iloc[-1]['Date'], y=tgt_d, xref="x", yref="y",
+                        text=f" 🚀 下一個箱頂等幅目標: {tgt_d:.2f} 元 ",
+                        showarrow=False, xanchor="left", xshift=22,
+                        bgcolor="#6D28D9", bordercolor="#8B5CF6",
+                        font=dict(color="white", size=10, family="Arial Black")
+                    )
 
         # --- D. 圓弧底 (U型底) ---
         elif pat_id == "rounding_bottom":
