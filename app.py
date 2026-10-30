@@ -5579,15 +5579,14 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             )
 
             if target_strategy in ["守株待兔潛伏", "守株待兔", "主力深蹲", "深蹲潛伏"]:
-                # 專屬【守株待兔 · 主力深蹲潛伏池】三大分流
-                for item in final_display:
-                    stg = item.get('ambush_stage', '')
-                    if stg in ['STAGE_READY', 'STAGE_BREAKOUT_TODAY']:
-                        gold_buys.append(item)
-                    elif stg == 'STAGE_ACCUMULATING':
-                        ambush_stocks.append(item)
-                    else:
-                        hold_stocks.append(item)
+                # 專屬【守株待兔 · 主力深蹲潛伏池】三大分流（單一物件直接分流，不重複迴圈）
+                stg = item.get('ambush_stage', '')
+                if stg in ['STAGE_READY', 'STAGE_BREAKOUT_TODAY']:
+                    gold_buys.append(item)
+                elif stg == 'STAGE_ACCUMULATING':
+                    ambush_stocks.append(item)
+                else:
+                    hold_stocks.append(item)
             elif not is_short_dir:
                 # 做多三塊分流
                 # 梯隊一【👑 純金首選】：滿足實體紅K/平盤站穩 + 綠安全首選 + 成交量夠 + 新鮮買點(未連4漲錯失第一買點) + 無暴跌假突破警訊 + 無六大瑕疵
@@ -5626,9 +5625,14 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         st.session_state.browsing_stock_names = {item['code']: item['name'] for item in priority_queue}
 
         total_actionable = len(gold_buys) + len(aggressive_buys)
-        tab_lbl1 = f"🏆 今日買進標的 ({total_actionable}檔 ｜ 純金{len(gold_buys)} · 強勢{len(aggressive_buys)})" if not is_short_dir else f"🏆 今日放空標的 ({total_actionable}檔 ｜ 純金{len(gold_buys)} · 強勢{len(aggressive_buys)})"
-        tab_lbl2 = f"💎 明日鎖股追蹤 · 伏兵蓄勢 ({len(ambush_stocks)})" if not is_short_dir else f"💎 明日放空鎖股 · 反彈測壓 ({len(ambush_stocks)})"
-        tab_lbl3 = f"🚀 波段行進續抱 · 切勿追高 ({len(hold_stocks)})" if not is_short_dir else f"📉 空方行進續抱 · 切勿抄底 ({len(hold_stocks)})"
+        if target_strategy in ["守株待兔潛伏", "守株待兔", "主力深蹲", "深蹲潛伏"]:
+            tab_lbl1 = f"⚡ 臨門一腳 · 隨時噴出 / 今日突破 ({total_actionable}檔 ｜ 突破{len(aggressive_buys)} · 臨門{len(gold_buys)})"
+            tab_lbl2 = f"📦 耐心潛伏 · 主力深蹲吃貨 ({len(ambush_stocks)}檔)"
+            tab_lbl3 = f"🚀 波段行進續抱 ({len(hold_stocks)}檔)"
+        else:
+            tab_lbl1 = f"🏆 今日買進標的 ({total_actionable}檔 ｜ 純金{len(gold_buys)} · 強勢{len(aggressive_buys)})" if not is_short_dir else f"🏆 今日放空標的 ({total_actionable}檔 ｜ 純金{len(gold_buys)} · 強勢{len(aggressive_buys)})"
+            tab_lbl2 = f"💎 明日鎖股追蹤 · 伏兵蓄勢 ({len(ambush_stocks)})" if not is_short_dir else f"💎 明日放空鎖股 · 反彈測壓 ({len(ambush_stocks)})"
+            tab_lbl3 = f"🚀 波段行進續抱 · 切勿追高 ({len(hold_stocks)})" if not is_short_dir else f"📉 空方行進續抱 · 切勿抄底 ({len(hold_stocks)})"
 
         t_gold, t_ambush, t_hold = st.tabs([tab_lbl1, tab_lbl2, tab_lbl3])
 

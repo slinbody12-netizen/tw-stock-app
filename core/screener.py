@@ -1111,11 +1111,15 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                             s['ambush_text'] = '⚡ 臨門一腳 · 隨時放量噴出'
                             s['entry_tier_text'] = f"【⚡ 臨門一腳蓄勢】四線收斂僅 {round(bw, 1)}% · 距箱頂 {b_high} 僅 {round(dist_high, 1)}% · 隨時放量噴出"
                             s['quality_score'] = max(s.get('quality_score', 0), 190.0)
+                            s['safety_rating'] = '🟢 安全首選'
+                            s['rank_badge'] = f"⚡ 臨門一腳 No.{len(candidate_stocks)+1}"
                         else:
                             s['ambush_stage'] = 'STAGE_ACCUMULATING'
                             s['ambush_text'] = '📦 耐心潛伏 · 主力深蹲吃貨'
                             s['entry_tier_text'] = f"【📦 耐心深蹲潛伏】四線平躺已 {squeeze_days} 天 · 40天振幅僅 {round(amp, 1)}% · 耐心守株待兔"
                             s['quality_score'] = max(s.get('quality_score', 0), 180.0)
+                            s['safety_rating'] = '🟢 安全首選'
+                            s['rank_badge'] = f"📦 主力深蹲 No.{len(candidate_stocks)+1}" 
             elif strategy in ["箱型大突破", "箱型整理大突破", "📦 箱型整理大突破", "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)"] and (signals_dict.get('box_range_breakout', False) or signals_dict.get('darvas_breakout', False)):
                 match = True
             elif any(k in strategy for k in ["達瓦斯箱頂突破", "達瓦斯突破", "📦 達瓦斯箱頂突破", "達瓦斯開新箱"]) and (signals_dict.get('darvas_breakout', False) or signals_dict.get('box_range_breakout', False)):
