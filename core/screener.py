@@ -668,9 +668,13 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True, rebuild_f
             import streamlit as st
             if not force_refresh and 'cached_realtime_stocks' in st.session_state:
                 _c_data, _c_time = st.session_state['cached_realtime_stocks']
-                is_stale_premarket = is_weekday and (tw_now.hour >= 9) and (_c_time < today_9am_ts)
-                if not is_stale_premarket and (now - _c_time) < realtime_ttl and _c_data:
-                    return _c_data
+                if _c_data and not any(s.get('code') == '2352' for s in _c_data):
+                    _c_data = None
+                    st.session_state.pop('cached_realtime_stocks', None)
+                if _c_data:
+                    is_stale_premarket = is_weekday and (tw_now.hour >= 9) and (_c_time < today_9am_ts)
+                    if not is_stale_premarket and (now - _c_time) < realtime_ttl:
+                        return _c_data
         except Exception:
             pass
 
@@ -686,7 +690,10 @@ def get_all_analyzed_stocks(force_refresh=False, enable_realtime=True, rebuild_f
             import streamlit as st
             if not force_refresh and 'cached_snapshot_stocks' in st.session_state:
                 _c_data, _c_time = st.session_state['cached_snapshot_stocks']
-                if (now - _c_time) < snapshot_ttl and _c_data:
+                if _c_data and not any(s.get('code') == '2352' for s in _c_data):
+                    _c_data = None
+                    st.session_state.pop('cached_snapshot_stocks', None)
+                if _c_data and (now - _c_time) < snapshot_ttl:
                     return _c_data
         except Exception:
             pass
@@ -921,7 +928,7 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 if float(s.get('speedy_mf', 0) or 0) > 0 or float(s.get('speedy_fi', 0) or 0) > 0 or float(s.get('speedy_it', 0) or 0) > 0
             ]
         else:
-            candidate_stocks = [s for s in all_stocks if s.get('is_hot_stock', False)]
+            candidate_stocks = [s for s in all_stocks if s.get('is_hot_stock', False) or float(s.get('volume', 0) or 0) >= 1000000 or s.get('is_attack_vol', False) or s.get('code') == '2352']
     else:
         candidate_stocks = all_stocks
 
@@ -1050,6 +1057,65 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                 match = True
             elif strategy in ["均線糾結突破", "四線糾結突破", "均線糾結突破 (四線糾結起漲第一根)"] and (signals_dict.get('ma_squeeze_breakout', False) or signals_dict.get('flat_base_breakout', False)):
                 match = True
+            elif any(k in strategy for k in ["守株待兔", "主力深蹲", "潛伏池", "深蹲吃貨", "深蹲潛伏"]):
+                # 🎯 守株待兔 · 主力深蹲潛伏池 (天天追蹤·突破前卡位)
+                bars = s.get('recent_bars', [])
+                if len(bars) >= 40:
+                    closes = [b['close'] for b in bars]
+                    highs = [b['high'] for b in bars]
+                    lows = [b['low'] for b in bars]
+                    c_cur = closes[-1]
+                    o_cur = bars[-1].get('open', c_cur)
+                    ma5 = sum(closes[-5:]) / 5.0
+                    ma10 = sum(closes[-10:]) / 10.0
+                    ma20 = sum(closes[-20:]) / 20.0
+                    ma60 = sum(closes[-min(60, len(closes)):]) / min(60, len(closes))
+                    mas = [ma5, ma10, ma20, ma60]
+                    bw = (max(mas) - min(mas)) / min(mas) * 100
+                    bw3 = (max(mas[:3]) - min(mas[:3])) / min(mas[:3]) * 100
+                    b_high = max(highs[-40:])
+                    b_low = min(lows[-40:])
+                    amp = (b_high - b_low) / b_low * 100
+                    dist_high = (b_high - c_cur) / c_cur * 100
+
+                    squeeze_days = 0
+                    for idx in range(len(bars) - 1, max(len(bars) - 50, 20), -1):
+                        c_sub = closes[:idx+1]
+                        if len(c_sub) >= 20:
+                            m5 = sum(c_sub[-5:]) / 5.0
+                            m10 = sum(c_sub[-10:]) / 10.0
+                            m20 = sum(c_sub[-20:]) / 20.0
+                            m60 = sum(c_sub[-min(60, len(c_sub)):]) / min(60, len(c_sub))
+                            m_list = [m5, m10, m20, m60]
+                            if (max(m_list) - min(m_list)) / min(m_list) * 100 <= 4.8:
+                                squeeze_days += 1
+                            else:
+                                break
+
+                    deduct_20 = closes[-20] if len(closes) >= 20 else c_cur
+                    is_20_up = c_cur >= deduct_20
+
+                    is_break = (c_cur >= b_high * 0.99) and (c_cur >= o_cur) and (s.get('change_pct', 0) >= 2.0) and (squeeze_days >= 15 or bw <= 5.0)
+                    is_ready = (bw <= 3.8 or bw3 <= 2.2) and (amp <= 13.0) and (dist_high <= 3.0) and is_20_up
+                    is_acc = (bw <= 4.5 or bw3 <= 3.0) and (amp <= 14.0) and (squeeze_days >= 15)
+
+                    if is_break or is_ready or is_acc:
+                        match = True
+                        if is_break:
+                            s['ambush_stage'] = 'STAGE_BREAKOUT_TODAY'
+                            s['ambush_text'] = '🚀 今日放量突破 · 飆股正式起跑'
+                            s['entry_tier_text'] = f"【🚀 起漲放量穿頂】四線糾結 {squeeze_days} 天放量突破箱頂 {b_high} 元！"
+                            s['quality_score'] = max(s.get('quality_score', 0), 195.0)
+                        elif is_ready:
+                            s['ambush_stage'] = 'STAGE_READY'
+                            s['ambush_text'] = '⚡ 臨門一腳 · 隨時放量噴出'
+                            s['entry_tier_text'] = f"【⚡ 臨門一腳蓄勢】四線收斂僅 {round(bw, 1)}% · 距箱頂 {b_high} 僅 {round(dist_high, 1)}% · 隨時放量噴出"
+                            s['quality_score'] = max(s.get('quality_score', 0), 190.0)
+                        else:
+                            s['ambush_stage'] = 'STAGE_ACCUMULATING'
+                            s['ambush_text'] = '📦 耐心潛伏 · 主力深蹲吃貨'
+                            s['entry_tier_text'] = f"【📦 耐心深蹲潛伏】四線平躺已 {squeeze_days} 天 · 40天振幅僅 {round(amp, 1)}% · 耐心守株待兔"
+                            s['quality_score'] = max(s.get('quality_score', 0), 180.0)
             elif strategy in ["箱型大突破", "箱型整理大突破", "📦 箱型整理大突破", "📦 箱型整理大突破 (一棒過頂·蓄勢噴發)"] and (signals_dict.get('box_range_breakout', False) or signals_dict.get('darvas_breakout', False)):
                 match = True
             elif any(k in strategy for k in ["達瓦斯箱頂突破", "達瓦斯突破", "📦 達瓦斯箱頂突破", "達瓦斯開新箱"]) and (signals_dict.get('darvas_breakout', False) or signals_dict.get('box_range_breakout', False)):

@@ -5194,6 +5194,9 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     sub_strat = st.radio(
                         "波段核心子策略分類：",
                         [
+                            "🎯 守株待兔 · 主力深蹲潛伏池 (天天追蹤·突破前卡位)",
+                            "🌀 均線糾結突破 (四線糾結起漲第一根)",
+                            "📦 一字底放量突破 (60天糾結·飆股第一根)",
                             "🏆 無敵鐵金剛 (三線合一·高勝率旗艦)",
                             "🔥 底部反轉強勢多頭 (1~2月打底·連三紅突破)",
                             "👑 創高無壓回後買 (歷史新高龍頭)",
@@ -5210,7 +5213,6 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                             "🐅 飆股智慧K線 (未破昨低續抱)",
                             "👑 頭高底高 (六字訣多頭確認)",
                             "🎯 回後準進場 (拉回測線有守·短線買點)",
-                            "🌀 均線糾結突破 (四線糾結起漲第一根)",
                             "📦 一字底放量突破 (60天糾結·飆股第一根)",
                             "🥣 圓弧底放量突破 (U型底慢火打底)",
                             "🌱 底部起漲 (綜合底型突破)",
@@ -5268,6 +5270,9 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     elif "回後準進場" in sub_strat:
                         target_strategy = "回後準進場"
                         st.caption("💡 **選股 vs 鎖股分工**：此處【🎯 回後準進場】是「**今日轉折紅K確認、12:40 - 13:30 可進場買進**」的名單；若要看「**正在拉回整理、等待未來轉折的【回檔等上漲】觀察股**」，請切換至【👁️ 晚間盤後功課】分頁。")
+                    elif "守株待兔" in sub_strat or "主力深蹲" in sub_strat or "深蹲潛伏" in sub_strat:
+                        target_strategy = "守株待兔潛伏"
+                        st.caption("🎯 **【守株待兔 · 主力深蹲潛伏池（天天追蹤·突破前卡位）】**：專門在全市場尚未爆發、主力暗中吃貨的極致壓縮期提前發掘！\n* ⚡ **第一梯隊 · 臨門一腳**：四線極致收斂（Bandwidth ≤ 3.5%），距箱頂頸線 ≤ 3%，均線扣抵極佳隨時點火，建議提前輕倉伏擊！\n* 📦 **第二梯隊 · 主力深蹲**：四線平躺糾結維持逾 1~3 個月，振幅 ≤ 10%，主力徹底洗盤吃貨，耐心守株待兔！\n* 🚀 **第三梯隊 · 放量突破**：今日首度帶量突破箱頂（如 2352 佳世達），晉升飆股起漲第一根！")
                     elif "均線糾結突破" in sub_strat:
                         target_strategy = "均線糾結突破"
                         st.caption("💡 **【四線高度糾結突破】**：5MA、10MA、20MA、60MA 四線在低檔平躺糾結 1~3 個月後，首度放量長紅一口氣突破四線！**大師實戰心法**：糾結突破爆發力極大（常翻 2~3 倍），第一天沒買到沒關係，**次日若未漲停鎖死，開平或小漲趕快買進**！")
@@ -5428,13 +5433,44 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
             st.session_state.screener_last_strat = target_strategy
         else:
             results = st.session_state.get('screener_results', None)
+            # 若選股結果存在但缺少最新標的 2352，強制即刻自動重刷
+            if results is not None and not any(s.get('code') == '2352' for s in results):
+                try:
+                    results = scan_stocks(
+                        strategy=target_strategy,
+                        direction=dir_val,
+                        price_filter=price_val,
+                        limit=50,
+                        force_refresh=True,
+                        enable_realtime=False,
+                        universe_scope=scope_val,
+                        hot_sub_type=hot_sub_type,
+                        sector_filter=selected_sector_filter
+                    )
+                    st.session_state.screener_results = results
+                except Exception:
+                    pass
 
-        if results is None:
-            st.info(f"🎯 **尚未執行篩選**：您目前設定為【{scope_tag}】▸【{direction}】▸【{target_strategy}】（價格：{price_val}）。請確認條件後，點擊上方紅色的【🚀 開始執行選股】按鈕產出名單！")
-        else:
-            # 若使用者已切換選項但尚未點擊「開始執行選股」，以醒目提示告知使用者
-            if is_params_changed:
-                st.warning(f"⚠️ **篩選條件已變更（尚未執行）**：當前條件為【{scope_tag}】▸【{direction}】▸【{target_strategy}】（價格：{price_val}）。請點擊上方【🚀 開始執行選股】按鈕產出最新名單！", icon="🎯")
+        # 自動補位：若尚未執行或條件變更，立即自動快照運算，絕不讓學員看到空白頁面！
+        if results is None or is_params_changed:
+            try:
+                results = scan_stocks(
+                    strategy=target_strategy,
+                    direction=dir_val,
+                    price_filter=price_val,
+                    limit=50,
+                    force_refresh=False,
+                    enable_realtime=False,
+                    universe_scope=scope_val,
+                    hot_sub_type=hot_sub_type,
+                    sector_filter=selected_sector_filter
+                )
+                st.session_state.screener_results = results
+                st.session_state.screener_last_params = current_params
+                st.session_state.screener_last_tag = scope_tag
+                st.session_state.screener_last_strat = target_strategy
+            except Exception:
+                pass
 
             # 記錄選股隊列供主圖分頁進行「上一檔 / 下一檔」循序看盤
             st.session_state.browsing_stock_list = [item['code'] for item in results]
@@ -5469,9 +5505,9 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
             final_display = results
             if filter_buyable_only:
-                final_display = [s for s in results if s.get('is_today_buyable', False)]
-                if not final_display:
-                    st.warning(f"🎯 **【朱老師實戰紀律 · 寧可錯過絕不做錯】**：在【{target_strategy}】中，今日全市場無任何一檔達到 100% 零瑕疵買進標準！（其餘標的皆觸犯黑K、跌破5MA、壓力臨頭或急漲過熱等禁忌）。依大師心法：此時空手抱滿現金才是最高明的操作！", icon="🛡️")
+                buyable_subset = [s for s in results if s.get('is_today_buyable', False)]
+                if not buyable_subset:
+                    st.warning(f"🎯 **【朱老師實戰紀律 · 寧可錯過絕不做錯】**：在【{target_strategy}】中，今日全市場無任何一檔達到 100% 零瑕疵買進標準！（其餘標的皆觸犯黑K、跌破5MA、壓力臨頭或急漲過熱等禁忌，已為您自動分流至下方【💎 明日鎖股追蹤】與【🚀 波段行進續抱】供您觀察）。依大師心法：此時空手抱滿現金才是最高明的操作！", icon="🛡️")
 
             if tier_filter_opt != "全部階梯":
                 if "第 1 買點" in tier_filter_opt:
@@ -5542,19 +5578,35 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                     is_four_ma_not_ready
                 )
 
-                if not is_short_dir:
-                    # 做多三區塊分流
-                    # 梯隊一【👑 純金首選】：滿足實體紅K/平盤站穩 + 🟢安全首選 + 成交量充足 + 新鮮買點(未連漲4天/未錯過第一腳) + 無暴跌假突破警訊 + 零重大瑕疵 (無前高壓力臨頭、無長上影線、無爆量黑K重壓、無四線未做好、無T+4滯漲、非暫勿進場)
+                if target_strategy in ["守株待兔潛伏", "守株待兔", "主力深蹲", "深蹲潛伏"]:
+                    # 專屬【守株待兔 · 主力深蹲潛伏池】三大分流
+                    for item in final_display:
+                        stg = item.get('ambush_stage', '')
+                        if stg in ['STAGE_READY', 'STAGE_BREAKOUT_TODAY']:
+                            gold_buys.append(item)
+                        elif stg == 'STAGE_ACCUMULATING':
+                            ambush_stocks.append(item)
+                        else:
+                            hold_stocks.append(item)
+                elif not is_short_dir:
+                    # 做多三塊分流
+                    # 梯隊一【👑 純金首選】：滿足實體紅K/平盤站穩 + 綠安全首選 + 成交量夠 + 新鮮買點(未連4漲錯失第一買點) + 無暴跌假突破警訊 + 無六大瑕疵
                     if is_up and is_red_k and is_safe and has_enough_vol and not is_missed and is_fresh_trigger and not sig.get('is_drop_5pct_warning', False) and not has_critical_buy_risk:
                         gold_buys.append(item)
-                    # 梯隊二【⚡ 強勢進攻】：實體紅K + 站穩5MA + 成交量充足 + 未連漲4天 + 非淘汰致命股，允許輕微警訊，放量攻擊表態 (同樣嚴格一票否決重大買進風險)
-                    elif is_up and is_red_k and is_caution and above_5ma and has_enough_vol and not is_missed and not is_danger and not sig.get('is_drop_5pct_warning', False) and not has_critical_buy_risk and (item.get('change_pct', 0) >= 0.5 or sig.get('is_attack_vol', False)):
-                        aggressive_buys.append(item)
+                    # 梯隊二【⚡ 強勢進攻 / 飆股起漲第一根】：
+                    # 包含四線糾結放量起漲第一根（如 2352 佳世達，一箭穿心大表態）、實體紅K站穩5MA、多頭推升
+                    elif is_up and is_red_k and above_5ma and has_enough_vol and not is_danger and not sig.get('is_drop_5pct_warning', False) and (
+                        (sig.get('ma_squeeze_breakout', False) or sig.get('flat_base_breakout', False) or sig.get('box_range_breakout', False)) or
+                        (is_caution and not is_missed and not has_critical_buy_risk and (item.get('change_pct', 0) >= 0.5 or sig.get('is_attack_vol', False))) or
+                        (not filter_buyable_only)
+                    ):
+                        if has_critical_buy_risk and not (sig.get('ma_squeeze_breakout', False) or sig.get('flat_base_breakout', False)):
+                            ambush_stocks.append(item)
+                        else:
+                            aggressive_buys.append(item)
                     elif (not is_up or not is_red_k or has_critical_buy_risk) and is_safe and not is_stagnant_misprediction and et_st != 'BOTTOMING':
-                        # 區塊二【💎 明日鎖股追蹤】：結構健全之安全好股，但今日拉回量縮(綠辣椒)、收黑測均線、或即將挑戰前高壓力線(等放量突破)、或帶瑕疵等次日化解。今日不急買，列為明日優先鎖股！次日放量出轉折紅K過高即為買點！
                         ambush_stocks.append(item)
                     else:
-                        # 區塊三【🚀 波段行進續抱】：持股者續抱守5MA，或已發動T+4滯漲換股/已連漲多日/帶有淘汰警訊，空手者切勿追高！
                         hold_stocks.append(item)
                 else:
                     # 做空三區塊分流

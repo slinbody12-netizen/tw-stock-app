@@ -308,6 +308,24 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "abc_approaching_cutline": False,            # ⏳ 強勢紅K逼近ABC下降切線尚未破切 (助教10/22華新科指引：先鎖股等破切)
         "breakout_heavy_black_high_pos_warning": False, # ⚠️ 突破大量黑K符合但位置偏高 (助教10/22冠西電指引)
         "heavy_black_trend_intact_watch_next": False,   # 👀 爆量黑K但未破5均與前波底撐先看次日 (助教10/22德宏指引)
+        "three_days_two_gaps_down_warning": False,      # 🚨 多頭回檔以三天二缺口方式疑似出貨 (助教10/23臻鼎-KY指引)
+        "gap_up_then_gap_down_reversal": False,         # ⚠️ 向上跳空後又跳空回來防M頭/島狀出貨 (助教10/23臻鼎-KY指引)
+        "rebound_short_near_support": False,            # ⚠️ 彈後空下跌離下方支撐較近注意止跌 (助教10/23京元電指引)
+        "bearish_engulf_to_abc_watch": False,           # 💡 長黑吞噬破5均轉盤整但守月線上鎖多頭ABC (助教10/23南亞指引)
+        "kline_consolidation_not_broken_no_short": False, # ⏸️ K線橫盤還沒跌破非彈後空進場點 (助教10/25旺宏指引)
+        "rebound_short_ma20_still_rising_warning": False, # ⚠️ 位置彈後空下跌但月線仍向上未空排 (助教10/25華新科指引)
+        "bear_confirm_at_ma60_support_wait_bounce": False,# ⚠️ 空頭確認剛碰季線/支撐宜短線或等彈後空更穩 (助教10/25金居&10/27指引)
+        "left_red_right_black_watch_5ma": False,        # 👀 左長紅右長黑變盤徵兆注意次日是否破5均 (助教10/25寶僑PG指引)
+        "left_red_right_black_low_pos_hold": False,     # 🛡️ 低位階左長紅右長黑缺口未補未破5均與停損續抱觀察 (助教10/25寶僑PG指引)
+        "breakout_20ma_falling_stall_warning": False,   # ⏳ 長紅突破站上20MA但20MA向下防隔兩天不漲 (林穎老師10/25影片指引)
+        "fake_high_intraday_pierce_only": False,        # ⚠️ 盤中過高收盤未過＝假的過高轉矩形盤整 (助教10/25台光電指引)
+        "gain_over_10pct_take_profit_alert": False,     # 🎯 波段漲逾10%遇大量紅K覆蓋黑K看訊號準備停利 (助教10/29達航指引)
+        "box_in_range_warning": False,                  # ⚠️ 箱型整理區間內震盪易遭雙巴建議等突破 (助教10/29群聯指引)
+        "rebound_signal_not_entry_warning": False,      # ⚠️ 轉折是訊號非進場條件(月線下出晨星/變盤線防弱反彈) (助教10/29大盤指引)
+        "breakout_next_day_shadow_pullback": False,     # 🛡️ 突破長紅次日黑K留長下影線屬回測支撐守原停損 (助教10/29旭隼指引)
+        "two_peaks_resistance_alert": False,            # ⚠️ 遭遇二個頭壓未實質站穩過壓前不操作 (助教10/30華新科/頎邦指引)
+        "low_vol_breakout_vs_pressure_alert": False,    # ⚠️ 突破量能小於前波套牢壓力量能防解套賣壓 (助教10/30百一指引)
+        "bottom_volume_better_than_breakout": False,    # 💡 底部低點爆量過高優於過高當日爆量 (助教10/30佳世達指引)
         "rounding_bottom": False,     # 圓弧底
         "kline_consolidation_breakout": False, # 📊 6-3 K線橫盤突破 (3天橫盤放量突破·CH6)
         "abc_correction_breakout": False,      # 📐 6-5 突破ABC修正下降切線 (短空做頭失敗續噴·CH6)
@@ -1337,9 +1355,140 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     res_val = trend_info.get('resistance', 0) or (c * 1.08)
     not_broken_res = h <= res_val * 1.015
     is_5ma_falling_or_turn = is_5ma_falling or (c <= sma5 and sma5 <= prev_sma5 * 1.01) or (sma20 <= prev_sma20 and c <= sma5)
+
+    # 助教 10/25 旺宏 (2337) 權威過濾器：「K線橫盤還沒跌破，不是彈後空進場點！」
+    # 檢查近 4~7 天是否處於 K 線橫盤區間內，且今日收盤價 c 尚未實質跌破橫盤區間下緣 (l_cons)
+    is_trapped_in_kline_cons = False
+    if len(df) >= 5 and is_black and c <= sma5:
+        cons_win = df.iloc[-6:-1] if len(df) >= 6 else df.iloc[-4:-1]
+        h_cons = float(cons_win['High'].max())
+        l_cons = float(cons_win['Low'].min())
+        amp_cons = (h_cons - l_cons) / (l_cons + 1e-9)
+        if amp_cons <= 0.068 and c >= l_cons * 0.997:
+            is_trapped_in_kline_cons = True
+
     if (is_bear or sma5 <= sma20) and tested_res_or_ma and not_broken_res and is_black and c <= sma5 and is_5ma_falling_or_turn:
-        signals_dict['rebound_short'] = True
-        signals.append("彈後準進場 (反彈測線無力，轉折黑K跌破5MA)")
+        if is_trapped_in_kline_cons:
+            signals_dict['kline_consolidation_not_broken_no_short'] = True
+            signals.append("⏸️ K線橫盤還沒跌破 (助教10/25旺宏指引：雖碰5均後收黑K，但K線橫盤尚未跌破，非做空進場點)")
+        else:
+            signals_dict['rebound_short'] = True
+            signals.append("彈後準進場 (反彈測線無力，轉折黑K跌破5MA)")
+            # 助教 10/23 京元電子 (2449) 指引：彈後空下跌若離下方支撐較近 (<= 4.5%)，提醒注意支撐止跌
+            if support > 0 and c > support and ((c - support) / (c + 1e-9)) <= 0.045:
+                signals_dict['rebound_short_near_support'] = True
+                signals.append("⚠️ 彈後空離支撐近 (助教10/23京元電指引：與時間無關指價差空間近，可做空但遇支撐須注意止跌)")
+            # 助教 10/25 華新科 (2492) 指引：頭頭低/破前低位置屬彈後空下跌，但月線仍向上、均線未空排
+            if sma20 > prev_sma20 * 1.0005:
+                signals_dict['rebound_short_ma20_still_rising_warning'] = True
+                signals.append("⚠️ 位置彈後空但月線仍向上 (助教10/25華新科指引：多單早該於頭頭低/破前低出場；目前彈後空但月線仍向上未空排，留意月線扣抵支撐)")
+
+    # 助教 10/25 金居 (8358) & 10/27 指引：空頭確認/急跌剛碰到季線(60MA)或支撐區，要看季線是否有撐，建議等彈後空下跌更穩
+    if (is_bear or c < sma20) and is_black and change_pct <= -3.0:
+        near_ma60_sup = (sma60 > 0 and abs(c - sma60) / (sma60 + 1e-9) <= 0.032) or (l <= sma60 <= h)
+        near_prev_sup = (support > 0 and abs(c - support) / (support + 1e-9) <= 0.030)
+        if near_ma60_sup or near_prev_sup:
+            signals_dict['bear_confirm_at_ma60_support_wait_bounce'] = True
+            signals.append("⚠️ 空頭急跌剛碰季線/支撐 (助教10/25金居&10/27指引：要看季線/支撐是否有撐，僅能短線操作；建議等反彈後再做彈後空下跌更穩)")
+
+    # 助教 10/25 美股 PG 寶僑指引：左長紅右長黑是變盤徵兆，注意下一個交易日是否跌破5日線；低位階未破5均與停損續抱觀察
+    if is_prev_large_red and is_black:
+        signals_dict['left_red_right_black_watch_5ma'] = True
+        if c >= sma5 and not is_high_position and c >= support * 0.99:
+            signals_dict['left_red_right_black_low_pos_hold'] = True
+            signals.append("👀 左長紅右長黑變盤徵兆·未破5均續抱觀察 (助教10/25寶僑PG指引：左長紅右長黑注意次日是否破5日線；目前位階不高且未破5均與停損，守停損觀察)")
+        else:
+            signals.append("⚠️ 左長紅右長黑變盤徵兆 (助教10/25指引：注意下一個交易日是否跌破5日線，破5均確認轉弱出場)")
+
+    # 林穎老師 10/25 技術分析影片指引：長紅突破站上 20MA，但 20MA 方向向下，須承受隔天、隔兩天股價不漲的狀況
+    if is_red and c >= sma20 and (c > prev_h or change_pct >= 2.2) and (sma20 < prev_sma20 * 0.9995):
+        signals_dict['breakout_20ma_falling_stall_warning'] = True
+        signals.append("⏳ 站上20MA但20MA向下·防隔兩天不漲 (林穎老師10/25影片指引：收盤在20MA上但20MA方向向下，須承受隔天、隔兩天股價不漲；待20MA向上才易主升急噴)")
+
+    # 助教 10/25 台光電 (2383) 指引：盤中過高收盤未過＝假的過高（壓力未被突破，上影線即壓力）
+    if trend_info.get('unconfirmed_shadow_high_pierce', False):
+        signals_dict['fake_high_intraday_pierce_only'] = True
+        signals.append("⚠️ 盤中過高收盤未過＝假過高 (助教10/25台光電指引：確認過高看收盤價，上影線即壓力；若未補量收盤過高反破5MA，實質為矩形盤整/頭頭低先賣)")
+
+    # 助教 10/23 臻鼎-KY (4958) 指引：多頭回檔以「三天二缺口」方式急跌疑似出貨 & 向上跳空後又跳空回來
+    if len(df) >= 5:
+        recent4_bars = df.iloc[-4:]
+        down_gaps_3d = 0
+        for g_i in range(1, len(recent4_bars)):
+            if float(recent4_bars.iloc[g_i]['High']) < float(recent4_bars.iloc[g_i - 1]['Low']):
+                down_gaps_3d += 1
+        if down_gaps_3d >= 2:
+            signals_dict['three_days_two_gaps_down_warning'] = True
+            signals.append("🚨 多頭回檔三天二缺口 (助教10/23臻鼎-KY指引：多頭回檔以三天二缺口方式急跌，有可能是主力出貨)")
+        if len(df) >= 12 and down_gaps_3d >= 1:
+            prior10 = df.iloc[-12:-2]
+            had_up_gap = any(float(prior10.iloc[k]['Low']) > float(prior10.iloc[k - 1]['High']) for k in range(1, len(prior10)))
+            if had_up_gap and is_black:
+                signals_dict['gap_up_then_gap_down_reversal'] = True
+                signals.append("⚠️ 向上跳空後又跳空回來 (助教10/23臻鼎-KY指引：防島狀反轉或M頭主力出貨)")
+
+    # 助教 10/23 南亞 (1303) 指引：長黑吞噬跌破 5 均轉盤整，但若還在月線上可鎖多頭 ABC
+    if signals_dict.get('bearish_engulfing', False) and c < sma5 and c >= sma20 and (sma20 >= prev_sma20 * 0.998):
+        signals_dict['bearish_engulf_to_abc_watch'] = True
+        signals.append("💡 長黑吞噬破5均轉盤整·守月線上鎖多頭ABC (助教10/23南亞指引：短線先出場，目前盤整等突破，破低轉空，若還在月線上鎖多頭ABC)")
+
+    # 助教 10/29 達航科技 (4577) 指引：波段已漲過一成 (>10%)，昨日黑K大量今日紅K大量覆蓋黑K，「看訊號，準備停利」切忌追高
+    if is_red and prev_c < float(prev['Open']) and vol_ratio >= 1.5 and c >= float(prev['High']):
+        swing_g = float(signals_dict.get('swing_gain', 0.0))
+        if swing_g >= 10.0 or (c >= sma20 * 1.10):
+            signals_dict['gain_over_10pct_take_profit_alert'] = True
+            signals.append("🎯 漲過一成遇大量長紅吞噬·看訊號準備停利 (助教10/29達航指引：波段累計漲逾10%，高檔爆量長紅覆蓋黑K防主力拉高，看訊號準備停利出場，切忌追高！)")
+
+    # 助教 10/29 群聯 (8299) 指引：箱型整理震盪，建議等帶量突破區間再進，在區間操作常一直停損
+    if trend_info.get('trend_status') == "盤整趨勢" and not signals_dict.get('box_range_breakout', False) and not signals_dict.get('darvas_breakout', False):
+        signals_dict['box_in_range_warning'] = True
+        signals.append("⚠️ 箱型整理區間內震盪 (助教10/29群聯指引：建議以突破區間為進場依據，在區間內操作常一直停損，耐心等帶量突破！)")
+
+    # 助教 10/29 大盤指引：轉折是訊號不是進場位置與條件（空頭或月線下彎出晨星轉折，嚴禁盲目進場做多）
+    if signals_dict.get('morning_star', False) or signals_dict.get('hammer', False):
+        if c < sma20 or sma20 < prev_sma20 * 0.9995:
+            signals_dict['rebound_signal_not_entry_warning'] = True
+            signals.append("⚠️ 轉折是訊號非進場條件 (助教10/29大盤指引：月線下或月線下彎出晨星/變盤線只是轉強訊號，非做多進場條件，量縮上攻無力防假反彈！)")
+
+    # 助教 10/29 旭隼 (6409) 指引：長紅突破次日收黑留下影線，黑K可當回測（未破停損），守原停損續抱
+    if len(df) >= 3:
+        p2 = df.iloc[-2]
+        p2_c = float(p2['Close'])
+        p2_o = float(p2['Open'])
+        p2_l = float(p2['Low'])
+        p2_is_big_red = (p2_c >= p2_o * 1.03) or (float(p2.get('change_pct', 0)) >= 3.5)
+        if p2_is_big_red and is_black and c >= p2_l:
+            lower_shadow = min(o, c) - l
+            body = abs(c - o)
+            if lower_shadow >= body * 0.8:
+                signals_dict['breakout_next_day_shadow_pullback'] = True
+                signals.append("🛡️ 突破次日黑K下影線回測 (助教10/29旭隼指引：長紅突破次日黑K有下影線可視為支撐回測，未破停損續抱)")
+
+    # 助教 10/30 華新科 (2492) / 頎邦 (6147) 指引：遭遇「二個頭壓」未過壓前不操作
+    peaks_list = trend_info.get('peaks', [])
+    overhead_peaks = [p for p in peaks_list if float(p.get('price', 0)) > c * 1.002]
+    if len(overhead_peaks) >= 2:
+        p1 = float(overhead_peaks[-1]['price'])
+        p2 = float(overhead_peaks[-2]['price'])
+        # 距離最近的頭部壓在 3.5% 以內
+        if (min(p1, p2) - c) / c <= 0.035:
+            signals_dict['two_peaks_resistance_alert'] = True
+            signals.append(f"⚠️ 遭遇二個頭部重壓 (前波 {p2:.2f}元 與 {p1:.2f}元 雙頭套牢反壓，助教10/30指引：過壓前不操作！)")
+
+    # 助教 10/30 百一 (6152) 指引：突破攻擊量若明顯小於前波套牢壓力量，動能不足防高點受阻
+    if (signals_dict.get('abc_correction_breakout', False) or signals_dict.get('box_range_breakout', False)) and len(df) >= 20:
+        prior_vol_max = float(df.iloc[-25:-5]['Volume'].max())
+        if prior_vol_max > 0 and v < prior_vol_max * 0.7:
+            signals_dict['low_vol_breakout_vs_pressure_alert'] = True
+            signals.append("⚠️ 攻擊量小於前波套牢量 (助教10/30百一指引：突破量能小於壓力量，不確定高點是否能到，需補量)")
+
+    # 助教 10/30 佳世達 (2352) 指引：爆量如果是低點後續過高，比過高當日爆量安心
+    if signals_dict.get('ma_squeeze_breakout', False) or signals_dict.get('box_range_breakout', False):
+        if len(df) >= 15:
+            prior_low_vol = df.iloc[-15:-1]['Volume'].max()
+            if prior_low_vol >= v_ma20 * 1.8:
+                signals_dict['bottom_volume_better_than_breakout'] = True
+                signals.append("💡 底部爆量洗淨後續過高 (助教10/30佳世達指引：低點爆量後續過高，籌碼扎實安心起漲)")
 
     # 策略 D_空：頂部起跌 (高檔整理或頭部型態完成，首度放量跌破均線)
     past20_high = df.iloc[-25:-5]['High'].max() if len(df) >= 25 else h

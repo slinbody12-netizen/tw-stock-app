@@ -1498,5 +1498,11 @@
     "industry": "建材營造",
     "has_futures": false,
     "has_cb": false
+  },
+  {
+    "code": "2352",
+    "name": "佳世達",
+    "market": "TW",
+    "industry": "電腦及週邊"
   }
 ]

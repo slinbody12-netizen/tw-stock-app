@@ -80,18 +80,54 @@ def analyze_trend(df: pd.DataFrame, points: list):
     ll = (trough_diff_pct < -0.008) and not is_flat_bottom  # 底底低 (實質跌破前低超過 0.8%)
 
     # 助教與老朱實戰心法：
-    # 1.「過前高動態校正」：若今日最新收盤價或最高價已實質突破 curr_peak，代表多頭正在過前高，絕非「頭頭低」！
-    if (latest_close >= curr_peak['price'] * 0.998) or (latest_high > curr_peak['price']):
-        lh = False
-        if latest_close >= curr_peak['price'] or latest_high >= prev_peak['price']:
-            hh = True
+    # 1.「過前高動態校正」與助教 10/25 台光電 (2383) 權威鐵律：
+    #    「轉折頭看上影線最高價，但確認過高必須看收盤價！盤中過高收盤未過＝假的過高（壓力未被突破，上影線就是壓力）」
+    unconfirmed_shadow_high_pierce = False
+    latest_sma5 = float(df['SMA_5'].iloc[-1]) if ('SMA_5' in df and not df.empty) else (float(df['Close'].tail(5).mean()) if len(df) >= 5 else latest_close)
 
-    # 2.「收盤跌破才算是跌破」：若盤中雖低於前底，但收盤拉回守穩 curr_trough 之上，視為留長下影線打樁有守，不判定為破底！
-    if ll and (latest_close >= curr_trough['price'] * 0.995):
-        ll = False
-        hl = True
+    if hh and not df.empty:
+        # 檢查 curr_peak 所在波段是否有任何一根 K 棒「收盤價 (Close)」實質越過 prev_peak['price'] (含上影線之最高價)
+        peak_window = df[df['Date'] > prev_peak['date']] if 'Date' in df else df.iloc[-15:]
+        max_close_after_prev_peak = float(peak_window['Close'].max()) if not peak_window.empty else latest_close
+        if max_close_after_prev_peak < prev_peak['price'] * 0.998:
+            unconfirmed_shadow_high_pierce = True
+            # 助教 10/25 台光電開示：盤中過高收盤沒過高時，當下在5MA之上先暫時當成有過高；
+            # 但若次日/後續未補量收盤站上前高、反而下跌破 5MA，則「在轉折波看起來是多頭沒錯，但實際不是（上不過高下沒破底＝矩形盤整/頭頭低）」！
+            if latest_close < latest_sma5:
+                hh = False
+
+    if latest_close >= curr_peak['price'] * 0.998:
+        lh = False
+        hh = True
+        unconfirmed_shadow_high_pierce = False
+    elif latest_high > curr_peak['price']:
+        # 今日盤中最高價過前高，但收盤未過前高 (盤中過高收盤未過)
+        unconfirmed_shadow_high_pierce = True
+        if latest_close >= latest_sma5:
+            lh = False
+
+    # 2. 助教 10/23 聯茂 (6213) 權威鐵律：「抓高低點是上下影線，確認是收盤確認！」
+    # 雖然轉折低點 (含下影線 Low) 低於前波轉折底 (轉折是破低的)，但若該波段回檔期間「沒有『收盤』確認破前轉折低點」，
+    # 則多頭底底高結構並未破壞，再站回 5MA 依然是標準「回後買上漲」！
+    unconfirmed_shadow_low_pierce = False
+    if ll and not df.empty:
+        trough_window = df[df['Date'] >= prev_peak['date']] if 'Date' in df else df.iloc[-15:]
+        min_close_in_trough = float(trough_window['Close'].min()) if not trough_window.empty else latest_close
+        if min_close_in_trough >= prev_trough['price'] * 0.998:
+            ll = False
+            hl = True
+            unconfirmed_shadow_low_pierce = True
+        elif latest_close >= prev_trough['price'] * 0.998 and curr_trough['date'] == df['Date'].iloc[-1]:
+            ll = False
+            hl = True
+            unconfirmed_shadow_low_pierce = True
 
     alerts = []
+    if unconfirmed_shadow_high_pierce:
+        if hh:
+            alerts.append(f"⚠️ 助教 10/25 台光電鐵律：盤中最高價曾越過前高 ({prev_peak['price']}) 但『收盤未過前高』（上影線即壓力，暫時當成有過高），務必觀察次日是否收盤站穩前高，若反跌破 5MA 則為『假過高轉矩形盤整』！")
+        else:
+            alerts.append(f"⚠️ 助教 10/25 台光電鐵律：轉折高點 ({curr_peak['price']}) 僅『盤中過高、收盤未過前高 ({prev_peak['price']})』且已跌破 5MA，屬『假的過高（壓力未被突破）』！轉折波看似多頭但實際不是，上不過高下沒破底，實質趨勢轉為『矩形盤整（頭頭低先賣）』！")
 
     # -------------------------------------------------------------
     # 關鍵支撐與壓力計算（對齊正統量化技術分析邏輯）
@@ -134,7 +170,11 @@ def analyze_trend(df: pd.DataFrame, points: list):
         if tentative_troughs:
             pullback_low = min(pullback_low, min(p['price'] for p in tentative_troughs))
 
-        has_broken_low = pullback_low <= curr_trough['price'] * 0.998
+        # 助教 10/23 聯茂 (6213) 鐵律：抓高低點是上下影線 (curr_trough['price'] 含下影線)，但破低確認必須是「收盤確認」！
+        pullback_close_min = float(bars_since_peak['Close'].min()) if not bars_since_peak.empty and 'Close' in bars_since_peak else latest_close
+        has_broken_low = pullback_close_min <= curr_trough['price'] * 0.998
+        if (pullback_low <= curr_trough['price'] * 0.998) and not has_broken_low:
+            unconfirmed_shadow_low_pierce = True
         has_new_high = latest_close >= curr_peak['price'] * 1.003
 
         if has_broken_low and not has_new_high:
@@ -155,6 +195,8 @@ def analyze_trend(df: pd.DataFrame, points: list):
             trend_badge = "多頭 🟢"
             trend_color = "#E03131"  # 台股紅代表漲
             target = round(resistance + (resistance - support), 2)
+            if unconfirmed_shadow_low_pierce:
+                alerts.append("💡 助教 10/23 聯茂鐵律：雖然轉折下影線曾刺破前底，但『沒有收盤確認破前轉折低點』，多頭底底高結構未破壞（抓高低點看上下影線，破低看收盤確認）！")
             if latest_close < support:
                 alerts.append(f"⚠️ 警訊：今日收盤價 ({latest_close}) 跌破前低支撐 ({support})，多頭架構遭到破壞！")
             elif latest_close >= resistance:
@@ -242,10 +284,19 @@ def analyze_trend(df: pd.DataFrame, points: list):
                     major_trend_date = break_bars['Date'].iloc[0]
 
     else:
-        trend_status = "盤整整理 (高低未同向突破)"
+        if lh and hl:
+            trend_status = "盤整整理 (頭頭低、底底高 · 多頭轉盤整)"
+        elif hh and ll:
+            trend_status = "盤整整理 (頭頭高、底底低 · 擴散或打底盤整)"
+        else:
+            trend_status = "盤整整理 (高低未同向突破)"
         trend_badge = "盤整 🟡"
         trend_color = "#F59F00"
         target = resistance
+        if lh and hl:
+            sma20_now = float(df['Close'].rolling(20).mean().iloc[-1]) if len(df) >= 20 else latest_close
+            if latest_close >= sma20_now:
+                alerts.append("💡 助教 10/23 南亞/聯茂指引：目前頭頭低、底底高轉為『盤整等突破』；後續若收盤破低轉空頭，但目前還在月線 (20MA) 之上，可列入鎖股池鎖定『多頭 ABC 突破』！")
         if latest_close > resistance:
             alerts.append(f"🚀 突破：今日收盤價 ({latest_close}) 放量突破盤整箱頂 ({resistance})，轉多訊號！")
         elif latest_close < support:
@@ -488,6 +539,8 @@ def analyze_trend(df: pd.DataFrame, points: list):
         "higher_lows": hl,
         "lower_highs": lh,
         "lower_lows": ll,
+        "unconfirmed_shadow_high_pierce": unconfirmed_shadow_high_pierce,
+        "unconfirmed_shadow_low_pierce": unconfirmed_shadow_low_pierce,
         "curr_peak": curr_peak,
         "prev_peak": prev_peak,
         "curr_trough": curr_trough,

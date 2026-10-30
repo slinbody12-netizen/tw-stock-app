@@ -776,34 +776,35 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
                     "ticker": ticker, "code": code, "name": name,
                     "market": market, "industry": industry, "error": "查無此股票行情數據"
                 }
-
-        # 整理欄位
-        raw = raw.reset_index()
-        raw['Date'] = pd.to_datetime(raw['Date']).dt.tz_localize(None)
-        cols_to_keep = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
-        df = raw[[c for c in cols_to_keep if c in raw.columns]].copy()
-        for col in ['Open', 'High', 'Low', 'Close']:
-            df[col] = df[col].astype(float)
-        df['Volume'] = df['Volume'].fillna(0).astype(int)
-        
-        # 排除休市日或無成交日 (若是大盤指數則允許 Volume == 0)
-        if ticker.startswith("^"):
-            df = df[df['Close'] > 0].reset_index(drop=True)
         else:
-            df = df[df['Volume'] > 0].reset_index(drop=True)
-        if len(df) < 5:
-            return pd.DataFrame(), {
-                "ticker": ticker, "code": code, "name": name,
-                "market": market, "industry": industry, "error": "交易天數不足"
-            }
-
-        df = calculate_indicators(df)
-
-        try:
-            with open(cache_file, 'wb') as f:
-                pickle.dump(df, f)
-        except Exception:
-            pass
+            # 整理欄位
+            raw = raw.reset_index()
+            date_col = 'Date' if 'Date' in raw.columns else ('date' if 'date' in raw.columns else raw.columns[0])
+            raw['Date'] = pd.to_datetime(raw[date_col]).dt.tz_localize(None)
+            cols_to_keep = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+            df = raw[[c for c in cols_to_keep if c in raw.columns]].copy()
+            for col in ['Open', 'High', 'Low', 'Close']:
+                df[col] = df[col].astype(float)
+            df['Volume'] = df['Volume'].fillna(0).astype(int)
+            
+            # 排除休市日或無成交日 (若是大盤指數則允許 Volume == 0)
+            if ticker.startswith("^"):
+                df = df[df['Close'] > 0].reset_index(drop=True)
+            else:
+                df = df[df['Volume'] > 0].reset_index(drop=True)
+            if len(df) < 5:
+                return pd.DataFrame(), {
+                    "ticker": ticker, "code": code, "name": name,
+                    "market": market, "industry": industry, "error": "交易天數不足"
+                }
+    
+            df = calculate_indicators(df)
+    
+            try:
+                with open(cache_file, 'wb') as f:
+                    pickle.dump(df, f)
+            except Exception:
+                pass
 
     # ---------------- 證交所盤中即時行情無縫拼接 ----------------
     tw_now = get_tw_now()
