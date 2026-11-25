@@ -110,7 +110,7 @@ except (ImportError, AttributeError):
 
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
-from core.signal_detector import detect_signals, categorize_signals
+from core.signal_detector import detect_signals, categorize_signals, compute_bollinger_info
 from core.entry_point_analyzer import calculate_three_tier_entry, render_three_tier_entry_dashboard
 from core.screener import scan_stocks, load_speedy_chips, get_all_analyzed_stocks
 from core.sector_radar import calculate_sector_heat_rankings, get_stock_sector_info, get_sector_heat_rankings
@@ -746,6 +746,14 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
 
     if item.get('is_hot_stock'):
         badge_html += "<span style='background:#E11D48; color:white; padding:1px 5px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='全市場熱門焦點：量大/主流族群/主力進駐'>🔥 熱門</span>"
+
+    # 價值評估標記 (朱老師跌時重質：本益比近10倍 / 高殖利率護城河)
+    _pe = float(item.get('pe_ratio', 0) or 0)
+    _yld = float(item.get('dividend_yield', 0) or 0)
+    if 3.0 <= _pe <= 15.0:
+        badge_html += f"<span style='background:#0369A1; color:#E0F2FE; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='本益比 {_pe:.1f} 倍 (跌時重質·接近10倍價值區)'>PE {_pe:.1f}</span>"
+    if _yld >= 4.0:
+        badge_html += f"<span style='background:#047857; color:#D1FAE5; padding:1px 6px; border-radius:3px; font-size:0.75rem; margin-right:3px;' title='現金殖利率 {_yld:.1f}%'>殖 {_yld:.1f}%</span>"
 
     # 戰法與操盤線智慧去重 (若已有無敵鐵金剛，自動隱藏 5MA走升 與 站上5MA，節省標籤空間)
     sig = item.get('signals_dict', {})
@@ -1560,6 +1568,114 @@ def render_strategy_signals_dashboard(signals_list: list, signals_dict: dict, tr
             for item in cdata['items']:
                 desc_text = f"：{item['desc']}" if item['desc'] else ""
                 st.markdown(f"- **{item['title']}**{desc_text}")
+
+
+def add_bollinger_traces_to_figure(fig: go.Figure, df_plot: pd.DataFrame, show_mid_line: bool = False, row: int = 1, col: int = 1):
+    """在 K 線圖上疊加布林通道 (20MA ± 2σ)，僅於使用者主動勾選獨立開關時呼叫"""
+    if df_plot is None or len(df_plot) < 20 or 'Close' not in df_plot.columns:
+        return
+    bb_mid = df_plot['Close'].rolling(20).mean()
+    bb_std = df_plot['Close'].rolling(20).std()
+    bb_up = bb_mid + 2.0 * bb_std
+    bb_low = bb_mid - 2.0 * bb_std
+
+    fig.add_trace(go.Scatter(
+        x=df_plot['Date'], y=bb_up, mode='lines', name="布林上軌 (+2σ)",
+        line=dict(color='rgba(148, 163, 184, 0.78)', width=1.3, dash='dot'),
+        showlegend=False
+    ), row=row, col=col)
+    fig.add_trace(go.Scatter(
+        x=df_plot['Date'], y=bb_low, mode='lines', name="布林下軌 (-2σ)",
+        line=dict(color='rgba(148, 163, 184, 0.78)', width=1.3, dash='dot'),
+        fill='tonexty', fillcolor='rgba(56, 189, 248, 0.06)',
+        showlegend=False
+    ), row=row, col=col)
+    if show_mid_line:
+        fig.add_trace(go.Scatter(
+            x=df_plot['Date'], y=bb_mid, mode='lines', name="布林中軌 (20MA)",
+            line=dict(color='rgba(56, 189, 248, 0.65)', width=1.3, dash='dash'),
+            showlegend=False
+        ), row=row, col=col)
+
+
+def render_bollinger_auxiliary_panel(bb_info: dict, close_price: float, period_label: str = "日線"):
+    """
+    獨立的「布林通道輔助診斷區」（摺疊面板）：
+    嚴格與《技術分析全攻略》正課主訊號隔離，單獨呈現通道狀態、股價位階與布林專屬觸發提示。
+    """
+    if not bb_info or not bb_info.get('available', False):
+        return
+
+    b_state = bb_info.get('band_state', '🌊 常態趨勢通道')
+    b_state_col = bb_info.get('band_state_color', '#94A3B8')
+    p_pos = bb_info.get('price_position', '')
+    p_pos_col = bb_info.get('price_pos_color', '#38BDF8')
+    up_v = bb_info.get('upper', 0.0)
+    mid_v = bb_info.get('mid', 0.0)
+    low_v = bb_info.get('lower', 0.0)
+    bw_pct = bb_info.get('bandwidth_pct', 0.0)
+    min_bw = bb_info.get('min_width_20_pct', 0.0)
+    pct_b = bb_info.get('percent_b', 50.0)
+    mid_dir = bb_info.get('mid_dir', '→ 走平')
+    triggers = bb_info.get('triggers', [])
+
+    dist_up = round(((up_v - close_price) / (close_price + 1e-9)) * 100.0, 2) if close_price > 0 else 0.0
+    dist_low = round(((close_price - low_v) / (close_price + 1e-9)) * 100.0, 2) if close_price > 0 else 0.0
+    trig_tag = f" ｜ 🔔 {len(triggers)} 項布林提示" if triggers else ""
+
+    with st.expander(f"🫧 【獨立輔助診斷區】布林通道 ({period_label} 20MA ± 2σ) ── {b_state} ｜ {p_pos}{trig_tag}", expanded=False):
+        st.markdown(
+            "<div style='background:#0F172A; border-left:3px solid #64748B; padding:6px 12px; border-radius:5px; font-size:0.80rem; color:#94A3B8; margin-bottom:10px;'>"
+            "💡 <b>隔離輔助說明</b>：《技術分析全攻略》正課以「趨勢、K線、均線、成交量」為核心（不含布林通道）。"
+            "本面板為<b>完全獨立之輔助參考</b>（中軌即 20MA），絕不混入上方正統買賣訊號或安全評級。"
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+        bc1, bc2, bc3, bc4 = st.columns(4)
+        with bc1:
+            st.markdown(
+                f"<div class='chip-card'><div style='color:#AAA; font-size:0.80rem;'>📐 通道狀態</div>"
+                f"<div style='font-size:1.02rem; font-weight:bold; color:{b_state_col}; margin:4px 0;'>{b_state}</div>"
+                f"<div style='font-size:0.76rem; color:#94A3B8;'>頻寬 {bw_pct:.2f}% (近20期最窄 {min_bw:.1f}%)</div></div>",
+                unsafe_allow_html=True
+            )
+        with bc2:
+            st.markdown(
+                f"<div class='chip-card'><div style='color:#AAA; font-size:0.80rem;'>📍 股價位階 (%B)</div>"
+                f"<div style='font-size:1.02rem; font-weight:bold; color:{p_pos_col}; margin:4px 0;'>{p_pos}</div>"
+                f"<div style='font-size:0.76rem; color:#94A3B8;'>%B 位階：{pct_b:.1f}% (50%=中軌)</div></div>",
+                unsafe_allow_html=True
+            )
+        with bc3:
+            st.markdown(
+                f"<div class='chip-card'><div style='color:#AAA; font-size:0.80rem;'>🔼 上軌 (+2σ) / 中軌 (20MA)</div>"
+                f"<div style='font-size:1.05rem; font-weight:bold; color:#E2E8F0; margin:4px 0;'>{up_v:.2f} / <span style='color:#38BDF8;'>{mid_v:.2f}</span></div>"
+                f"<div style='font-size:0.76rem; color:#94A3B8;'>中軌方向：{mid_dir} ｜ 距上軌 {dist_up:+.2f}%</div></div>",
+                unsafe_allow_html=True
+            )
+        with bc4:
+            st.markdown(
+                f"<div class='chip-card'><div style='color:#AAA; font-size:0.80rem;'>🔽 下軌 (-2σ)</div>"
+                f"<div style='font-size:1.05rem; font-weight:bold; color:#CBD5E1; margin:4px 0;'>{low_v:.2f} 元</div>"
+                f"<div style='font-size:0.76rem; color:#94A3B8;'>現價高於下軌 {dist_low:+.2f}%</div></div>",
+                unsafe_allow_html=True
+            )
+
+        if triggers:
+            items_html = "".join([
+                f"<li style='margin-bottom:4px;'><b style='color:{t['color']};'>{t['badge']}</b>：{t['desc']}</li>"
+                for t in triggers
+            ])
+            st.markdown(
+                f"<div style='background:#162032; border:1px solid #334155; border-radius:6px; padding:8px 12px; margin-top:10px; font-size:0.83rem; color:#E2E8F0; line-height:1.55;'>"
+                f"<div style='font-weight:bold; color:#93C5FD; margin-bottom:4px;'>🔔 布林專屬觸發提示（4招實戰輔助）：</div>"
+                f"<ul style='margin:0; padding-left:18px;'>{items_html}</ul>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        else:
+            st.caption("ℹ️ 目前未觸發「縮口帶量突破 / 貼上軌抱單 / 回測中軌有守 / 破下軌收回」特殊布林訊號，處於常態通道運行觀察。")
 
 def get_market_condition():
     """
@@ -2998,7 +3114,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 show_stop = r2_c3.checkbox("- - 🛑 :red[停損(紅虛線)] / 🏆 :blue[停利(青虛線)]", value=True, key=f"t1_stop_{query}")
                 show_gap = r2_c4.checkbox("▓▓ 🟣 :violet[空方(紫)] / 🟢 :green[多方(綠)] 缺口帶", value=True, key=f"t1_gap_{query}")
 
-                # 第四排：AI 型態幾何、短期加速防守線與老朱三層買點專屬控制列 (獨立選項，按了才出現)
+                # 第四排：AI 型態幾何、短期加速防守線與老朱三層買點專屬控制列 (正課獨立選項)
                 r3_c1, r3_c2, r3_c3, r3_c4 = st.columns([2.6, 2.7, 2.7, 2.0])
                 show_geometry = r3_c1.checkbox("📐 :violet[AI型態幾何線 (切線/箱型)]", value=True, key=f"t1_geom_{query}")
                 show_acc_defense = r3_c2.checkbox("⚡ ── :blue[短期加速防守線 (青藍)]", value=False, key=f"t1_acc_{query}", help="噴出加速段上升防守切線，跌破提示減碼或停利。獨立選項，預設關閉，按了才會出現")
@@ -3011,6 +3127,23 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                         pattern_geo["active_pattern"] = p_match
                         if p_match.get("desc"):
                             pattern_geo["summary_text"] = p_match["desc"]
+
+                # 第五排 (獨立隔離輔助列)：布林通道開關 (預設關閉，不與正課混排擠壓文字)
+                st.markdown("<hr style='margin: 6px 0 8px 0; border: none; border-top: 1px dashed #334155;' />", unsafe_allow_html=True)
+                r4_c1, r4_c2 = st.columns([3.3, 6.7])
+                show_bb = r4_c1.checkbox("🫧 :blue[疊加布林通道 (20MA ± 2σ · 獨立輔助)]", value=False, key=f"t1_bb_{query}", help="非正課指標，預設關閉以免畫面雜亂；勾選後於主圖疊加布林上軌(+2σ)、中軌(20MA)、下軌(-2σ)")
+                _bb_quick = signals_dict.get('bollinger_info', {})
+                if _bb_quick.get('available'):
+                    _bs_col = _bb_quick.get('band_state_color', '#CBD5E1')
+                    _pp_col = _bb_quick.get('price_pos_color', '#38BDF8')
+                    r4_c2.markdown(
+                        f"<div style='padding-top:6px; font-size:0.82rem; color:#94A3B8;'>"
+                        f"獨立布林速覽：<b style='color:{_bs_col};'>{_bb_quick.get('band_state')}</b> ｜ "
+                        f"<b style='color:{_pp_col};'>{_bb_quick.get('price_position')}</b> "
+                        f"（上軌 {_bb_quick.get('upper'):.2f} / 中軌 {_bb_quick.get('mid'):.2f} / 下軌 {_bb_quick.get('lower'):.2f}）"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
 
             # 繪製 Tab 1 專屬轉折波與支撐壓力圖
             # 為右側保留約 2.5 ~ 3 根交易日的安全留白邊距，避免最新 K 線、暫高/暫低圓圈與標籤被圖表右邊界裁切
@@ -3052,6 +3185,14 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 og_top = gaps_data['nearest_overhead_gap']['rem_top']
                 if og_top <= max(y_maxs) * 1.25:
                     y_maxs.append(og_top)
+            if show_bb and len(df) >= 20:
+                _bb_m = df['Close'].rolling(20).mean()
+                _bb_s = df['Close'].rolling(20).std()
+                _vis_len = len(vis_df)
+                _vis_up = (_bb_m + 2.0 * _bb_s).iloc[-_vis_len:].dropna()
+                _vis_dn = (_bb_m - 2.0 * _bb_s).iloc[-_vis_len:].dropna()
+                if not _vis_up.empty: y_maxs.append(float(_vis_up.max()))
+                if not _vis_dn.empty: y_mins.append(float(_vis_dn.min()))
 
             curr_ymin, curr_ymax = min(y_mins), max(y_maxs)
             y_pad_bot = (curr_ymax - curr_ymin) * 0.085
@@ -3059,6 +3200,8 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             auto_y = [curr_ymin - y_pad_bot, curr_ymax + y_pad_top]
 
             fig1 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.038, row_heights=[0.75, 0.25])
+            if show_bb:
+                add_bollinger_traces_to_figure(fig1, df, show_mid_line=(not show_20ma), row=1, col=1)
             fig1.add_trace(go.Candlestick(
                 x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
                 name="K線",
@@ -3549,6 +3692,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             # 🧭 均線即時方向與位階狀態儀錶盤 (5MA/10MA/20MA/60MA 翻揚助漲 vs 下彎助跌，整合於訊號診斷下方)
             from core.kline_cheat_sheet import render_ma_direction_dashboard
             render_ma_direction_dashboard(df, close_price=float(info['close']))
+
+            # 🫧 獨立布林通道輔助診斷區 (嚴格與正課主訊號隔離，預設收合)
+            render_bollinger_auxiliary_panel(signals_dict.get('bollinger_info', {}), close_price=float(info['close']), period_label="日線")
 
             c_curr = float(info['close'])
 
@@ -4255,11 +4401,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 k_view_bars = st.selectbox("每屏顯示K棒數", ["45根 (清晰放大)", "70根", "全區間"], index=0, key=f"k_vb_{query}")
 
             with st.container(border=True):
-                k_ma1, k_ma2, k_ma3, k_ma4 = st.columns(4)
+                k_ma1, k_ma2, k_ma3, k_ma4, k_ma5 = st.columns([1.0, 1.0, 1.0, 1.0, 1.5])
                 show_k_5ma = k_ma1.checkbox("🔴 :red[5MA (桃紅)]", value=True, key=f"k_5ma_{query}")
                 show_k_10ma = k_ma2.checkbox("🟡 :orange[10MA (鮮黃)]", value=True, key=f"k_10ma_{query}")
                 show_k_20ma = k_ma3.checkbox("🔵 :blue[20MA (天藍)]", value=True, key=f"k_20ma_{query}")
                 show_k_60ma = k_ma4.checkbox("🟣 :violet[60MA (亮紫)]", value=True, key=f"k_60ma_{query}")
+                show_k_bb = k_ma5.checkbox("🫧 :gray[疊加布林通道 (20MA±2σ)]", value=False, key=f"k_bb_{query}", help="獨立輔助開關，預設關閉以免線條雜亂")
 
             # 依週期重採樣數據
             if "週K" in k_period:
@@ -4303,12 +4450,22 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 if ma_f and ma_c in k_vis_df:
                     s_tmp = k_vis_df[ma_c].dropna()
                     if not s_tmp.empty: k_ymins.append(s_tmp.min()); k_ymaxs.append(s_tmp.max())
+            if show_k_bb and len(df_k) >= 20:
+                _k_bb_m = df_k['Close'].rolling(20).mean()
+                _k_bb_s = df_k['Close'].rolling(20).std()
+                _k_vlen = len(k_vis_df)
+                _k_vup = (_k_bb_m + 2.0 * _k_bb_s).iloc[-_k_vlen:].dropna()
+                _k_vdn = (_k_bb_m - 2.0 * _k_bb_s).iloc[-_k_vlen:].dropna()
+                if not _k_vup.empty: k_ymaxs.append(float(_k_vup.max()))
+                if not _k_vdn.empty: k_ymins.append(float(_k_vdn.min()))
             k_ymin, k_ymax = min(k_ymins), max(k_ymaxs)
             k_ypad_bot = (k_ymax - k_ymin) * 0.07
             k_ypad_top = (k_ymax - k_ymin) * 0.14
             k_auto_y = [k_ymin - k_ypad_bot, k_ymax + k_ypad_top]
 
             fig2 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.038, row_heights=[0.74, 0.26])
+            if show_k_bb:
+                add_bollinger_traces_to_figure(fig2, df_k, show_mid_line=(not show_k_20ma), row=1, col=1)
             fig2.add_trace(go.Candlestick(
                 x=df_k['Date'], open=df_k['Open'], high=df_k['High'], low=df_k['Low'], close=df_k['Close'],
                 name=f"{k_period[:2]}",
@@ -4393,6 +4550,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             fig2 = resolve_right_badge_collisions(fig2, k_auto_y[0], k_auto_y[1])
 
             st.plotly_chart(fig2, use_container_width=True, config=chart_config, key=f"k_plot_{query}_{k_period}_{k_sub_chart}")
+
+            if not df_k.empty and len(df_k) >= 20:
+                render_bollinger_auxiliary_panel(compute_bollinger_info(df_k), close_price=float(df_k['Close'].iloc[-1]), period_label=k_period[:2])
 
             if "KD" in k_sub_chart and 'K' in df_k and not df_k.empty:
                 cur_k = float(df_k['K'].iloc[-1])
@@ -5002,7 +5162,8 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                             "📦 達瓦斯箱頂突破 (帶量開新箱·突破起漲)",
                             "💎 達瓦斯回測有守 (箱頂變地板·回後買)",
                             "⏰ 尾盤一點鐘買點 (短線 3 至 5 天價差首選)",
-                            "🌊 資金風口主流龍頭 (Top 5 族群領頭羊)"
+                            "🌊 資金風口主流龍頭 (Top 5 族群領頭羊)",
+                            "💎 跌時重質·超跌價值止跌 (PE近10倍)"
                         ],
                         horizontal=True,
                         key="scr_simp_strat_long"
@@ -5029,6 +5190,12 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                         target_strategy = "一點鐘"
                         main_mode = "⏰ 12:40 - 13:30 尾盤一點鐘 (短線 3 至 5 天首選)"
                         st.caption("💡 **尾盤一點鐘買點**：盤中量縮整理守均線，12:40~13:30 出攻擊量確認站穩進場，防當沖甩轎！")
+                    elif "跌時重質" in simp_strat:
+                        target_strategy = "跌時重質"
+                        dir_val = "翻轉"
+                        direction = "🔄 趨勢翻轉/價值止跌"
+                        main_mode = "💎 跌時重質·超跌價值止跌 (PE近10倍)"
+                        st.caption("💎 **【朱老師 2026-11-23 大跌心法 · 跌時重質】**：『漲時重勢，跌時重質！』篩選本益比 PE 接近 10 倍（3~16倍）或殖利率 ≥ 4%，且**領先大盤出現止跌現象/站上5MA/打第二隻腳**之超跌績優股。⚠️ **紀律**：屬逆向價值型鎖股，須**分批買入**，若只有一筆錢買一張請等站穩20MA趨勢完成再進場！")
                     else:
                         target_strategy = "主流族群"
                         main_mode = "🌊 主流族群飆股 (資金風口龍頭)"
@@ -5113,7 +5280,8 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
                             "🚀 剛變多頭 (反轉轉多 · 突破前高/起漲)",
                             "⚠️ 多頭轉弱預警 (頭未過高/逼近前低/破月線)",
                             "🟡 剛變盤整 (空頭反彈過前高 / 多頭跌破整理)",
-                            "📉 剛變空頭 (反轉轉空 · 跌破前低/破線)"
+                            "📉 剛變空頭 (反轉轉空 · 跌破前低/破線)",
+                            "💎 跌時重質·超跌價值止跌 (PE近10倍)"
                         ],
                         horizontal=True,
                         key="scr_main_mode_flip"
@@ -5167,8 +5335,11 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
 
         if not is_simple_mode:
             target_strategy = "全部"
-            if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode or "轉弱" in main_mode:
-                if "四線糾結" in main_mode:
+            if dir_val == "翻轉" or "剛變" in main_mode or "趨勢翻轉" in main_mode or "轉弱" in main_mode or "跌時重質" in main_mode:
+                if "跌時重質" in main_mode:
+                    target_strategy = "跌時重質"
+                    st.caption("💎 **【朱老師 2026-11-23 大跌心法 · 跌時重質】**：『漲時重勢，跌時重質！』篩選本益比 PE 接近 10 倍（3~16倍）或殖利率 ≥ 4%，且**領先大盤出現止跌現象/站上5MA/打第二隻腳**之超跌績優股。⚠️ **紀律**：屬逆向價值型鎖股，須**分批買入**，若只有一筆錢買一張請等站穩20MA趨勢完成再進場！")
+                elif "四線糾結" in main_mode:
                     target_strategy = "剛變多頭 (四線糾結逾2月)"
                     st.caption("🌀 **【老朱神技 · 四線糾結逾 2 個月大爆發】**：朱家泓老師經典心法：『**5/10/20/60MA 四線在低檔平躺糾結超過 2 個月，均線成本高度合一，放量一箭穿心突破，大漲且持續很久！**』專門抓取各週期主力成本一致洗盤極致、即將展開超級大多頭主升段的起漲第一根標的！")
                 elif "盤整逾2月" in main_mode or "老朱戰法" in main_mode:

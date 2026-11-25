@@ -326,6 +326,70 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
         "two_peaks_resistance_alert": False,            # ⚠️ 遭遇二個頭壓未實質站穩過壓前不操作 (助教10/30華新科/頎邦指引)
         "low_vol_breakout_vs_pressure_alert": False,    # ⚠️ 突破量能小於前波套牢壓力量能防解套賣壓 (助教10/30百一指引)
         "bottom_volume_better_than_breakout": False,    # 💡 底部低點爆量過高優於過高當日爆量 (助教10/30佳世達指引)
+        "breakout_next_day_black_warning": False,       # ⚠️ 進場次日收黑K不對需提高警覺 (助教11/02東捷指引)
+        "near_long_term_support_no_short": False,       # ⚠️ 剛跌破長期支撐位置不可直接追空 (助教11/02國巨指引)
+        "n_shape_bottom_breakout": False,               # 🚀 N字底型態確立帶量過前高第一根 (助教11/02光寶科指引)
+        "wide_range_box_ignore_minor_turns": False,     # 📦 大區間震盪內部細部轉折不看抓高低點 (助教11/02榮科指引)
+        "is_cavity_vol_valid": False,                   # 🕳️ 凹洞量嚴格成立(當日量<=昨日50%且止跌) (助教11/03大盤指引)
+        "low_liquidity_risk_under_500": False,          # ⚠️ 成交量不足500張流動性風險防滑價 (助教11/03鼎固/華廣指引)
+        "heavy_upper_shadows_enemy_ahead": False,       # ⚠️ 大敵當前多根上影線賣壓沉重可選不進場 (助教11/03協易機指引)
+        "breakout_next_day_crash_anomaly": False,       # 🚨 突破次日大跌異常走勢嚴防誘多倒貨 (助教11/03華廣指引)
+        "consecutive_3_black_rebound_risk": False,       # ⚠️ 下跌連三黑波段低檔防反彈追空風險 (助教11/04指引)
+        "overhead_resistance_too_close_trap": False,     # ⚠️ 上方緊鄰前高壓力不可省略壓力自己找位子進場 (助教11/04指引)
+        "target_met_awaiting_reversal": False,           # 🎯 滿足點到了不表示止跌須等止跌紅K確認 (助教11/04指引)
+        "high_shadow_doubled_stock_risk": False,       # ⚠️ 起漲已翻倍+爆量長上影線未過前高出貨大忌 (助教11/06晉泰指引)
+        "rebound_waiting_for_bounce_short": False,     # ⚠️ 低檔等反彈不可直接追空須等彈後空下跌 (助教11/06華城指引)
+        "trend_turn_lower_high_confirmed": False,      # 🚨 黑K跌破確認頭頭低多頭瓦解 (助教11/06指引：紅K回後買黑K才確認頭頭低)
+        "v_reversal_rebound_setup": False,              # ⚡ 搶V轉四大訊號(急跌+年線支撐+止跌量+紅K過高·助教11/10啟碁指引)
+        "breakout_high_must_include_shadow": False,     # ⚠️ 突破前高必含上影線(未過前日最高價不符進場·助教11/10景碩/欣興指引)
+        "bearish_indicator_rebound_trap": False,        # 🚨 空頭趨勢指標收斂非反轉(月線下彎空排絕不做多·助教11/10金山電指引)
+        "stop_fall_vol_not_limited_to_red": False,      # 💡 止跌大量不限紅K以過大量高點為準 (助教11/10光聖指引)
+        "bottom_breakout_no_higher_low_wait_leg2": False, # ⚠️ 突破季線但未成底底高(助教11/11晶宏指引：單腳急拉等第二隻腳)
+        "flat_base_shadow_not_breakout": False,          # ⚠️ 一字底帶上影非真突破(助教11/11中電指引：需實體K且過大量高點)
+        "bottom_heavy_red_three_supports": False,        # 💎 底部爆量長紅三大回測支撐(助教11/11虎航指引：均線未成防回測1/2價均線頸線)
+        "short_near_quarterly_ma_support_risk": False,   # ⚠️ 遇季線與區間支撐有撐不追空(助教11/11金山電指引：做空勝率低)
+        "v_rebound_ma20_overhead_resistance": False,     # ⚠️ V轉均線跟不上遇月線反壓(助教11/11指引：急拉受制下彎月線易不如預期)
+        "abc_cutline_breakout_must_stand_5ma": False,    # 📐 ABC突破最好站上5均且需收紅K (助教11/12誠美材指引)
+        "rebound_missed_best_timing_no_chase": False,    # ⚠️ 錯過搶反彈最佳時機不追等趨勢轉多 (助教11/12聯發科/群創指引)
+        "bearish_wave_count_4ma_start": False,          # 📉 空頭波數完成四線空排起算 (助教11/12台汽電指引)
+        "breakdown_vs_rebound_short_distinction": False, # 🚨 盤整破底為空頭確認非彈後空 (助教11/12仁寶/英業達指引)
+        "bearish_halved_stock_late_stage_risk": False,   # ⚠️ 腰斬股末跌段做空防強彈洗盤 (助教11/12英業達指引)
+        "fake_breakout_return_box_exit": False,          # 🛡️ 假突破跌回橫盤出場或守5% (助教11/12訊映指引)
+        "rebound_stand_20ma_hold_guard_5ma": False,     # 🚀 反彈站上月線正式轉強守5MA (助教11/12奇鋐指引)
+        # 11/13 助教最新專屬定錨指引
+        "breakout_volume_divergence_warning": False,     # ⚠️ 挑戰前高價過量未過之價量背離 (助教11/13儒鴻指引)
+        "bearish_rebound_drop_is_normal": False,         # 📉 空頭反彈遇阻下跌為常態非高檔出貨 (助教11/13富喬指引)
+        "turning_point_5ma_strict_rule": False,          # 📐 轉折波向左追溯含當根且未破5均不可私設轉折 (助教11/13指引)
+        "vol_color_misconception_filter": False,         # 📊 成交量紅綠純屬軟體設定無關買賣看實質數字與均量倍數 (助教11/13華城指引)
+        # 11/17 助教最新專屬定錨指引
+        "high_volume_black_k_pullback_no_buy": False,    # ⚠️ 前方有高檔爆量黑K主力出貨回後買上漲可不進場 (助教11/17廣豐指引)
+        "second_leg_bottom_rebound_setup": False,        # 🦵 第二隻腳底底高型態(跌破5均後再站上5均且低點墊高·助教11/17台積電指引)
+        "n_to_w_bottom_half_price_rule": False,          # 📐 先看N字底若跌破1/2價改看W底 (助教11/17台積電指引)
+        "vol_amplified_not_just_high_vol": False,        # 🚀 特別報價看量放大股非單純量大股 (助教11/17選股指引)
+        # 11/19 助教最新專屬定錨指引 (日盤 + 夜盤)
+        "bullish_confirmed_not_buy_signal": False,       # ⚠️ 多頭確認不等於符合進場條件(均線未多排且季線反壓近·助教11/19宣德指引)
+        "advance_black_k_rejection": False,              # ❌ 做多七不買：進場位收價漲黑K開高走低不買 (助教11/19聯發科指引)
+        "topping_pattern_rebound_short_wait": False,     # 📉 圓弧頂/M頭破頸線確認後等回測壓力不過再放空 (助教11/19大盤指引)
+        "volume_expansion_stopping_power": False,        # 📊 成交量零和·大跌量縮非止跌·量出有人接且不破低才止跌 (助教11/19指引)
+        "margin_clean_washout_stage": False,             # 🧹 殺融資目的在於清洗浮額減輕未來上漲阻力 (助教11/19籌碼指引)
+        "short_borrowing_bearish_warning": False,        # 🚨 趨勢偏空+借券餘額大增·防法人做空避險加速 (助教11/19籌碼指引)
+        "weekly_m_top_measured_decline_alert": False,    # ⚠️ 週KM頭型態確認防對稱等幅下跌 (助教11/19華星光指引)
+        "consolidation_counter_trend_no_buy": False,     # 🛑 空頭長紅漲停或低檔橫盤仍為盤整·等趨勢轉多 (助教11/19創新服務與祥碩指引)
+        # 11/23 助教最新專屬定錨指引
+        "pattern_retest_failure_invalidation": False,    # 🔄 頭部型態成立後回測壓力若無壓強彈轉多則原目標失敗 (助教11/23大盤圓弧頂指引)
+        "gap_and_neckline_overlap_resistance": False,    # 🧱 空方跳空缺口與頭部頸線重疊構成雙重反壓 (助教11/23大盤指引)
+        "rebound_depth_consolidation_rule": False,       # ⏳ 跌深整理時間拉長·彈高整理時間縮短法則 (助教11/23指引)
+        "reverse_trial_buy_above_ma20_stop": False,      # 🎯 逆向過月線2成試單(不強制月線上揚)但回測破月線恐空頭續勢需全砍 (助教11/23指引)
+        "kline_consolidation_3day_min_rule": False,      # 📊 K線橫盤自第1根起算滿3根即成立·第4天起任1天突破或跌破皆算 (助教11/23 6-10指引)
+        "bearish_confirm_break_actual_low": False,       # 📉 空頭確認以收盤跌破前波轉折「最低點」為準非僅看收盤價 (助教11/23亞泥指引)
+        # 11/25 助教最新專屬定錨指引 + 布林通道擴充
+        "close_above_ma5_any_k_rule": False,             # 📊 收盤價高於5均即為站上(不限紅黑K)但黑K次日易跌 (助教11/25晶豪科指引)
+        "bearish_rebound_pressure_alert": False,         # ⚠️ 空頭反彈「見撐不是撐，要看壓力重不重」(助教11/25無量漲停反彈指引)
+        "megaphone_broadening_pattern_alert": False,     # 📢 喇叭擴散型態(頭頭高且底底低·觸及上軌易遇壓·助教11/25潤弘指引)
+        "bollinger_squeeze_breakout": False,             # 🎯 布林通道收斂擠壓後帶量突破上軌起爆點 (11/25補充布林戰法·獨立隔離)
+        "bollinger_upper_band_walk": False,              # 🚀 布林通道強勢貼上軌運行·抱單守中軌(20MA)移動停利 (11/25補充布林戰法·獨立隔離)
+        "bollinger_lower_band_rebound": False,           # 🪃 布林通道跌破下軌後迅速收回下軌之左側反彈訊號 (11/25補充布林戰法·獨立隔離)
+        "bollinger_info": {"available": False},          # 🫧 獨立布林通道輔助診斷資訊 (絕不混入正課主訊號列表)
         "rounding_bottom": False,     # 圓弧底
         "kline_consolidation_breakout": False, # 📊 6-3 K線橫盤突破 (3天橫盤放量突破·CH6)
         "abc_correction_breakout": False,      # 📐 6-5 突破ABC修正下降切線 (短空做頭失敗續噴·CH6)
@@ -422,6 +486,7 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
     prev_c = round(float(prev['Close']), 2)
     prev_h = round(float(prev['High']), 2)
     prev_l = round(float(prev['Low']), 2)
+    prev_v = float(prev['Volume'])
     change_pct = ((c - prev_c) / prev_c) * 100 if prev_c > 0 else 0
     is_red = (c >= o)
 
@@ -1490,6 +1555,368 @@ def detect_signals(df: pd.DataFrame, trend_info: dict):
                 signals_dict['bottom_volume_better_than_breakout'] = True
                 signals.append("💡 底部爆量洗淨後續過高 (助教10/30佳世達指引：低點爆量後續過高，籌碼扎實安心起漲)")
 
+    # 助教 11/02 東捷資訊 (6697) 指引：突破進場次日是否持續向上走，黑K就不太對了
+    if len(df) >= 3:
+        p2 = df.iloc[-2]
+        p2_c = float(p2['Close'])
+        p2_o = float(p2['Open'])
+        p2_h = float(p2['High'])
+        p2_is_breakout = (p2_c >= p2_o * 1.03 or float(p2.get('change_pct', 0)) >= 3.0) and (p2_c >= float(df.iloc[-10:-2]['High'].max()) * 0.998)
+        if p2_is_breakout and is_black and c < p2_c:
+            signals_dict['breakout_next_day_black_warning'] = True
+            signals.append("⚠️ 進場次日收黑走勢不對 (助教11/02東捷指引：突破次日必須延續向上，收黑K走勢不太對，嚴守保本停損！)")
+
+    # 助教 11/02 國巨 (2327) 指引：剛跌破長期支撐位置不可直接追空，防跌深強彈
+    if len(df) >= 60:
+        long_term_low = float(df.iloc[-120:-5]['Low'].min())
+        if c <= long_term_low * 1.015 and c >= long_term_low * 0.97 and is_black:
+            signals_dict['near_long_term_support_no_short'] = True
+            signals.append("⚠️ 剛跌破長期支撐不可追空 (助教11/02國巨指引：跌破長期支撐防技術強彈，等彈後空下跌再進！)")
+
+    # 助教 11/02 光寶科 (惡哩俠) 指引：N字底突破前高確立，為多頭起漲第一根
+    if trend_info.get('bottom_type') == "N字底" or signals_dict.get('bottom_breakout', False):
+        if is_red and change_pct >= 2.0 and c > float(prev['High']):
+            signals_dict['n_shape_bottom_breakout'] = True
+            signals.append("🚀 N字底型態確立·多頭起漲第一根 (助教11/02指引：收盤突破前高確立N字底，標準做多起漲買點！)")
+
+    # 助教 11/02 榮科 (4989) 指引：寬幅大區間內部轉折不看，抓高低點出來觀察就好
+    if trend_info.get('trend_status') == "盤整趨勢" and len(df) >= 30:
+        high_30 = float(df.iloc[-30:]['High'].max())
+        low_30 = float(df.iloc[-30:]['Low'].min())
+        if (high_30 - low_30) / low_30 >= 0.15 and low_30 * 1.04 < c < high_30 * 0.96:
+            signals_dict['wide_range_box_ignore_minor_turns'] = True
+            signals.append("📦 大區間內部轉折不看 (助教11/02榮科指引：大區間內細部轉折不看，抓高低點出來觀察就好！)")
+
+    # 助教 11/03 大盤指引：凹洞量嚴格定義（今日成交量 <= 昨日成交量二分之一以下，且止跌）
+    if prev_v > 0 and v <= prev_v * 0.50 and abs(change_pct) <= 2.5:
+        signals_dict['is_cavity_vol_valid'] = True
+        signals.append("🕳️ 凹洞量成立 (助教11/03大盤指引：今日量<=昨日量50%以下，待明日補量確認起漲！)")
+
+    # 助教 11/03 鼎固-KY (2923) / 華廣 (4737) 指引：選股流動性門檻建議至少 500 張（最好 1000 張以上）
+    if v_ma20 > 0 and v_ma20 < 500:
+        signals_dict['low_liquidity_risk_under_500'] = True
+        signals.append("⚠️ 流動性不足 500 張 (助教11/03指引：均量不足500張易劇烈滑價，嚴防流通性風險！)")
+
+    # 助教 11/03 協易機 (4533) 指引：大敵當前多根上影線，上有重壓可以選擇不進場
+    if len(df) >= 4:
+        recent3_bars = df.iloc[-4:-1]
+        shadow_count = sum(1 for idx, b in recent3_bars.iterrows() if (float(b['High']) - max(float(b['Open']), float(b['Close']))) >= abs(float(b['Close']) - float(b['Open'])) * 0.7)
+        if shadow_count >= 2 and (signals_dict.get('pullback_buy', False) or c >= sma5):
+            signals_dict['heavy_upper_shadows_enemy_ahead'] = True
+            signals.append("⚠️ 大敵當前賣壓沉重 (助教11/03協易機指引：前幾天多根長上影線有大壓，可以選擇不進場！)")
+
+    # 助教 11/03 華廣 (4737) 指引：突破次日大跌是很奇怪的一件事，防假突破倒貨
+    if len(df) >= 3:
+        p2 = df.iloc[-2]
+        p2_c = float(p2['Close'])
+        p2_o = float(p2['Open'])
+        if (p2_c >= p2_o * 1.05 or float(p2.get('change_pct', 0)) >= 5.0) and change_pct <= -5.0 and is_black:
+            signals_dict['breakout_next_day_crash_anomaly'] = True
+            signals.append("🚨 突破次日大跌異常 (助教11/03華廣指引：突破次日大跌是很奇怪的一件事，防假突破摜殺！)")
+
+    # 助教 11/04 華新(1605)/全球傳動(4540)指引：下跌連三黑也是波段低檔，反彈機率高，不可低檔盲目追空
+    if len(df) >= 3:
+        last3 = df.iloc[-3:]
+        all_3_black = all(float(b['Close']) < float(b['Open']) for _, b in last3.iterrows())
+        cum_fall = (float(df.iloc[-1]['Close']) - float(df.iloc[-3]['Open'])) / (float(df.iloc[-3]['Open']) + 1e-9) * 100
+        if all_3_black and cum_fall <= -3.0:
+            signals_dict['consecutive_3_black_rebound_risk'] = True
+            signals.append("⚠️ 下跌連三黑波段低檔防反彈 (助教11/04指引：連三黑反彈機率高勿低檔追空)")
+
+    # 助教 11/04 指引：不可省略前面的壓力自己找位子進場！頂到前高帶上影線為受阻訊號
+    if len(df) >= 15:
+        prev_high_20 = float(df.iloc[-20:-2]['High'].max())
+        curr_h = float(last['High'])
+        curr_c = float(last['Close'])
+        curr_o = float(last['Open'])
+        upper_shadow = curr_h - max(curr_o, curr_c)
+        body = abs(curr_c - curr_o)
+        if prev_high_20 > 0 and (abs(curr_h - prev_high_20) / prev_high_20 <= 0.035 or curr_h >= prev_high_20 * 0.985):
+            if upper_shadow >= max(body * 0.4, curr_c * 0.008):
+                signals_dict['overhead_resistance_too_close_trap'] = True
+                signals.append("⚠️ 上方前高受阻大壓力 (助教11/04指引：不可省略前面壓力自己找位子進場，上影線為變盤訊號)")
+
+    # 助教 11/04 南亞科/大盤指引：到了滿足點並不表示止跌，要有所跌訊號跟紅K確認！
+    if is_black and change_pct <= -2.0 and c <= sma20:
+        signals_dict['target_met_awaiting_reversal'] = True
+
+    # 助教 11/06 晉泰(6221)指引：低檔起漲已大漲，高檔爆大量長上影線未過前高，主力拉高出貨嚴禁追多
+    if len(df) >= 30:
+        lowest_60 = float(df.iloc[-60:-5]['Low'].min()) if len(df) >= 60 else float(df['Low'].min())
+        if lowest_60 > 0 and (c / lowest_60) >= 1.5:
+            recent5 = df.iloc[-5:-1]
+            has_heavy_shadow = any(
+                (float(b['High']) - max(float(b['Open']), float(b['Close']))) >= abs(float(b['Close']) - float(b['Open'])) * 1.2
+                and float(b['Volume']) >= v_ma5 * 1.3
+                for _, b in recent5.iterrows()
+            )
+            prev_top = float(recent5['High'].max())
+            if has_heavy_shadow and h < prev_top:
+                signals_dict['high_shadow_doubled_stock_risk'] = True
+                signals.append("⚠️ 翻倍股高檔爆量上影線未過 (助教11/06晉泰指引：起漲已翻倍，高檔爆量長上影未過前高嚴禁追多)")
+
+    # 助教 11/06 華城(1519)指引：空頭跌深在低檔等反彈，目前不適用急追加空，須等反彈站上5均再跌破
+    if trend_info.get('trend') == '空頭' and sma5 < sma20:
+        if len(df) >= 5:
+            cum_5d_fall = (c - float(df.iloc[-5]['Open'])) / (float(df.iloc[-5]['Open']) + 1e-9) * 100
+            if cum_5d_fall <= -8.0 and not is_black:
+                signals_dict['rebound_waiting_for_bounce_short'] = True
+                signals.append("⚠️ 低檔等反彈不急加空 (助教11/06華城指引：空頭跌深等站上5均後再跌破之彈後空)")
+
+    # 助教 11/06 趨勢指引：單看紅K是回後買上漲，隨後黑K跌破昨低才確認頭頭低
+    if is_black and c < prev_l and c < sma5 and prev_c >= float(prev.get('SMA_5', prev_c)):
+        signals_dict['trend_turn_lower_high_confirmed'] = True
+        signals.append("🚨 黑K跌破確認頭頭低 (助教11/06指引：單看紅K回後買，黑K跌破才確認頭頭低，紀律停損)")
+
+    # 助教 11/10 啟碁(6285) & 大盤指引：搶 V 轉四大訊號 (急跌 + 年線/半年線重要支撐 + 止跌大量 + 紅K過高)
+    if is_red and c > prev_h:
+        is_deep_fall = False
+        if len(df) >= 6:
+            fall_5d = (c - float(df.iloc[-6]['Open'])) / (float(df.iloc[-6]['Open']) + 1e-9) * 100
+            if fall_5d <= -6.0 or (c < sma20 and c < sma60):
+                is_deep_fall = True
+        hit_major_support = False
+        if 'SMA_240' in last and not pd.isna(last['SMA_240']):
+            sma240 = float(last['SMA_240'])
+            if l <= sma240 * 1.025 and c >= sma240 * 0.98:
+                hit_major_support = True
+        elif 'SMA_120' in last and not pd.isna(last['SMA_120']):
+            sma120 = float(last['SMA_120'])
+            if l <= sma120 * 1.025 and c >= sma120 * 0.98:
+                hit_major_support = True
+        elif len(df) >= 30:
+            past_low = float(df.iloc[-30:-5]['Low'].min())
+            if l <= past_low * 1.02 and c >= past_low * 0.98:
+                hit_major_support = True
+        has_stop_fall_vol = (vol_ratio >= 1.3) or (float(prev['Volume']) >= float(prev.get('Volume_MA5', v_ma5)) * 1.3)
+
+        if is_deep_fall and hit_major_support and has_stop_fall_vol:
+            signals_dict['v_reversal_rebound_setup'] = True
+            signals.append("⚡ 搶V轉四大訊號成立 (助教11/10啟碁指引：急跌+重要支撐+止跌大量+紅K過高，逆勢單嚴守停損3%~5%)")
+
+    # 助教 11/10 景碩(3189) & 欣興(3037)指引：突破前日高點必須包含上影線 (未過最高價不符進場條件)
+    if is_red and c > prev_c and c < prev_h:
+        signals_dict['breakout_high_must_include_shadow'] = True
+        signals.append("⚠️ 未過前日高點上影線 (助教11/10景碩/欣興指引：過昨高必須過最高價上影線，否則不符進場條件)")
+
+    # 助教 11/10 金山電(8042)指引：空頭趨勢指標收斂非反轉 (月線下彎空排絕不做多)
+    is_bearish_trend = (trend_info.get('trend') == '空頭') or (c < sma20 and sma20 < prev_sma20)
+    has_indicator_bounce = False
+    if 'KD_K' in last and 'KD_D' in last:
+        has_indicator_bounce = float(last['KD_K']) > float(last['KD_D']) and float(prev.get('KD_K', 0)) <= float(prev.get('KD_D', 0))
+    if is_bearish_trend and (has_indicator_bounce or signals_dict.get('abc_correction_breakout', False)):
+        signals_dict['bearish_indicator_rebound_trap'] = True
+        signals.append("🚨 空頭指標收斂誘多陷阱 (助教11/10金山電指引：月線下彎空頭排列，指標金叉/破切僅為空頭反彈，絕不做多)")
+
+    # 助教 11/10 光聖(6442)指引：爆量不一定是紅K本身，止跌大量過高為準
+    if len(df) >= 4 and is_red:
+        recent3 = df.iloc[-4:-1]
+        heavy_bars = recent3[recent3['Volume'] >= v_ma5 * 1.5]
+        if not heavy_bars.empty:
+            max_heavy_h = float(heavy_bars['High'].max())
+            if c >= max_heavy_h:
+                signals_dict['stop_fall_vol_not_limited_to_red'] = True
+                signals.append("💡 突破止跌大量K線高點 (助教11/10光聖指引：爆量不限紅黑，越過止跌大量高點即為轉強訊號)")
+
+    # 助教 11/11 晶宏(3141)指引：突破季線但未成底底高 (單腳急拉未打底，等第二隻腳回測有守再進)
+    if 'SMA_60' in last and not pd.isna(last['SMA_60']):
+        sma60 = float(last['SMA_60'])
+        if is_red and c >= sma60 and prev_c < sma60:
+            # 檢視近 15 天是否有實質第二隻腳 (兩個顯著波谷且底底高)
+            has_two_legs = False
+            if trend_info and 'troughs' in trend_info and len(trend_info['troughs']) >= 2:
+                t1, t2 = trend_info['troughs'][-2], trend_info['troughs'][-1]
+                if t2['price'] > t1['price']:
+                    has_two_legs = True
+            if not has_two_legs:
+                signals_dict['bottom_breakout_no_higher_low_wait_leg2'] = True
+                signals.append("⚠️ 突破季線但未成底底高 (助教11/11晶宏指引：單腳急拉未成底底高，等第二隻腳回測有守再進)")
+
+    # 助教 11/11 中電(1611)指引：一字底帶上影線非真突破 (最好是實體K線且必須收過左側大量K線高點)
+    if signals_dict.get('flat_base_breakout', False) or (is_red and c > prev_h and c < h * 0.985):
+        upper_shadow = h - max(o, c)
+        body = abs(c - o)
+        if upper_shadow >= body * 0.8:
+            signals_dict['flat_base_shadow_not_breakout'] = True
+            signals.append("⚠️ 一字底帶上影線非真突破 (助教11/11中電指引：一字底突破最好是實體K線，且必須實質收過左側大量高點)")
+
+    # 助教 11/11 台灣虎航(6757)指引：底部爆量長紅非出貨，均線未完成易回測三大支撐 (1/2價、均線、轉折高點)
+    is_at_bottom = (c <= sma60 * 1.10) if ('SMA_60' in last and not pd.isna(last['SMA_60'])) else True
+    is_not_full_multima = not (sma5 > sma10 and sma10 > sma20 and sma20 > sma60)
+    if is_at_bottom and is_red and change_pct >= 3.5 and vol_ratio >= 1.5 and is_not_full_multima:
+        signals_dict['bottom_heavy_red_three_supports'] = True
+        signals.append("💎 底部爆量長紅三大回測支撐 (助教11/11虎航指引：位處底部非出貨，均線未完成易回測1/2價、均線、轉折高點三大支撐)")
+
+    # 助教 11/11 金山電(8042)指引：做空緊鄰季線與區間支撐有撐不可空 (做空避開支撐鐵律)
+    if 'SMA_60' in last and not pd.isna(last['SMA_60']):
+        sma60 = float(last['SMA_60'])
+        is_touching_ma60_support = (l <= sma60 * 1.015 and c >= sma60 * 0.99)
+        lower_shadow = min(o, c) - l
+        if is_touching_ma60_support and lower_shadow >= (h - l) * 0.3:
+            signals_dict['short_near_quarterly_ma_support_risk'] = True
+            signals.append("⚠️ 緊鄰季線有撐不追空 (助教11/11金山電指引：K線遇季線反應有撐且有區間支撐，做空勝率低)")
+
+    # 助教 11/11 急跌急漲指引：急跌急漲均線跟不上受制下彎月線反壓 (發發4-6案例)
+    if c < sma20 and sma20 < prev_sma20:
+        if len(df) >= 4 and is_red and change_pct >= 2.0:
+            signals_dict['v_rebound_ma20_overhead_resistance'] = True
+            signals.append("⚠️ V轉均線跟不上遇月線反壓 (助教11/11指引：急跌急漲均線跟不上，受制於下彎月線沉重壓力易不如預期)")
+
+    # 助教 11/12 誠美材(4960)指引：ABC突破最好站上5均且需收紅K (切線斜率越斜壓力越大)
+    if signals_dict.get('abc_correction_breakout', False):
+        if is_black or c < sma5:
+            signals_dict['abc_cutline_breakout_must_stand_5ma'] = True
+            signals.append("⚠️ ABC突破未站穩5均或收黑K (助教11/12誠美材指引：突破最好站上5均且需收紅K，斜率越斜反壓越大)")
+
+    # 助教 11/12 聯發科(2454) & 群創(3481)指引：錯過搶反彈最佳時機不追，後續等趨勢轉多
+    if c < sma20 and up_days >= 3:
+        signals_dict['rebound_missed_best_timing_no_chase'] = True
+        signals.append("⚠️ 錯過搶反彈最佳時機不追 (助教11/12聯發科/群創指引：反彈已推升錯過第一起漲點不追，後續等趨勢轉多)")
+
+    # 助教 11/12 台汽電(8926)指引：空頭波數完成四線空排起算
+    is_4ma_bear_strict = (sma5 < sma10 and sma10 < sma20 and sma20 < sma60 and sma20 < prev_sma20)
+    if is_4ma_bear_strict:
+        signals_dict['bearish_wave_count_4ma_start'] = True
+
+    # 助教 11/12 仁寶(2324) & 英業達(2356)指引：盤整破底為空頭確認非彈後空
+    if is_black and c < prev_l and trend_info.get('trend_status') in ['盤整趨勢', '盤整']:
+        past_support = df.iloc[-20:-1]['Low'].min() if len(df) >= 20 else prev_l
+        if c < past_support:
+            signals_dict['breakdown_vs_rebound_short_distinction'] = True
+            signals.append("🚨 破底空頭確認賣點 (助教11/12仁寶/英業達指引：盤整破底為趨勢翻空之空頭確認，非維持空頭之彈後空)")
+
+    # 助教 11/12 英業達(2356)指引：腰斬股末跌段做空防強彈洗盤
+    if len(df) >= 40:
+        high_past_60 = float(df.iloc[-60:]['High'].max())
+        if high_past_60 > 0 and (high_past_60 - c) / high_past_60 >= 0.45:
+            signals_dict['bearish_halved_stock_late_stage_risk'] = True
+            signals.append("⚠️ 腰斬股末跌段做空防強彈 (助教11/12英業達指引：跌達起跌價1/2容易是底部，末跌段做空容易被洗停損)")
+
+    # 助教 11/12 訊映(4155)指引：假突破跌回橫盤停損 (回到橫盤出場或守5%)
+    if len(df) >= 4 and is_black and c < sma5:
+        if signals_dict.get('kline_consolidation_breakout', False) or (prev_c > float(df.iloc[-4:-1]['High'].max())):
+            signals_dict['fake_breakout_return_box_exit'] = True
+            signals.append("🛡️ 假突破跌回橫盤停損 (助教11/12訊映指引：假突破跌回橫盤可出場或守5%，注意後續是否真下跌)")
+
+    # 助教 11/12 奇鋐(3017)指引：反彈站上月線正式轉強，續抱守5MA
+    if c >= sma20 and prev_c < float(prev.get('SMA_20', sma20)) and is_red:
+        signals_dict['rebound_stand_20ma_hold_guard_5ma'] = True
+        signals.append("🚀 反彈站上月線正式轉強 (助教11/12奇鋐指引：站上月線正式轉強，持股續抱守5MA移動停利)")
+
+    # 助教 11/13 儒鴻(1476)指引：挑戰前高價過量未過之價量背離
+    if is_red and c > prev_c and len(df) >= 20:
+        high_past_20 = float(df.iloc[-20:-1]['High'].max())
+        vol_past_20_max = float(df.iloc[-20:-1]['Volume'].max())
+        if c >= high_past_20 * 0.98 and vol < vol_past_20_max * 0.85:
+            signals_dict['breakout_volume_divergence_warning'] = True
+            signals.append("⚠️ 挑戰前高價量背離 (助教11/13儒鴻指引：價格創高但量能未超越前波巨量峰值，屬量價背離防誘多拉回)")
+
+    # 助教 11/13 富喬(1815)指引：空頭反彈遇阻下跌為常態
+    if c < sma20 and is_black and is_5ma_falling:
+        signals_dict['bearish_rebound_drop_is_normal'] = True
+        signals.append("📉 空頭反彈遇阻轉黑下跌為常態 (助教11/13富喬指引：原趨勢本就空頭，反彈遇阻下跌是常態，切勿逆勢摸底)")
+
+    # 助教 11/13 轉折波向左追溯鐵律
+    if is_red and c >= sma5 and prev_c >= float(prev.get('SMA_5', sma5)):
+        signals_dict['turning_point_5ma_strict_rule'] = True
+
+    # 助教 11/13 華城(1519)指引：VOL成交量紅綠顏色純屬軟體設定無關買賣
+    signals_dict['vol_color_misconception_filter'] = True
+
+    # 助教 11/17 廣豐(1416)指引：前方有高檔爆量黑K主力出貨，回後買上漲可不進場
+    if signals_dict.get('pullback_buy', False) or (is_red and c >= sma5 and prev_c < sma5):
+        if len(df) >= 15:
+            past_vol_max = df.iloc[-20:-1]['Volume'].max() if len(df) >= 20 else df.iloc[:-1]['Volume'].max()
+            for idx in range(max(0, len(df)-20), len(df)-1):
+                r = df.iloc[idx]
+                if r['Close'] < r['Open'] and r['Volume'] >= past_vol_max * 0.8:
+                    signals_dict['high_volume_black_k_pullback_no_buy'] = True
+                    signals.append("⚠️ 高檔爆量黑K主力出貨排雷 (助教11/17廣豐指引：前方有高檔爆量黑K出貨訊號，回後買上漲可以不進場)")
+                    break
+
+    # 助教 11/17 台積電(2330)指引：第二隻腳底底高與 N字底 vs W底 1/2 價研判
+    if len(df) >= 10:
+        if c >= sma5 and prev_c < prev_sma5 and is_red:
+            signals_dict['second_leg_bottom_rebound_setup'] = True
+            signals.append("🦵 第二隻腳觀察 (助教11/17台積電指引：跌破5均找高點，若再出紅K站上5均且守前低，完成底底高第二隻腳)")
+        signals_dict['n_to_w_bottom_half_price_rule'] = True
+
+    # 助教 11/17 選股 5-2 指引：特別報價選股看「量放大股」非「量大股」
+    if vol_ratio >= 1.3:
+        signals_dict['vol_amplified_not_just_high_vol'] = True
+    # ----------------------------------------------------
+    # 助教 11/19 專屬實戰定錨指引 (日盤 + 夜盤)
+    # ----------------------------------------------------
+    # 1. 助教 11/19 宣德(5457)指引：多頭確認不等於符合進場條件（上方緊鄰下彎季線反壓不足 3%~5% 或均線未多排）
+    if signals_dict.get('multilink_bottom_breakout', False) or (is_red and c >= sma5 and c >= sma20):
+        if sma60 > c and (sma60 - c) / c <= 0.05 and sma60 < prev_sma60:
+            signals_dict['bullish_confirmed_not_buy_signal'] = True
+            signals.append("⚠️ 多頭確認但未符進場條件 (助教11/19宣德指引：底底高頭頭高多頭確認，但上方緊鄰下彎季線反壓不足5%，做多七不買一票否決！)")
+
+    # 2. 助教 11/19 聯發科(2454)指引：第二隻腳進場表態收「價漲黑K（開高走低）」不買（做多七不買第七條）
+    if signals_dict.get('second_leg_bottom_rebound_setup', False) or (c >= sma5 and prev_c < prev_sma5):
+        if is_black and change_pct > 0:
+            signals_dict['advance_black_k_rejection'] = True
+            signals.append("❌ 做多七不買排雷 (助教11/19聯發科指引：打第二隻腳但收價漲黑K開高走低，主力未真表態，嚴禁進場！)")
+
+    # 3. 助教 11/19 大盤指引：圓弧頂/M頭破頸線確認後，等反彈回測頸線/均線反壓不過再放空
+    if signals_dict.get('top_breakdown', False) or signals_dict.get('ma20_death_break', False):
+        signals_dict['topping_pattern_rebound_short_wait'] = True
+        signals.append("📉 頭部確認等回測再空 (助教11/19大盤指引：圓弧頂/頭部跌破確認後離前低近不盲追，等弱勢反彈回測壓力不過出轉折黑K再放空)")
+
+    # 4. 助教 11/19 創新服務(7828)與祥碩(5269)指引：空頭跌深長紅漲停或低檔橫移僅為盤整，等趨勢轉多
+    if sma20 < prev_sma20 and c < sma20:
+        if is_red and change_pct >= 9.5:
+            signals_dict['consolidation_counter_trend_no_buy'] = True
+            signals.append("🛑 跌深反彈初轉盤整 (助教11/19創新服務指引：空頭長紅漲停過昨高僅轉盤整，月線下彎未成多排，盤整不進場！)")
+
+    # ----------------------------------------------------
+    # 助教 11/23 專屬實戰定錨指引
+    # ----------------------------------------------------
+    # 1. K線橫盤第1根起算3根成立，第4天起任一天收盤突破或跌破皆算 (助教11/23 6-10指引)
+    if signals_dict.get('kline_consolidation_breakout', False) or signals_dict.get('kline_consolidation_breakdown', False):
+        signals_dict['kline_consolidation_3day_min_rule'] = True
+
+    # 2. 逆向思考剛過月線試單(月線尚未必翻揚)：若隔日或回測跌破月線恐空頭續勢應全砍 (助教11/23 11/18節目解析)
+    if prev_c >= prev_sma20 and c < sma20 and sma20 <= prev_sma20:
+        signals_dict['reverse_trial_buy_above_ma20_stop'] = True
+        signals.append("🎯 逆向試單破月線全砍警訊 (助教11/23指引：過月線試單若月線下彎且回測破月線，恐空頭續勢應全部停損！)")
+
+    # 3. 頭部確認後若強彈站回月線或突破頸線，警示原空頭型態可能回測失敗 (助教11/23大盤圓弧頂指引)
+    if signals_dict.get('topping_pattern_rebound_short_wait', False) and is_red and change_pct >= 2.0 and c > sma20:
+        signals_dict['pattern_retest_failure_invalidation'] = True
+        signals.append("🔄 頭部型態回測失效警示 (助教11/23大盤指引：圓弧頂/頭部回測壓力若無壓強彈轉多，原下跌目標不會到達)")
+
+    # ----------------------------------------------------
+    # 助教 11/25 專屬實戰定錨指引 + 布林通道擴充
+    # ----------------------------------------------------
+    # 1. 收盤價高於5均即站上，但若為黑K次日易下跌 (助教11/25晶豪科指引)
+    if c > sma5:
+        signals_dict['close_above_ma5_any_k_rule'] = True
+
+    # 2. 空頭反彈遇下彎月線壓力警示 (助教11/25指引：見撐不是撐，要看壓力重不重)
+    if sma20 < prev_sma20 and is_red and c < sma20 and (sma20 - c) / c <= 0.04:
+        signals_dict['bearish_rebound_pressure_alert'] = True
+        signals.append("⚠️ 空頭反彈近月線壓力 (助教11/25指引：空頭特性『見撐不是撐，要看壓力重不重』，將觸及下彎月線反壓區)")
+
+    # 3. 喇叭擴散型態簡易偵測 (高點墊高且低點墊低，近15日高點創高且低點亦創低)
+    if len(df) >= 20:
+        recent10_h = df.iloc[-10:]['High'].max()
+        prev10_h = df.iloc[-20:-10]['High'].max()
+        recent10_l = df.iloc[-10:]['Low'].min()
+        prev10_l = df.iloc[-20:-10]['Low'].min()
+        if recent10_h > prev10_h and recent10_l < prev10_l and c >= recent10_h * 0.98:
+            signals_dict['megaphone_broadening_pattern_alert'] = True
+            signals.append("📢 喇叭擴散型態警示 (助教11/25潤弘指引：高過前高且低破前低，突破前高時留意上緣擴散軌反壓)")
+
+    # 4. 獨立布林通道 (20MA ± 2σ) 輔助診斷計算 (嚴格隔離：絕不寫入主 signals 列表，僅存於 bollinger_info)
+    if len(df) >= 20:
+        bb_info = compute_bollinger_info(df, vol_ratio=vol_ratio)
+        signals_dict['bollinger_info'] = bb_info
+        signals_dict['bollinger_squeeze_breakout'] = bool(bb_info.get('squeeze_breakout', False))
+        signals_dict['bollinger_upper_band_walk'] = bool(bb_info.get('upper_band_walk', False))
+        signals_dict['bollinger_lower_band_rebound'] = bool(bb_info.get('lower_band_rebound', False))
+
     # 策略 D_空：頂部起跌 (高檔整理或頭部型態完成，首度放量跌破均線)
     past20_high = df.iloc[-25:-5]['High'].max() if len(df) >= 25 else h
     is_near_top = (c >= past20_high * 0.85) or (sma20 >= sma60 * 0.98)
@@ -2426,4 +2853,175 @@ def categorize_signals(signals_list: list) -> dict:
         categories[c_key]['items'].append({'title': t, 'desc': d, 'raw': s})
 
     return categories
+
+
+def compute_bollinger_info(df: pd.DataFrame, vol_ratio: float = None) -> dict:
+    """
+    獨立計算布林通道 (20MA ± 2σ) 輔助診斷結構，完全隔離於《技術分析全攻略》正課主訊號之外。
+    回傳欄位：
+      - available: bool
+      - upper, mid, lower: float (上軌 +2σ、中軌 20MA、下軌 -2σ)
+      - bandwidth_pct: float (通道頻寬 %)
+      - percent_b: float (%B 位階百分比，100%=上軌，50%=中軌，0%=下軌)
+      - mid_dir: str ('上揚' / '下彎' / '走平')
+      - band_state, band_state_color: 通道狀態 (縮口擠壓 / 開口擴張 / 水平盤整 / 常態通道)
+      - price_position, price_pos_color: 股價位階 (貼上軌運行 / 回測中軌 20MA / 觸及或跌破下軌 等)
+      - squeeze_breakout, upper_band_walk, lower_band_rebound, mid_band_pullback: bool
+      - triggers: list[dict] (布林專屬觸發提示)
+    """
+    if df is None or len(df) < 20 or 'Close' not in df.columns:
+        return {"available": False}
+
+    close_s = df['Close'].astype(float)
+    mid_s = close_s.rolling(20).mean()
+    std_s = close_s.rolling(20).std()
+
+    bb_mid = float(mid_s.iloc[-1]) if pd.notna(mid_s.iloc[-1]) else 0.0
+    cur_std = float(std_s.iloc[-1]) if pd.notna(std_s.iloc[-1]) else 0.0
+    if bb_mid <= 0:
+        return {"available": False}
+
+    bb_upper = bb_mid + 2.0 * cur_std
+    bb_lower = bb_mid - 2.0 * cur_std
+
+    c = float(close_s.iloc[-1])
+    o = float(df['Open'].iloc[-1]) if 'Open' in df.columns else c
+    h = float(df['High'].iloc[-1]) if 'High' in df.columns else c
+    l = float(df['Low'].iloc[-1]) if 'Low' in df.columns else c
+    prev_c = float(close_s.iloc[-2]) if len(df) >= 2 else c
+    prev_l = float(df['Low'].iloc[-2]) if (len(df) >= 2 and 'Low' in df.columns) else prev_c
+    is_red = (c >= o) and (c >= prev_c * 0.998)
+
+    if vol_ratio is None:
+        if 'Volume' in df.columns and len(df) >= 6:
+            v_ma5 = float(df['Volume'].iloc[-6:-1].mean())
+            vol_ratio = float(df['Volume'].iloc[-1]) / (v_ma5 + 1e-9) if v_ma5 > 0 else 1.0
+        else:
+            vol_ratio = 1.0
+
+    prev_mid = float(mid_s.iloc[-2]) if (len(df) >= 2 and pd.notna(mid_s.iloc[-2])) else bb_mid
+    prev3_mid = float(mid_s.iloc[-4]) if (len(df) >= 4 and pd.notna(mid_s.iloc[-4])) else prev_mid
+    prev_std = float(std_s.iloc[-2]) if (len(df) >= 2 and pd.notna(std_s.iloc[-2])) else cur_std
+    prev_bb_upper = prev_mid + 2.0 * prev_std
+    prev_bb_lower = prev_mid - 2.0 * prev_std
+
+    bw_series = ((mid_s + 2.0 * std_s) - (mid_s - 2.0 * std_s)) / (mid_s + 1e-9)
+    bw_curr = (bb_upper - bb_lower) / (bb_mid + 1e-9)
+    bw_prev = float(bw_series.iloc[-2]) if (len(df) >= 2 and pd.notna(bw_series.iloc[-2])) else bw_curr
+    valid_bws = bw_series.iloc[-20:-1].dropna()
+    min_width_20 = float(valid_bws.min()) if len(valid_bws) >= 5 else bw_curr
+    avg_width_20 = float(valid_bws.mean()) if len(valid_bws) >= 5 else bw_curr
+
+    bandwidth_pct = round(bw_curr * 100.0, 2)
+    band_span = bb_upper - bb_lower
+    percent_b = round(((c - bb_lower) / (band_span + 1e-9)) * 100.0, 1) if band_span > 0 else 50.0
+
+    # 中軌 20MA 方向
+    mid_chg_3d = (bb_mid - prev3_mid) / (prev3_mid + 1e-9)
+    if mid_chg_3d > 0.004:
+        mid_dir = "↗ 上揚"
+    elif mid_chg_3d < -0.004:
+        mid_dir = "↘ 下彎"
+    else:
+        mid_dir = "→ 走平"
+
+    # 1. 通道狀態判定：縮口擠壓 / 開口擴張 / 水平盤整 / 常態趨勢通道
+    is_squeeze = (bw_curr <= 0.12) or (len(valid_bws) >= 10 and bw_curr <= min_width_20 * 1.10 and bw_curr <= 0.18)
+    is_expanding = (bw_curr > bw_prev * 1.07) and (bw_curr >= avg_width_20 * 1.05 or c > bb_upper or c < bb_lower)
+    is_flat_box = abs(mid_chg_3d) <= 0.006 and not is_expanding
+
+    if is_squeeze and not (c > bb_upper and bw_curr > bw_prev * 1.12):
+        band_state = "🤏 縮口擠壓 (Squeeze)"
+        band_state_color = "#FBBF24"
+    elif is_expanding:
+        band_state = "📣 開口擴張 (波動放大)"
+        band_state_color = "#38BDF8"
+    elif is_flat_box:
+        band_state = "↔️ 水平盤整 (箱型區間)"
+        band_state_color = "#CBD5E1"
+    else:
+        band_state = "🌊 常態趨勢通道"
+        band_state_color = "#94A3B8"
+
+    # 2. 股價位階判定：貼上軌運行 / 回測中軌 20MA / 觸及或跌破下軌
+    dist_mid_pct = abs(c - bb_mid) / (bb_mid + 1e-9)
+    if c > bb_upper:
+        price_position = "🚀 站上/突破上軌 (+2σ外)"
+        price_pos_color = "#FF4D4F"
+    elif c >= bb_upper * 0.985 or percent_b >= 85.0:
+        price_position = "🔥 貼上軌運行 (強勢貼帶)"
+        price_pos_color = "#FB923C"
+    elif dist_mid_pct <= 0.015 or (l <= bb_mid <= h):
+        price_position = "🎯 回測/貼近中軌 20MA"
+        price_pos_color = "#38BDF8"
+    elif c < bb_lower:
+        price_position = "❄️ 跌破下軌 (-2σ外超跌)"
+        price_pos_color = "#EF4444"
+    elif c <= bb_lower * 1.015 or percent_b <= 15.0:
+        price_position = "🛡️ 觸及下軌邊緣 (測試下軌)"
+        price_pos_color = "#34D399"
+    elif c > bb_mid:
+        price_position = "🟢 中上軌多方區"
+        price_pos_color = "#4ADE80"
+    else:
+        price_position = "🟠 中下軌弱勢區"
+        price_pos_color = "#F59E0B"
+
+    # 3. 專屬觸發提示 (4招實戰精華)
+    squeeze_breakout = bool(prev_c <= prev_bb_upper and c > bb_upper and is_red and vol_ratio >= 1.5 and min_width_20 <= 0.12)
+    upper_band_walk = bool(c >= bb_upper * 0.985 and bb_mid > prev_mid and is_red)
+    lower_band_rebound = bool((prev_c < prev_bb_lower or prev_l < prev_bb_lower) and c > bb_lower and is_red)
+    mid_band_pullback = bool(bb_mid > prev_mid and prev_c >= prev_mid and l <= bb_mid * 1.015 and c >= bb_mid and is_red)
+
+    triggers = []
+    if squeeze_breakout:
+        triggers.append({
+            "badge": "🎯 縮口帶量突破",
+            "color": "#FF4D4F",
+            "desc": f"前波通道極度收斂（最窄頻寬 {round(min_width_20*100,1)}%），今日放量（{vol_ratio:.1f}x）實體紅K突破上軌 {bb_upper:.2f} 元，屬布林波動率起爆訊號。"
+        })
+    if upper_band_walk:
+        triggers.append({
+            "badge": "🚀 貼上軌抱單",
+            "color": "#FB923C",
+            "desc": f"股價緊貼上軌（{bb_upper:.2f} 元）且中軌 20MA 向上翻揚，強勢貼帶運行中，布林法以動態中軌 {bb_mid:.2f} 元作為波段移動停利參考。"
+        })
+    if mid_band_pullback:
+        triggers.append({
+            "badge": "💎 回測中軌有守",
+            "color": "#38BDF8",
+            "desc": f"中軌 20MA（{bb_mid:.2f} 元）維持上揚，股價回測中軌不破收紅K，符合布林強勢股回測中軌低接觀察條件。"
+        })
+    if lower_band_rebound:
+        triggers.append({
+            "badge": "🪃 破下軌迅速收回",
+            "color": "#34D399",
+            "desc": f"前日觸破下軌後，今日紅K迅速站回下軌（{bb_lower:.2f} 元）之上，短線超跌恐慌宣洩，可觀察朝中軌 {bb_mid:.2f} 元反彈力道（若中軌下彎須防反壓）。"
+        })
+    if is_flat_box and not triggers:
+        triggers.append({
+            "badge": "📦 水平箱型區間",
+            "color": "#CBD5E1",
+            "desc": f"中軌 20MA 走平，布林上軌（{bb_upper:.2f} 元）與下軌（{bb_lower:.2f} 元）形成水平箱型區間，未帶量開口前屬區間震盪。"
+        })
+
+    return {
+        "available": True,
+        "upper": round(bb_upper, 2),
+        "mid": round(bb_mid, 2),
+        "lower": round(bb_lower, 2),
+        "bandwidth_pct": bandwidth_pct,
+        "min_width_20_pct": round(min_width_20 * 100.0, 2),
+        "percent_b": percent_b,
+        "mid_dir": mid_dir,
+        "band_state": band_state,
+        "band_state_color": band_state_color,
+        "price_position": price_position,
+        "price_pos_color": price_pos_color,
+        "squeeze_breakout": squeeze_breakout,
+        "upper_band_walk": upper_band_walk,
+        "lower_band_rebound": lower_band_rebound,
+        "mid_band_pullback": mid_band_pullback,
+        "triggers": triggers,
+    }
 

@@ -902,6 +902,22 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
 
     all_stocks = get_all_analyzed_stocks(force_refresh=force_refresh, enable_realtime=enable_realtime)
 
+    # 取得全台股本益比 / 殖利率 / 股價淨值比 (供「跌時重質」策略與個股卡片顯示)
+    val_map = {}
+    try:
+        from core.data_fetcher import fetch_tw_valuation_map
+        val_map = fetch_tw_valuation_map()
+    except Exception:
+        val_map = {}
+
+    if val_map:
+        for s in all_stocks:
+            v = val_map.get(str(s.get('code', '')).strip())
+            if v:
+                s['pe_ratio'] = v.get('pe', 0.0)
+                s['dividend_yield'] = v.get('yield_pct', 0.0)
+                s['pb_ratio'] = v.get('pb', 0.0)
+
     # 多階漏斗篩選：母體範圍與族群鎖定
     if universe_scope in ["熱門優先", "熱門", "hot"]:
         if sector_filter and sector_filter != "全部":
@@ -957,10 +973,10 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         if watchlist_stage != "全部" and stage != watchlist_stage:
             continue
 
-        # 3. 多空方向篩選 (若選趨勢翻轉相關策略，則放行不作多空排他性過濾)
+        # 3. 多空方向篩選 (若選趨勢翻轉或跌時重質相關策略，則放行不作多空排他性過濾)
         is_bear = bool(s.get('is_bear', False))
         is_bull = bool(s.get('is_bull', False))
-        is_flip_strat = any(k in strategy for k in ["剛變", "趨勢翻轉", "翻轉", "剛轉變"]) or direction in ["翻轉", "全部"]
+        is_flip_strat = any(k in strategy for k in ["剛變", "趨勢翻轉", "翻轉", "剛轉變", "跌時重質"]) or direction in ["翻轉", "全部"]
         if not is_flip_strat:
             if direction == "多" and is_bear and not (signals_dict.get('bottom_breakout', False) or signals_dict.get('rounding_bottom', False) or signals_dict.get('flat_base_breakout', False) or signals_dict.get('box_range_breakout', False)):
                 continue
@@ -1005,6 +1021,30 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
             # 全部翻轉：涵蓋剛變多頭、剛變空頭與剛變盤整，天數 <= 4
             if s.get('days_since_change', 99) <= 4 and any(ts in s.get('trend_status', '') for ts in ['多頭趨勢', '空頭趨勢', '趨勢改變為盤整', '盤整整理']):
                 match = True
+        elif "跌時重質" in strategy:
+            # 朱老師 2026-11-23 信心喊話：「跌時重質，漲時重勢」
+            # 條件1：價值超跌 (本益比 PE 3~16倍越接近10倍越佳，或殖利率 >= 4.0%)
+            pe_val = float(s.get('pe_ratio', 0) or 0)
+            yield_val = float(s.get('dividend_yield', 0) or 0)
+            is_value_oversold = (3.0 <= pe_val <= 16.0) or (yield_val >= 4.0)
+            if is_value_oversold:
+                # 條件2：領先大盤已有止跌現象/打底 (絕不閉眼接刀)
+                bars = s.get('recent_bars') or []
+                not_new_low_5d = False
+                if len(bars) >= 5:
+                    lows_5d = [float(b.get('low', 0) or 0) for b in bars[-5:-1] if float(b.get('low', 0) or 0) > 0]
+                    curr_low = float(bars[-1].get('low', 0) or 0)
+                    if lows_5d and curr_low >= min(lows_5d) * 0.998:
+                        not_new_low_5d = True
+                has_stabilized = (
+                    s.get('above_5ma', False)
+                    or signals_dict.get('w_bottom', False)
+                    or signals_dict.get('bottom_breakout', False)
+                    or signals_dict.get('rounding_bottom', False)
+                    or (float(s.get('change_pct', 0) or 0) >= 0 and not_new_low_5d)
+                )
+                if has_stabilized:
+                    match = True
         elif direction == "空":
             # 做空子策略 (空方波段與即時大類)
             if strategy in ["全部", "盤中排行", "量排行"]:
@@ -1178,8 +1218,20 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
         if match:
             filtered.append(s)
 
-    # 排序邏輯：做空、做多與趨勢翻轉自適應
-    if is_flip_strat:
+    # 排序邏輯：跌時重質、做空、做多與趨勢翻轉自適應
+    if "跌時重質" in strategy:
+        # 跌時重質：優先排列 1. 已站上5MA止跌 2. PE越接近10倍(5~15) 3. 成交量較大之績優股
+        def _val_rank(x):
+            pe = float(x.get('pe_ratio', 0) or 0)
+            pe_dist = abs(pe - 10.0) if 3.0 <= pe <= 20.0 else 99.0
+            return (
+                0 if x.get('above_5ma', False) else 1,
+                pe_dist,
+                -float(x.get('dividend_yield', 0) or 0),
+                -float(x.get('volume', 0) or 0)
+            )
+        filtered.sort(key=_val_rank)
+    elif is_flip_strat:
         # 剛翻轉個股：老朱戰法(四線糾結逾2月 / 盤整逾2月)優先置頂，次依據距今翻轉天數由近到遠，最後依成交量排序
         filtered.sort(key=lambda x: (
             0 if (x.get('is_ma_squeeze_over_2m', False) or x.get('is_cons_over_2m', False)) else 1,

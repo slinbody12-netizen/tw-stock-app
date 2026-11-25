@@ -920,3 +920,100 @@ def fetch_stock_kline(query: str, period="1y", force_refresh=False, enable_realt
     }
 
     return df, info
+
+
+_VALUATION_MEM_CACHE = {"date": "", "data": {}}
+
+def fetch_tw_valuation_map(force_refresh: bool = False) -> dict:
+    """
+    取得全台股上市 (TWSE BWIBBU_ALL) 與上櫃 (TPEx) 最新本益比 (PE)、殖利率 (Yield%) 與股價淨值比 (PB)。
+    供朱老師「跌時重質·超跌績優股」策略與個股診斷使用，具備每日快取機制。
+    """
+    global _VALUATION_MEM_CACHE
+    today_str = get_tw_now().strftime("%Y-%m-%d")
+    if not force_refresh and _VALUATION_MEM_CACHE["date"] == today_str and _VALUATION_MEM_CACHE["data"]:
+        return _VALUATION_MEM_CACHE["data"]
+
+    data_dir = os.path.dirname(STOCK_LIST_PATH)
+    cache_path = os.path.join(data_dir, "tw_valuation_cache.json")
+    if not force_refresh and os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cached = json.load(f)
+            if cached.get("date") == today_str and cached.get("data"):
+                _VALUATION_MEM_CACHE = {"date": today_str, "data": cached["data"]}
+                return cached["data"]
+        except Exception:
+            pass
+
+    val_map: dict = {}
+
+    def _safe_float(v) -> float:
+        try:
+            s = str(v).replace(",", "").strip()
+            if not s or s in ("-", "--", "N/A", "NaN"):
+                return 0.0
+            return float(s)
+        except Exception:
+            return 0.0
+
+    # 1. 上市 TWSE BWIBBU_ALL (使用 urllib.request 確保與 openapi.twse.com.tw SSL 相容)
+    try:
+        import urllib.request
+        req1 = urllib.request.Request(
+            "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
+            headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req1, timeout=10) as resp1:
+            rows1 = json.loads(resp1.read().decode("utf-8"))
+        for r in rows1:
+            code = str(r.get("Code", "")).strip()
+            if not code:
+                continue
+            val_map[code] = {
+                "pe": _safe_float(r.get("PEratio")),
+                "yield_pct": _safe_float(r.get("DividendYield")),
+                "pb": _safe_float(r.get("PBratio")),
+            }
+    except Exception:
+        pass
+
+    # 2. 上櫃 TPEx peratio
+    try:
+        import urllib.request
+        req2 = urllib.request.Request(
+            "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis",
+            headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req2, timeout=10) as resp2:
+            rows2 = json.loads(resp2.read().decode("utf-8"))
+        for r in rows2:
+            code = str(r.get("SecuritiesCompanyCode", "")).strip()
+            if not code:
+                continue
+            val_map[code] = {
+                "pe": _safe_float(r.get("PriceEarningRatio")),
+                "yield_pct": _safe_float(r.get("YieldRatio")),
+                "pb": _safe_float(r.get("PriceBookRatio")),
+            }
+    except Exception:
+        pass
+
+    if val_map:
+        _VALUATION_MEM_CACHE = {"date": today_str, "data": val_map}
+        try:
+            os.makedirs(data_dir, exist_ok=True)
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump({"date": today_str, "data": val_map}, f, ensure_ascii=False)
+        except Exception:
+            pass
+    elif os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cached = json.load(f)
+            return cached.get("data", {})
+        except Exception:
+            pass
+
+    return val_map
+
