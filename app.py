@@ -50,17 +50,22 @@ _CORE_MODULES = [
     core.market_sync, core.pattern_geometry, core.gap_detector,
     core.entry_point_analyzer
 ]
-_GLOBAL_MTIMES = globals().get('_GLOBAL_MTIMES', {})
+_GLOBAL_MTIMES = getattr(sys, '_AGY_CORE_MTIMES', {})
 for _mod in _CORE_MODULES:
     _fpath = getattr(_mod, '__file__', None)
     if _fpath and os.path.exists(_fpath):
         _mtime = os.path.getmtime(_fpath)
-        if _mod.__name__ in _GLOBAL_MTIMES and _GLOBAL_MTIMES[_mod.__name__] != _mtime:
+        _missing_new_sym = (
+            (_mod.__name__ == 'core.signal_detector' and not hasattr(_mod, 'compute_bollinger_info'))
+            or (_mod.__name__ == 'core.data_fetcher' and not hasattr(_mod, 'fetch_tw_valuation_map'))
+        )
+        if _missing_new_sym or (_mod.__name__ in _GLOBAL_MTIMES and _GLOBAL_MTIMES[_mod.__name__] != _mtime):
             try:
                 importlib.reload(_mod)
             except Exception:
                 pass
         _GLOBAL_MTIMES[_mod.__name__] = _mtime
+sys._AGY_CORE_MTIMES = _GLOBAL_MTIMES
 
 from core.data_fetcher import search_stocks, resolve_ticker, fetch_stock_kline, load_stock_list
 from core.gap_detector import detect_unfilled_gaps, apply_gaps_to_figure
@@ -110,7 +115,37 @@ except (ImportError, AttributeError):
 
 from core.wave_engine import calculate_turning_points
 from core.trend_analyzer import analyze_trend
-from core.signal_detector import detect_signals, categorize_signals, compute_bollinger_info
+try:
+    from core.signal_detector import detect_signals, categorize_signals, compute_bollinger_info
+except (ImportError, AttributeError):
+    try:
+        importlib.reload(core.signal_detector)
+        from core.signal_detector import detect_signals, categorize_signals, compute_bollinger_info
+    except Exception:
+        from core.signal_detector import detect_signals, categorize_signals
+        def compute_bollinger_info(df: pd.DataFrame, vol_ratio: float = None) -> dict:
+            if df is None or len(df) < 20 or 'Close' not in df.columns:
+                return {"available": False}
+            close_s = df['Close'].astype(float)
+            mid_s = close_s.rolling(20).mean()
+            std_s = close_s.rolling(20).std()
+            bb_mid = float(mid_s.iloc[-1]) if pd.notna(mid_s.iloc[-1]) else 0.0
+            cur_std = float(std_s.iloc[-1]) if pd.notna(std_s.iloc[-1]) else 0.0
+            if bb_mid <= 0:
+                return {"available": False}
+            bb_upper = bb_mid + 2.0 * cur_std
+            bb_lower = bb_mid - 2.0 * cur_std
+            c = float(close_s.iloc[-1])
+            bw_pct = round(((bb_upper - bb_lower) / (bb_mid + 1e-9)) * 100.0, 2)
+            pct_b = round(((c - bb_lower) / (bb_upper - bb_lower + 1e-9)) * 100.0, 1)
+            return {
+                "available": True, "upper": round(bb_upper, 2), "mid": round(bb_mid, 2), "lower": round(bb_lower, 2),
+                "bandwidth_pct": bw_pct, "min_width_20_pct": bw_pct, "percent_b": pct_b, "mid_dir": "→ 走平",
+                "band_state": "🌊 常態趨勢通道", "band_state_color": "#94A3B8",
+                "price_position": "🟢 中上軌多方區" if c >= bb_mid else "🟠 中下軌弱勢區",
+                "price_pos_color": "#4ADE80" if c >= bb_mid else "#F59E0B",
+                "triggers": []
+            }
 from core.entry_point_analyzer import calculate_three_tier_entry, render_three_tier_entry_dashboard
 from core.screener import scan_stocks, load_speedy_chips, get_all_analyzed_stocks
 from core.sector_radar import calculate_sector_heat_rankings, get_stock_sector_info, get_sector_heat_rankings
@@ -3132,7 +3167,9 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 st.markdown("<hr style='margin: 6px 0 8px 0; border: none; border-top: 1px dashed #334155;' />", unsafe_allow_html=True)
                 r4_c1, r4_c2 = st.columns([3.3, 6.7])
                 show_bb = r4_c1.checkbox("🫧 :blue[疊加布林通道 (20MA ± 2σ · 獨立輔助)]", value=False, key=f"t1_bb_{query}", help="非正課指標，預設關閉以免畫面雜亂；勾選後於主圖疊加布林上軌(+2σ)、中軌(20MA)、下軌(-2σ)")
-                _bb_quick = signals_dict.get('bollinger_info', {})
+                _bb_quick = signals_dict.get('bollinger_info') or {}
+                if not _bb_quick.get('available'):
+                    _bb_quick = compute_bollinger_info(df)
                 if _bb_quick.get('available'):
                     _bs_col = _bb_quick.get('band_state_color', '#CBD5E1')
                     _pp_col = _bb_quick.get('price_pos_color', '#38BDF8')
@@ -3694,7 +3731,7 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             render_ma_direction_dashboard(df, close_price=float(info['close']))
 
             # 🫧 獨立布林通道輔助診斷區 (嚴格與正課主訊號隔離，預設收合)
-            render_bollinger_auxiliary_panel(signals_dict.get('bollinger_info', {}), close_price=float(info['close']), period_label="日線")
+            render_bollinger_auxiliary_panel(_bb_quick, close_price=float(info['close']), period_label="日線")
 
             c_curr = float(info['close'])
 
