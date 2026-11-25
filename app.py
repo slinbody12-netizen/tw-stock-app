@@ -1634,9 +1634,9 @@ def add_bollinger_traces_to_figure(fig: go.Figure, df_plot: pd.DataFrame, show_m
         ), row=row, col=col)
 
 
-def render_bollinger_auxiliary_panel(bb_info: dict, close_price: float, period_label: str = "日線"):
+def render_bollinger_auxiliary_panel(bb_info: dict, close_price: float, period_label: str = "日線", direct_card: bool = False):
     """
-    獨立的「布林通道輔助診斷區」（摺疊面板）：
+    獨立的「布林通道輔助診斷區」：
     嚴格與《技術分析全攻略》正課主訊號隔離，單獨呈現通道狀態、股價位階與布林專屬觸發提示。
     """
     if not bb_info or not bb_info.get('available', False):
@@ -1659,11 +1659,14 @@ def render_bollinger_auxiliary_panel(bb_info: dict, close_price: float, period_l
     dist_low = round(((close_price - low_v) / (close_price + 1e-9)) * 100.0, 2) if close_price > 0 else 0.0
     trig_tag = f" ｜ 🔔 {len(triggers)} 項布林提示" if triggers else ""
 
-    with st.expander(f"🫧 【獨立輔助診斷區】布林通道 ({period_label} 20MA ± 2σ) ── {b_state} ｜ {p_pos}{trig_tag}", expanded=False):
+    ctx = st.container(border=True) if direct_card else st.expander(f"🫧 【獨立輔助診斷區】布林通道 ({period_label} 20MA ± 2σ) ── {b_state} ｜ {p_pos}{trig_tag}", expanded=False)
+    with ctx:
+        if direct_card:
+            st.markdown(f"<div style='font-size:1.05rem; font-weight:bold; color:#38BDF8; margin-bottom:6px;'>🫧 布林通道 ({period_label} 20MA ± 2σ) 獨立診斷數據</div>", unsafe_allow_html=True)
         st.markdown(
             "<div style='background:#0F172A; border-left:3px solid #64748B; padding:6px 12px; border-radius:5px; font-size:0.80rem; color:#94A3B8; margin-bottom:10px;'>"
             "💡 <b>隔離輔助說明</b>：《技術分析全攻略》正課以「趨勢、K線、均線、成交量」為核心（不含布林通道）。"
-            "本面板為<b>完全獨立之輔助參考</b>（中軌即 20MA），絕不混入上方正統買賣訊號或安全評級。"
+            "本專圖與數據為<b>完全獨立之輔助參考</b>（中軌即 20MA），絕不與趨勢波、N字底、圓弧底等正課圖線或訊號混在一起。"
             "</div>",
             unsafe_allow_html=True
         )
@@ -3084,10 +3087,11 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 st.session_state["force_live_refresh"] = True
                 st.rerun()
 
-        # 📱 手機優先：4 大模組化分頁切換 (一頁只專注一件事，告別無限滾動)
-        tab_tech, tab_kline, tab_chips, tab_ai = st.tabs([
+        # 📱 手機優先：5 大模組化分頁切換 (布林通道擁有完全獨立專圖分頁，絕不與正課圖線混排)
+        tab_tech, tab_kline, tab_bb, tab_chips, tab_ai = st.tabs([
             "🎯 技術分析 (頭底/壓力支撐)",
             "📈 K線全指標 (多週期/副圖)",
+            "🫧 布林通道 (獨立專圖)",
             "💼 主力籌碼 (法人/扣抵)",
             "🧑‍🏫 AI 助教 (深度診斷/提問)"
         ])
@@ -3164,25 +3168,6 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                         if p_match.get("desc"):
                             pattern_geo["summary_text"] = p_match["desc"]
 
-                # 第五排 (獨立隔離輔助列)：布林通道開關 (預設關閉，不與正課混排擠壓文字)
-                st.markdown("<hr style='margin: 6px 0 8px 0; border: none; border-top: 1px dashed #334155;' />", unsafe_allow_html=True)
-                r4_c1, r4_c2 = st.columns([3.3, 6.7])
-                show_bb = r4_c1.checkbox("🫧 :blue[疊加布林通道 (20MA ± 2σ · 獨立輔助)]", value=False, key=f"t1_bb_{query}", help="非正課指標，預設關閉以免畫面雜亂；勾選後於主圖疊加布林上軌(+2σ)、中軌(20MA)、下軌(-2σ)")
-                _bb_quick = signals_dict.get('bollinger_info') or {}
-                if not _bb_quick.get('available'):
-                    _bb_quick = compute_bollinger_info(df)
-                if _bb_quick.get('available'):
-                    _bs_col = _bb_quick.get('band_state_color', '#CBD5E1')
-                    _pp_col = _bb_quick.get('price_pos_color', '#38BDF8')
-                    r4_c2.markdown(
-                        f"<div style='padding-top:6px; font-size:0.82rem; color:#94A3B8;'>"
-                        f"獨立布林速覽：<b style='color:{_bs_col};'>{_bb_quick.get('band_state')}</b> ｜ "
-                        f"<b style='color:{_pp_col};'>{_bb_quick.get('price_position')}</b> "
-                        f"（上軌 {_bb_quick.get('upper'):.2f} / 中軌 {_bb_quick.get('mid'):.2f} / 下軌 {_bb_quick.get('lower'):.2f}）"
-                        f"</div>",
-                        unsafe_allow_html=True
-                    )
-
             # 繪製 Tab 1 專屬轉折波與支撐壓力圖
             # 為右側保留約 2.5 ~ 3 根交易日的安全留白邊距，避免最新 K 線、暫高/暫低圓圈與標籤被圖表右邊界裁切
             end_x_pad = calc_right_pad_date(df['Date'].iloc[-1], num_bars=3.0)
@@ -3223,14 +3208,6 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 og_top = gaps_data['nearest_overhead_gap']['rem_top']
                 if og_top <= max(y_maxs) * 1.25:
                     y_maxs.append(og_top)
-            if show_bb and len(df) >= 20:
-                _bb_m = df['Close'].rolling(20).mean()
-                _bb_s = df['Close'].rolling(20).std()
-                _vis_len = len(vis_df)
-                _vis_up = (_bb_m + 2.0 * _bb_s).iloc[-_vis_len:].dropna()
-                _vis_dn = (_bb_m - 2.0 * _bb_s).iloc[-_vis_len:].dropna()
-                if not _vis_up.empty: y_maxs.append(float(_vis_up.max()))
-                if not _vis_dn.empty: y_mins.append(float(_vis_dn.min()))
 
             curr_ymin, curr_ymax = min(y_mins), max(y_maxs)
             y_pad_bot = (curr_ymax - curr_ymin) * 0.085
@@ -3238,8 +3215,6 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             auto_y = [curr_ymin - y_pad_bot, curr_ymax + y_pad_top]
 
             fig1 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.038, row_heights=[0.75, 0.25])
-            if show_bb:
-                add_bollinger_traces_to_figure(fig1, df, show_mid_line=(not show_20ma), row=1, col=1)
             fig1.add_trace(go.Candlestick(
                 x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
                 name="K線",
@@ -3730,9 +3705,6 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
             # 🧭 均線即時方向與位階狀態儀錶盤 (5MA/10MA/20MA/60MA 翻揚助漲 vs 下彎助跌，整合於訊號診斷下方)
             from core.kline_cheat_sheet import render_ma_direction_dashboard
             render_ma_direction_dashboard(df, close_price=float(info['close']))
-
-            # 🫧 獨立布林通道輔助診斷區 (嚴格與正課主訊號隔離，預設收合)
-            render_bollinger_auxiliary_panel(_bb_quick, close_price=float(info['close']), period_label="日線")
 
             c_curr = float(info['close'])
 
@@ -4439,12 +4411,11 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 k_view_bars = st.selectbox("每屏顯示K棒數", ["45根 (清晰放大)", "70根", "全區間"], index=0, key=f"k_vb_{query}")
 
             with st.container(border=True):
-                k_ma1, k_ma2, k_ma3, k_ma4, k_ma5 = st.columns([1.0, 1.0, 1.0, 1.0, 1.5])
+                k_ma1, k_ma2, k_ma3, k_ma4 = st.columns(4)
                 show_k_5ma = k_ma1.checkbox("🔴 :red[5MA (桃紅)]", value=True, key=f"k_5ma_{query}")
                 show_k_10ma = k_ma2.checkbox("🟡 :orange[10MA (鮮黃)]", value=True, key=f"k_10ma_{query}")
                 show_k_20ma = k_ma3.checkbox("🔵 :blue[20MA (天藍)]", value=True, key=f"k_20ma_{query}")
                 show_k_60ma = k_ma4.checkbox("🟣 :violet[60MA (亮紫)]", value=True, key=f"k_60ma_{query}")
-                show_k_bb = k_ma5.checkbox("🫧 :gray[疊加布林通道 (20MA±2σ)]", value=False, key=f"k_bb_{query}", help="獨立輔助開關，預設關閉以免線條雜亂")
 
             # 依週期重採樣數據
             if "週K" in k_period:
@@ -4488,22 +4459,12 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 if ma_f and ma_c in k_vis_df:
                     s_tmp = k_vis_df[ma_c].dropna()
                     if not s_tmp.empty: k_ymins.append(s_tmp.min()); k_ymaxs.append(s_tmp.max())
-            if show_k_bb and len(df_k) >= 20:
-                _k_bb_m = df_k['Close'].rolling(20).mean()
-                _k_bb_s = df_k['Close'].rolling(20).std()
-                _k_vlen = len(k_vis_df)
-                _k_vup = (_k_bb_m + 2.0 * _k_bb_s).iloc[-_k_vlen:].dropna()
-                _k_vdn = (_k_bb_m - 2.0 * _k_bb_s).iloc[-_k_vlen:].dropna()
-                if not _k_vup.empty: k_ymaxs.append(float(_k_vup.max()))
-                if not _k_vdn.empty: k_ymins.append(float(_k_vdn.min()))
             k_ymin, k_ymax = min(k_ymins), max(k_ymaxs)
             k_ypad_bot = (k_ymax - k_ymin) * 0.07
             k_ypad_top = (k_ymax - k_ymin) * 0.14
             k_auto_y = [k_ymin - k_ypad_bot, k_ymax + k_ypad_top]
 
             fig2 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.038, row_heights=[0.74, 0.26])
-            if show_k_bb:
-                add_bollinger_traces_to_figure(fig2, df_k, show_mid_line=(not show_k_20ma), row=1, col=1)
             fig2.add_trace(go.Candlestick(
                 x=df_k['Date'], open=df_k['Open'], high=df_k['High'], low=df_k['Low'], close=df_k['Close'],
                 name=f"{k_period[:2]}",
@@ -4589,9 +4550,6 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
 
             st.plotly_chart(fig2, use_container_width=True, config=chart_config, key=f"k_plot_{query}_{k_period}_{k_sub_chart}")
 
-            if not df_k.empty and len(df_k) >= 20:
-                render_bollinger_auxiliary_panel(compute_bollinger_info(df_k), close_price=float(df_k['Close'].iloc[-1]), period_label=k_period[:2])
-
             if "KD" in k_sub_chart and 'K' in df_k and not df_k.empty:
                 cur_k = float(df_k['K'].iloc[-1])
                 cur_d = float(df_k['D'].iloc[-1])
@@ -4624,7 +4582,144 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
                 core.kline_cheat_sheet.render_kline_visual_cheat_sheet()
 
         # =========================================================================
-        # TAB 3: 💼 主力籌碼 (法人/扣抵) - SpeedyAI 官方真實籌碼整合
+        # TAB 3: 🫧 布林通道 (獨立專圖) - 完全獨立於正課趨勢波/型態切線之外的純淨布林圖表
+        # =========================================================================
+        with tab_bb:
+            bb_c1, bb_c2, bb_c3 = st.columns([1.7, 2.7, 1.6])
+            with bb_c1:
+                bb_period = st.radio("K線週期", ["日K (標準)", "週K (波段)", "月K (長線)"], horizontal=True, key=f"bb_per_{query}")
+            with bb_c2:
+                bb_sub_chart = st.radio("🎛️ 布林專屬副圖", ["📊 成交量", "📐 通道頻寬 Bandwidth%", "📍 %B 位階指標"], horizontal=True, key=f"bb_sub_{query}")
+            with bb_c3:
+                bb_view_bars = st.selectbox("每屏顯示K棒數", ["45根 (清晰放大)", "70根", "全區間"], index=0, key=f"bb_vb_{query}")
+
+            if "週K" in bb_period:
+                df_bb = df.set_index('Date').resample('W-FRI').agg({
+                    'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'
+                }).dropna().reset_index()
+            elif "月K" in bb_period:
+                df_bb = df.set_index('Date').resample('ME').agg({
+                    'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'
+                }).dropna().reset_index()
+            else:
+                df_bb = df.copy()
+
+            if len(df_bb) < 20:
+                st.warning(f"⚠️ 當前【{bb_period[:2]}】歷史 K 棒數不足 20 根（目前 {len(df_bb)} 根），尚無法計算 20MA ± 2σ 布林通道，請切換回「日K (標準)」檢視。")
+            else:
+                bb_mid_s = df_bb['Close'].rolling(20).mean()
+                bb_std_s = df_bb['Close'].rolling(20).std()
+                bb_up_s = bb_mid_s + 2.0 * bb_std_s
+                bb_dn_s = bb_mid_s - 2.0 * bb_std_s
+                bb_bw_s = ((bb_up_s - bb_dn_s) / (bb_mid_s + 1e-9)) * 100.0
+                bb_pctb_s = ((df_bb['Close'] - bb_dn_s) / ((bb_up_s - bb_dn_s) + 1e-9)) * 100.0
+
+                bb_tab_info = compute_bollinger_info(df_bb)
+                render_bollinger_auxiliary_panel(bb_tab_info, close_price=float(df_bb['Close'].iloc[-1]), period_label=bb_period[:2], direct_card=True)
+
+                bb_end_x = calc_right_pad_date(df_bb['Date'].iloc[-1], num_bars=3.0)
+                if "45根" in bb_view_bars and len(df_bb) > 45:
+                    bb_init_x = [df_bb['Date'].iloc[-45], bb_end_x]
+                    _v_slice = slice(-45, None)
+                elif "70根" in bb_view_bars and len(df_bb) > 70:
+                    bb_init_x = [df_bb['Date'].iloc[-70], bb_end_x]
+                    _v_slice = slice(-70, None)
+                else:
+                    bb_init_x = [df_bb['Date'].iloc[0], bb_end_x]
+                    _v_slice = slice(None)
+
+                _vis_bb_df = df_bb.iloc[_v_slice]
+                _vis_up = bb_up_s.iloc[_v_slice].dropna()
+                _vis_dn = bb_dn_s.iloc[_v_slice].dropna()
+                bb_ymins = [float(_vis_bb_df['Low'].min())]
+                bb_ymaxs = [float(_vis_bb_df['High'].max())]
+                if not _vis_dn.empty:
+                    bb_ymins.append(float(_vis_dn.min()))
+                if not _vis_up.empty:
+                    bb_ymaxs.append(float(_vis_up.max()))
+                bb_ymin, bb_ymax = min(bb_ymins), max(bb_ymaxs)
+                bb_auto_y = [bb_ymin - (bb_ymax - bb_ymin) * 0.08, bb_ymax + (bb_ymax - bb_ymin) * 0.12]
+
+                fig_bb = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.74, 0.26])
+
+                # 純淨布林三軌與通道色帶 (完全不含轉折波、切線、N字底等其他圖線)
+                fig_bb.add_trace(go.Scatter(
+                    x=df_bb['Date'], y=bb_up_s, mode='lines',
+                    name=f"上軌 (+2σ): {bb_tab_info['upper']:.2f}",
+                    line=dict(color='#FB923C', width=1.6, dash='dash')
+                ), row=1, col=1)
+                fig_bb.add_trace(go.Scatter(
+                    x=df_bb['Date'], y=bb_dn_s, mode='lines',
+                    name=f"下軌 (-2σ): {bb_tab_info['lower']:.2f}",
+                    line=dict(color='#34D399', width=1.6, dash='dash'),
+                    fill='tonexty', fillcolor='rgba(56, 189, 248, 0.08)'
+                ), row=1, col=1)
+                fig_bb.add_trace(go.Scatter(
+                    x=df_bb['Date'], y=bb_mid_s, mode='lines',
+                    name=f"中軌 (20MA): {bb_tab_info['mid']:.2f}",
+                    line=dict(color='#38BDF8', width=2.1)
+                ), row=1, col=1)
+                fig_bb.add_trace(go.Candlestick(
+                    x=df_bb['Date'], open=df_bb['Open'], high=df_bb['High'], low=df_bb['Low'], close=df_bb['Close'],
+                    name=f"{bb_period[:2]} K線",
+                    increasing_line_color='#FF4D4F', increasing_fillcolor='#FF4D4F',
+                    decreasing_line_color='#2F9E44', decreasing_fillcolor='#2F9E44',
+                    showlegend=False
+                ), row=1, col=1)
+
+                if "頻寬" in bb_sub_chart:
+                    fig_bb.add_trace(go.Scatter(
+                        x=df_bb['Date'], y=bb_bw_s, mode='lines', name="頻寬 Bandwidth%",
+                        line=dict(color='#FBBF24', width=1.9),
+                        fill='tozeroy', fillcolor='rgba(251, 191, 36, 0.10)'
+                    ), row=2, col=1)
+                    fig_bb.add_hline(
+                        y=12.0, line_dash="dot", line_color="#38BDF8", line_width=1.4,
+                        annotation_text="🤏 12% 極致縮口擠壓參考線 (Squeeze)", annotation_position="top left",
+                        annotation_font=dict(color="#93C5FD", size=11), row=2, col=1
+                    )
+                elif "%B" in bb_sub_chart:
+                    fig_bb.add_trace(go.Scatter(
+                        x=df_bb['Date'], y=bb_pctb_s, mode='lines', name="%B 位階",
+                        line=dict(color='#C084FC', width=1.9)
+                    ), row=2, col=1)
+                    fig_bb.add_hline(y=100, line_dash="dash", line_color="#FB923C", line_width=1.2, annotation_text="100% 上軌", annotation_position="top left", row=2, col=1)
+                    fig_bb.add_hline(y=50, line_dash="dot", line_color="#38BDF8", line_width=1.1, row=2, col=1)
+                    fig_bb.add_hline(y=0, line_dash="dash", line_color="#34D399", line_width=1.2, annotation_text="0% 下軌", annotation_position="bottom left", row=2, col=1)
+                else:
+                    v_cols_bb = ['#FF4D4F' if df_bb.iloc[k]['Close'] >= df_bb.iloc[k]['Open'] else '#2F9E44' for k in range(len(df_bb))]
+                    fig_bb.add_trace(go.Bar(x=df_bb['Date'], y=df_bb['Volume'], name="成交量", marker_color=v_cols_bb, showlegend=False), row=2, col=1)
+                    vol_ma5_bb = df_bb['Volume'].rolling(5).mean()
+                    fig_bb.add_trace(go.Scatter(x=df_bb['Date'], y=vol_ma5_bb, name="5均量", line=dict(color='#FCC419', width=1.5)), row=2, col=1)
+
+                drag_bb = 'pan' if "自由拖曳" in t1_touch_mode else False
+                fig_bb.update_layout(
+                    height=630, margin=dict(l=15, r=45, t=45, b=15),
+                    template="plotly_dark",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.01),
+                    dragmode=drag_bb, hovermode="x unified"
+                )
+                fig_bb.update_xaxes(
+                    rangeslider_visible=False, range=bb_init_x,
+                    showgrid=True, gridcolor="rgba(148, 163, 184, 0.20)", gridwidth=1, griddash="dot",
+                    showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1, spikedash="dash", spikecolor="#94A3B8",
+                    rangebreaks=get_chart_rangebreaks(df_bb)
+                )
+                fig_bb.update_xaxes(showticklabels=True, row=1, col=1, ticks="outside", ticklen=5, tickwidth=1.2, tickcolor="#94A3B8", showline=True, linecolor="#64748B", linewidth=1.2)
+                fig_bb.update_yaxes(range=bb_auto_y, row=1, col=1)
+
+                st.plotly_chart(fig_bb, use_container_width=True, config=chart_config, key=f"bb_plot_{query}_{bb_period}_{bb_sub_chart}")
+
+                with st.expander("📘 查看【布林通道 4 招實戰參考手冊】（縮口起爆 · 貼上軌抱單 · 中軌低接 · 破下軌收回）", expanded=False):
+                    st.markdown("""
+                    1. **🎯 第一招：收斂擠壓帶量突破（Squeeze Breakout）** — 當上下軌極度縮口（頻寬 $\\le 12\\%$）橫盤蓄勢後，第一根放量（$\\ge 1.5$ 倍均量）實體長紅突破上軌，常為大波段波動率起爆點。
+                    2. **🚀 第二招：強勢貼上軌抱單與中軌移動停利** — 多頭主升段股價常緊貼上軌運行（切勿看觸上軌就急賣），可沿動態中軌（`20MA`）作為波段移動停利防守；若上揚中軌首次回測守穩收紅，為布林中軌低接觀察點。
+                    3. **🪃 第三招：跌破下軌迅速收回（左側超跌反彈）** — 急殺跌出下軌（$-2\\sigma$ 外）次日若出紅 K 迅速站回下軌內，代表短線恐慌宣洩，可觀察朝中軌反彈力道（惟中軌下彎時須嚴防反壓）。
+                    4. **📦 第四招：水平箱型區間** — 中軌走平時，上下軌可視為短線箱頂壓力與箱底支撐；一旦帶量開口突破則立即結束區間思維。
+                    """)
+
+        # =========================================================================
+        # TAB 4: 💼 主力籌碼 (法人/扣抵) - SpeedyAI 官方真實籌碼整合
         # =========================================================================
         with tab_chips:
             chips_map = load_speedy_chips()
