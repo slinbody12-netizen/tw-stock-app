@@ -559,6 +559,11 @@ def _analyze_single_stock(item, realtime_map, chips_map):
             "entry_tier_badge": entry_tier.get('badge_html', ''),
             "entry_tier_text": entry_tier.get('badge_text', ''),
             "entry_tier_verdict": entry_tier.get('stage_verdict', ''),
+            "recommended_pct": entry_tier.get('recommended_pct', 0),
+            "recommended_pct_range": entry_tier.get('recommended_pct_range', '0%'),
+            "recommended_pct_reason": entry_tier.get('recommended_pct_reason', '觀望'),
+            "recommended_pct_text": entry_tier.get('recommended_pct_text', '建議買入：0% (觀望)'),
+            "recommended_pct_pill": entry_tier.get('recommended_pct_pill_html', ''),
             "spurt_tag": spurt_tag,
             "spurt_badge": spurt_badge,
             "spurt_desc": spurt_desc,
@@ -1143,20 +1148,22 @@ def scan_stocks(strategy="全部", direction="多", price_filter="全部", watch
                         match = True
                         if is_break:
                             s['ambush_stage'] = 'STAGE_BREAKOUT_TODAY'
-                            s['ambush_text'] = '🚀 今日放量突破 · 飆股正式起跑'
-                            s['entry_tier_text'] = f"【🚀 起漲放量穿頂】四線糾結 {squeeze_days} 天放量突破箱頂 {b_high} 元！"
+                            s['ambush_text'] = '🚀 今日放量突破 · 飆股正式起跑【建議買入：20%~30%】'
+                            s['entry_tier_text'] = f"【🚀 起漲放量穿頂】四線糾結 {squeeze_days} 天放量突破箱頂 {b_high} 元！｜建議買入：20%~30%"
+                            s['recommended_pct'] = max(int(s.get('recommended_pct', 0) or 0), 25)
+                            s['recommended_pct_range'] = s.get('recommended_pct_range') if int(s.get('recommended_pct', 0) or 0) >= 60 else '20%~30%'
                             s['quality_score'] = max(s.get('quality_score', 0), 195.0)
                         elif is_ready:
                             s['ambush_stage'] = 'STAGE_READY'
-                            s['ambush_text'] = '⚡ 臨門一腳 · 隨時放量噴出'
-                            s['entry_tier_text'] = f"【⚡ 臨門一腳蓄勢】四線收斂僅 {round(bw, 1)}% · 距箱頂 {b_high} 僅 {round(dist_high, 1)}% · 隨時放量噴出"
+                            s['ambush_text'] = '⚡ 臨門一腳 · 隨時放量噴出【建議買入：0% (等過頂) / 10%~20%】'
+                            s['entry_tier_text'] = f"【⚡ 臨門一腳蓄勢】四線收斂僅 {round(bw, 1)}% · 距箱頂 {b_high} 僅 {round(dist_high, 1)}% ｜建議買入：0% (等突破)"
                             s['quality_score'] = max(s.get('quality_score', 0), 190.0)
                             s['safety_rating'] = '🟢 安全首選'
                             s['rank_badge'] = f"⚡ 臨門一腳 No.{len(candidate_stocks)+1}"
                         else:
                             s['ambush_stage'] = 'STAGE_ACCUMULATING'
-                            s['ambush_text'] = '📦 耐心潛伏 · 主力深蹲吃貨'
-                            s['entry_tier_text'] = f"【📦 耐心深蹲潛伏】四線平躺已 {squeeze_days} 天 · 40天振幅僅 {round(amp, 1)}% · 耐心守株待兔"
+                            s['ambush_text'] = '📦 耐心潛伏 · 主力深蹲吃貨【建議買入：0% (觀察等突破)】'
+                            s['entry_tier_text'] = f"【📦 耐心深蹲潛伏】四線平躺已 {squeeze_days} 天 · 40天振幅僅 {round(amp, 1)}% ｜建議買入：0% (觀察等突破)"
                             s['quality_score'] = max(s.get('quality_score', 0), 180.0)
                             s['safety_rating'] = '🟢 安全首選'
                             s['rank_badge'] = f"📦 主力深蹲 No.{len(candidate_stocks)+1}" 

@@ -1216,59 +1216,76 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
     else:
         breakout_desc = trend_st if trend_st else "常態波動整理"
 
-    # 老朱階梯買點決策
+    # 老朱階梯買點決策與個股建議買入倉位百分比 (一目了然判讀適不適合買入)
     et = item.get('entry_tier') or {}
     et_st = item.get('entry_tier_stage') or et.get('current_stage', '')
-    b1_item = et.get('b1', {})
-    b2_item = et.get('b2', {})
-    b3_item = et.get('b3', {})
+    b1_item = et.get('b1') or {}
+    b2_item = et.get('b2') or {}
+    b3_item = et.get('b3') or {}
     b1_stat = b1_item.get('status', 'WAITING')
     b2_stat = b2_item.get('status', 'WAITING')
     b3_stat = b3_item.get('status', 'WAITING')
+
+    pct_pill_html = item.get('recommended_pct_pill') or et.get('recommended_pct_pill_html', '')
 
     if et_st == 'TIER_1':
         b1_p = b1_item.get('price', item['close'])
         b1_s = b1_item.get('stop_loss', item['close'] * 0.95)
         if b1_stat == 'ACTIVE':
-            tier_action_html = f"<span style='color:#10B981; font-weight:bold;'>🟢 第 1 買點【底部轉折試單】</span> (建議部位 20~30% ｜ 試單價約 {b1_p:.2f} 元 ｜ 破 {b1_s:.2f} 停損)"
+            tier_action_html = f"<span style='color:#10B981; font-weight:bold;'>🟢 第 1 買點【底部轉折試單】｜建議買入：20%~30%</span> (試單價約 {b1_p:.2f} 元 ｜ 破 {b1_s:.2f} 停損)"
+            if not pct_pill_html:
+                pct_pill_html = "<span style='background:#064E3B; border:1px solid #10B981; color:#A7F3D0; font-size:0.75rem; font-weight:800; padding:2px 7px; border-radius:4px;'>🟢 建議買入：20%~30% (B1試單)</span>"
         elif b1_stat == 'CAUTION':
             st_t = b1_item.get('status_text', '帶瑕疵')
-            tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⚠️ 第 1 階【{st_t}】</span> (老朱心法：瑕疵未除切勿急躁試單，等守穩化解！)"
+            if "輕度追價" in st_t:
+                tier_action_html = f"<span style='color:#10B981; font-weight:bold;'>🟢 第 1 階【{st_t}】｜建議買入：10%~15%</span> (試單部位減半，破 {b1_s:.2f} 停損)"
+            else:
+                tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⚠️ 第 1 階【{st_t}】｜建議買入：0%</span> (瑕疵未除切勿急躁試單，等守穩化解！)"
         else:
             st_t = b1_item.get('status_text', '整理中')
-            tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>⏳ 第 1 階【{st_t}】</span>"
+            tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>⏳ 第 1 階【{st_t}】｜建議買入：0% (觀察等突破)</span>"
     elif et_st == 'TIER_2':
         b2_p = b2_item.get('price', item['close'])
         b2_s = b2_item.get('stop_loss', item['close'] * 0.95)
         if b2_stat == 'ACTIVE':
-            tier_action_html = f"<span style='color:#EF4444; font-weight:bold;'>🔥 第 2 買點【標準多頭確立】</span> (建議重倉 60~70% ｜ 黃金進場價約 {b2_p:.2f} 元 ｜ 破 {b2_s:.2f} 停損)"
+            tier_action_html = f"<span style='color:#EF4444; font-weight:bold;'>🔥 第 2 買點【標準多頭確立】｜建議買入：60%~70%</span> (黃金進場價約 {b2_p:.2f} 元 ｜ 破 {b2_s:.2f} 停損)"
+            if not pct_pill_html:
+                pct_pill_html = "<span style='background:#78350F; border:1px solid #F59E0B; color:#FDE68A; font-size:0.75rem; font-weight:800; padding:2px 7px; border-radius:4px;'>🔥 建議買入：60%~70% (B2重倉)</span>"
         elif b2_stat == 'CAUTION':
             st_t = b2_item.get('status_text', '帶瑕疵')
-            tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⚠️ 第 2 階【{st_t}】</span> (老朱心法：瑕疵未除切勿急躁重倉，等量縮守穩！)"
+            if "輕度追價" in st_t:
+                tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⚠️ 第 2 階【{st_t}】｜建議買入：30%</span> (部位減半防守 5MA)"
+            else:
+                tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⚠️ 第 2 階【{st_t}】｜建議買入：0%</span> (瑕疵未除切勿急躁重倉，等量縮守穩！)"
         elif b2_stat == 'MISSED':
-            tier_action_html = f"<span style='color:#F97316; font-weight:bold;'>🔥 第 2 買點已過【多頭推進中】</span> (已大漲超標勿追高，持股守5MA，等突破B3加碼)"
+            tier_action_html = f"<span style='color:#F97316; font-weight:bold;'>🔥 第 2 買點已過【多頭推進中】｜建議買入：0% (勿追高)</span> (持股守5MA，等突破B3加碼)"
         else:
             st_t = b2_item.get('status_text', '整理中')
-            tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>⏳ 第 2 階【{st_t}】</span>"
+            tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>⏳ 第 2 階【{st_t}】｜建議買入：0% (觀望)</span>"
     elif et_st == 'TIER_3':
         b3_p = b3_item.get('price', item['close'])
         if b3_stat == 'ACTIVE':
-            tier_action_html = f"<span style='color:#8B5CF6; font-weight:bold;'>🚀 第 3 買點【波段加碼追價】</span> (順勢追價加碼 ｜ 突破 {b3_p:.2f} 元總攻)"
+            tier_action_html = f"<span style='color:#8B5CF6; font-weight:bold;'>🚀 第 3 買點【波段加碼追價】｜建議買入：10%~20%</span> (突破 {b3_p:.2f} 元順勢加碼守5MA)"
         elif b3_stat == 'CAUTION':
             st_t = b3_item.get('status_text', '帶瑕疵')
-            tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⚠️ 第 3 階【{st_t}】</span> (追價空間有限，切勿盲目追高)"
+            tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⚠️ 第 3 階【{st_t}】｜建議買入：0%</span> (追價空間有限，切勿盲目追高)"
         elif b3_stat == 'MISSED':
-            tier_action_html = f"<span style='color:#EF4444; font-weight:bold;'>🛑 主升段大漲超標【嚴禁追高】</span> (持股緊盯5MA停利)"
+            tier_action_html = f"<span style='color:#EF4444; font-weight:bold;'>🛑 主升段大漲超標【嚴禁追高】｜建議買入：0%</span> (持股緊盯5MA停利)"
         else:
-            tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>⏳ 第 3 階【蓄勢挑戰】</span> (距突破加碼點仍有距離)"
+            tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>⏳ 第 3 階【蓄勢挑戰】｜建議買入：0%</span> (距突破加碼點仍有距離)"
     elif et_st == 'FIRST_LEG_RALLY':
-        tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⌛ 買點已過【切勿追高】</span> (單腳急拉已遠離起漲點，手中有股續抱守 5MA，空手者等打第2腳)"
+        tier_action_html = f"<span style='color:#F59E0B; font-weight:bold;'>⌛ 買點已過【切勿追高】｜建議買入：0%</span> (單腳急拉已遠離起漲點，空手等打第2腳)"
     elif et_st == 'BOTTOMING':
-        tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>🛑 探底觀望期【暫勿進場】</span> (尚未見底部止跌轉折紅K，耐心觀望)"
+        tier_action_html = f"<span style='color:#94A3B8; font-weight:bold;'>🛑 探底觀望期【暫勿進場】｜建議買入：0%</span> (尚未見底部止跌轉折紅K，耐心觀望)"
     elif et_st in ['PULLBACK_CORRECTION', 'PULLBACK_SUPPORT']:
-        tier_action_html = f"<span style='color:#F87171; font-weight:bold;'>🛑 高檔拉回整理【暫勿盲目接刀】</span> (持股守 5MA，空手等第二隻腳守穩)"
+        tier_action_html = f"<span style='color:#F87171; font-weight:bold;'>🛑 高檔拉回整理【暫勿盲目接刀】｜建議買入：0%</span> (持股守 5MA，空手等第二隻腳守穩)"
     else:
-        tier_action_html = f"<span style='color:#CBD5E1;'>{item.get('entry_tier_name') or et.get('stage_name', '波段推進中')}</span>"
+        tier_action_html = f"<span style='color:#CBD5E1;'>{item.get('entry_tier_name') or et.get('stage_name', '波段推進中')} ｜ 建議買入：{item.get('recommended_pct_range', '0%')}</span>"
+
+    if not pct_pill_html:
+        pct_rng = item.get('recommended_pct_range') or et.get('recommended_pct_range') or '0%'
+        pct_rsn = item.get('recommended_pct_reason') or et.get('recommended_pct_reason') or '觀察'
+        pct_pill_html = f"<span style='background:#1E293B; border:1px solid #475569; color:#CBD5E1; font-size:0.75rem; font-weight:800; padding:2px 7px; border-radius:4px; white-space:nowrap;'>⏸️ 建議買入：{pct_rng} ({pct_rsn})</span>"
 
     # 風險防守與目標獲利空間
     stop_p = swing.get('stop_loss', round(item['close'] * 0.95, 2))
@@ -1306,10 +1323,11 @@ def render_stock_card(item, key_prefix="sc", current_strategy=None):
 
     card_html = (
         f'<div style="background:#181A26; border:1px solid #2E334D; border-radius:10px; padding:12px 14px; margin-bottom:6px; box-shadow:0 3px 10px rgba(0,0,0,0.25);">'
-        f'<div style="display:flex; justify-content:space-between; align-items:center;">'
-        f'<div><span style="font-size:1.18rem; font-weight:bold; color:white;">{item["name"]}</span>'
-        f'<span style="color:#94A3B8; font-size:0.88rem; margin-left:4px;">{item["code"]}</span>'
-        f'<span style="margin-left:8px;">{core_badge_html}</span></div>'
+        f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">'
+        f'<div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px;"><span style="font-size:1.18rem; font-weight:bold; color:white;">{item["name"]}</span>'
+        f'<span style="color:#94A3B8; font-size:0.88rem;">{item["code"]}</span>'
+        f'{pct_pill_html}'
+        f'<span>{core_badge_html}</span></div>'
         f'<div style="text-align:right;"><span style="font-size:1.25rem; font-weight:bold; color:{c_color};">{item["close"]:.2f}</span>'
         f'<span style="font-size:0.85rem; font-weight:bold; color:{c_color}; margin-left:4px;">{sign}{item["change"]:.2f} ({sign}{item["change_pct"]:.2f}%)</span>{rt_badge}</div>'
         f'</div>'
@@ -2283,36 +2301,39 @@ def render_market_sync_radar(from_screener: bool = False):
                         # 實戰狀態橫幅條 (Action Status Banner) 與 動作指引 (SOP)
                         stage_tag = c_item.get('_stage_tag', 'WATCHLIST')
                         if stage_tag == 'BUY_NOW':
+                            sync_pct_pill = "<span style='background:#064E3B; border:1px solid #10B981; color:#A7F3D0; font-size:0.73rem; font-weight:800; padding:1px 6px; border-radius:4px; margin-left:6px;'>建議買入：20%~30%</span>"
                             action_banner_html = (
                                 "<div style='background: rgba(239, 68, 68, 0.16); border-left: 4px solid #EF4444; border-radius: 4px; padding: 5px 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;'>"
-                                "<span style='color: #FF7875; font-weight: 800; font-size: 0.84rem;'>🔥 【今日轉折符合 · 尾盤可買】</span>"
+                                "<span style='color: #FF7875; font-weight: 800; font-size: 0.84rem;'>🔥 【今日轉折符合 · 尾盤可買｜建議買入：20%~30%】</span>"
                                 "<span style='color: #FCA5A5; font-size: 0.76rem;'>紅K站穩5MA ＋ 雙線翻揚</span>"
                                 "</div>"
                             )
                             action_sop_html = (
                                 "<div style='background:rgba(239, 68, 68, 0.08); border-radius:4px; padding:6px 10px; margin-top:6px; font-size:0.78rem; color:#FCA5A5;'>"
-                                "🎯 <b>老朱進場 SOP</b>：今日出量收紅站穩 5MA，12:45~13:15 尾盤確認站穩即可進場，享受補漲外溢波！"
+                                "🎯 <b>老朱進場 SOP</b>：今日出量收紅站穩 5MA，12:45~13:15 尾盤確認站穩即可進場（建議倉位 20%~30%），享受補漲外溢波！"
                                 "</div>"
                             )
                         elif stage_tag == 'REJECTED':
+                            sync_pct_pill = "<span style='background:#450A0A; border:1px solid #DC2626; color:#FCA5A5; font-size:0.73rem; font-weight:800; padding:1px 6px; border-radius:4px; margin-left:6px;'>建議買入：0% (淘汰)</span>"
                             action_banner_html = (
                                 "<div style='background: rgba(100, 116, 139, 0.16); border-left: 4px solid #64748B; border-radius: 4px; padding: 5px 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;'>"
-                                "<span style='color: #CBD5E1; font-weight: 800; font-size: 0.84rem;'>⚠️ 【淘汰警戒 · 嚴禁摸底】</span>"
+                                "<span style='color: #CBD5E1; font-weight: 800; font-size: 0.84rem;'>⚠️ 【淘汰警戒 · 嚴禁摸底｜建議買入：0%】</span>"
                                 "<span style='color: #94A3B8; font-size: 0.76rem;'>命中假突破 / 破線套牢</span>"
                                 "</div>"
                             )
                             action_sop_html = (
-                                "<div style='background:rgba(100, 116, 139, 0.08); border-radius:4px; padding:6px 10px; margin-top:6px; font-size:0.78rem; color:#94A3B8;'>🚫 <b>風控避坑指引</b>：上方賣壓沉重或假突破誘多，非健康補漲，嚴禁抄底接刀！</div>"
+                                "<div style='background:rgba(100, 116, 139, 0.08); border-radius:4px; padding:6px 10px; margin-top:6px; font-size:0.78rem; color:#94A3B8;'>🚫 <b>風控避坑指引</b>：上方賣壓沉重或假突破誘多，非健康補漲，建議買入 0% 嚴禁抄底接刀！</div>"
                             )
                         else:  # WATCHLIST
+                            sync_pct_pill = "<span style='background:#1E293B; border:1px solid #475569; color:#CBD5E1; font-size:0.73rem; font-weight:800; padding:1px 6px; border-radius:4px; margin-left:6px;'>建議買入：0% (等紅K)</span>"
                             action_banner_html = (
                                 "<div style='background: rgba(16, 185, 129, 0.14); border-left: 4px solid #10B981; border-radius: 4px; padding: 5px 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;'>"
-                                "<span style='color: #34D399; font-weight: 800; font-size: 0.84rem;'>👁️ 【鎖股追蹤 · 回檔等上漲】</span>"
+                                "<span style='color: #34D399; font-weight: 800; font-size: 0.84rem;'>👁️ 【鎖股追蹤 · 回檔等上漲｜建議買入：0%】</span>"
                                 "<span style='color: #A7F3D0; font-size: 0.76rem;'>今日收黑洗盤 · 絕不接刀！等轉折紅K</span>"
                                 "</div>"
                             )
                             action_sop_html = (
-                                "<div style='background:rgba(16, 185, 129, 0.08); border-radius:4px; padding:6px 10px; margin-top:6px; font-size:0.78rem; color:#A7F3D0;'>📋 <b>老朱鎖股 SOP</b>：多頭架構完好但今日收黑，黑 K 當天絕不接刀！放入今晚鎖股名冊，等縮量回測守穩出轉折紅 K 再買。</div>"
+                                "<div style='background:rgba(16, 185, 129, 0.08); border-radius:4px; padding:6px 10px; margin-top:6px; font-size:0.78rem; color:#A7F3D0;'>📋 <b>老朱鎖股 SOP</b>：多頭架構完好但今日收黑，建議買入 0%（黑 K 當天絕不接刀）！放入鎖股名冊，等縮量回測守穩出轉折紅 K 再買。</div>"
                             )
 
                         # 安全評級燈號標籤
@@ -2362,6 +2383,7 @@ def render_market_sync_radar(from_screener: bool = False):
                             f"<div>"
                             f"<span style='font-size: 1.12rem; font-weight: bold; color: white;'>{name}</span>"
                             f"<span style='color: #8892B0; font-size: 0.88rem; margin-left: 4px;'>({code})</span>"
+                            f"{sync_pct_pill}"
                             f"<span style='background: #1F2438; border: 1px solid {c_item['status_color']}; color: {c_item['status_color']}; font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; margin-left: 6px;'>{c_item['status_badge']}</span>"
                             f"</div>"
                             f"<div style='text-align: right;'>"
@@ -2995,13 +3017,23 @@ if menu == "📊 個股技術分析 (轉折波主圖)":
         if sec_info and sec_info.get('badge'):
             sec_badge_html = f"<span class='tag-badge' style='background:#1E2235; border:1px solid {sec_info['badge_color']}; color:{sec_info['badge_color']}; margin-left:4px;' title='所屬主流族群：{sec_info['sector']} (熱度排行第 {sec_info['rank']} 名，評分 {sec_info['heat_score']} 分)'>{sec_info['badge']} · {sec_info['sector']}</span> "
 
+        # 預先計算頂部個股「建議買入倉位百分比」膠囊 (一目了然判讀適不適合買入)
+        header_pct_pill = ""
+        if not str(info.get('code', '')).startswith('^'):
+            try:
+                _hdr_tier = core.entry_point_analyzer.calculate_three_tier_entry(df, points, trend, signals_dict)
+                header_pct_pill = _hdr_tier.get('recommended_pct_pill_html', '')
+            except Exception:
+                header_pct_pill = ""
+
         # 頂部個股精緻大卡片 (手機自適應排版)
         header_html = (
             f'<div class="main-header">'
             f'<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">'
             f'<div>'
             f'<h2 style="margin: 0; display: inline-block; font-size: 1.65rem;">{info["name"]} ({info["code"]})</h2> '
-            f'<span class="tag-badge" style="background: #3B5998; margin-left: 6px;">{info["industry"]}</span> '
+            f'{header_pct_pill} '
+            f'<span class="tag-badge" style="background: #3B5998; margin-left: 4px;">{info["industry"]}</span> '
             f'{sec_badge_html}'
             f'<span class="tag-badge" style="background: {trend["trend_color"]};">{trend["trend_badge"]}</span> '
             f'{rt_badge} '
@@ -5929,6 +5961,21 @@ elif menu == "🎯 全攻略選股池 (多/空策略)":
         st.session_state.browsing_stock_names = {item['code']: item['name'] for item in priority_queue}
 
         total_actionable = len(gold_buys) + len(aggressive_buys)
+        if not is_short_dir:
+            _b2_60_cnt = sum(1 for _it in final_display if int(_it.get('recommended_pct', 0) or 0) >= 60)
+            _b1_try_cnt = sum(1 for _it in final_display if 10 <= int(_it.get('recommended_pct', 0) or 0) < 60)
+            _zero_watch_cnt = sum(1 for _it in final_display if int(_it.get('recommended_pct', 0) or 0) == 0)
+            st.markdown(
+                f"<div style='background:#131722; border:1px solid #2E334D; border-radius:8px; padding:8px 14px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:0.85rem;'>"
+                f"<div style='color:#E2E8F0; font-weight:bold;'>📊 當下建議買入倉位百分比快覽：</div>"
+                f"<div style='display:flex; gap:10px; flex-wrap:wrap;'>"
+                f"<span style='background:#78350F; border:1px solid #F59E0B; color:#FDE68A; padding:2px 9px; border-radius:5px; font-weight:800;'>🔥 適合 60%~70% 重倉 (B2)：{_b2_60_cnt} 檔</span>"
+                f"<span style='background:#064E3B; border:1px solid #10B981; color:#A7F3D0; padding:2px 9px; border-radius:5px; font-weight:800;'>🟢 適合 10%~30% 試單 (B1)：{_b1_try_cnt} 檔</span>"
+                f"<span style='background:#1E293B; border:1px solid #475569; color:#CBD5E1; padding:2px 9px; border-radius:5px; font-weight:800;'>⏸️ 建議買入 0% (觀察/觀望)：{_zero_watch_cnt} 檔</span>"
+                f"</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
         if target_strategy in ["守株待兔潛伏", "守株待兔", "主力深蹲", "深蹲潛伏"]:
             tab_lbl1 = f"⚡ 臨門一腳 · 隨時噴出 / 今日突破 ({total_actionable}檔 ｜ 突破{len(aggressive_buys)} · 臨門{len(gold_buys)})"
             tab_lbl2 = f"📦 耐心潛伏 · 主力深蹲吃貨 ({len(ambush_stocks)}檔)"

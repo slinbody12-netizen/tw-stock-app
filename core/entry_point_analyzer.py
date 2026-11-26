@@ -34,6 +34,11 @@ def calculate_three_tier_entry(
             "stage_verdict": "歷史轉折資料不足，暫無法推算進場階梯",
             "badge_html": "",
             "badge_text": "",
+            "recommended_pct": 0,
+            "recommended_pct_range": "0%",
+            "recommended_pct_reason": "資料不足",
+            "recommended_pct_text": "建議買入：0% (資料不足)",
+            "recommended_pct_pill_html": "<span style='background:#1E293B; border:1px solid #475569; color:#94A3B8; font-size:0.75rem; font-weight:bold; padding:2px 8px; border-radius:4px;'>⏸️ 建議買入：0% (觀望)</span>",
             "b1": None,
             "b2": None,
             "b3": None
@@ -410,6 +415,8 @@ def calculate_three_tier_entry(
     four_ma_not_ready = bool(signals_dict.get('four_ma_not_ready_warning', False))
     elim_info = signals_dict.get('elimination_info', {})
     is_eliminated = bool(elim_info.get('is_eliminated', False))
+    do_not_buy_info = signals_dict.get('ch11_do_not_buy') or {}
+    dnb_violations = do_not_buy_info.get('violations') or []
     is_four_ma_launch = signals_dict.get('bullish_alignment', False) and (signals_dict.get('main_wave_2nd', False) or signals_dict.get('box_range_breakout', False) or signals_dict.get('pullback_buy', False)) and (c >= sma5)
 
     # =========================================================================
@@ -440,9 +447,23 @@ def calculate_three_tier_entry(
             return
 
         # 風控主閘門安全檢核：識別是否存在重大技術瑕疵
+        is_black_candle_today = (cur_price < float(latest.get('Open', cur_price)))
+        is_ma20_broken_or_falling = False
+        if 'SMA_20' in df and len(df) >= 5 and pd.notna(df['SMA_20'].iloc[-1]) and pd.notna(df['SMA_20'].iloc[-4]):
+            _s20_now = float(df['SMA_20'].iloc[-1])
+            _s20_prev = float(df['SMA_20'].iloc[-4])
+            if cur_price < _s20_now or _s20_now < _s20_prev:
+                is_ma20_broken_or_falling = True
+
         caution_flaw = None
         caution_hint = None
-        if has_long_upper_shadow:
+        if is_black_candle_today:
+            caution_flaw = "⚠️ 今日收黑K (開高走低/洗盤勿買)"
+            caution_hint = "今日 K 線收實體黑 K（開盤高於收盤）！依朱老師『做多七不買：進場位出現價漲黑K（開高走低）或黑K回檔絕不買』，須等次日出實體紅 K 過高再進場！"
+        elif t_tier >= 2 and is_ma20_broken_or_falling:
+            caution_flaw = "⚠️ 月線20MA下彎或未站穩"
+            caution_hint = "月線 (20MA) 仍下彎或股價尚未站穩月線之上！依 CH1 與 CH3 鐵律：20MA 下彎一律視為空頭反彈，嚴禁當成 B2 標準多頭重倉（60%）進場！"
+        elif has_long_upper_shadow:
             caution_flaw = "⚠️ 長上影避雷針 (高檔調節)"
             caution_hint = "今日收盤留長上影線（避雷針）遭遇逢高調節賣壓！依朱老師實戰鐵律『長上影線次日極易拉回，長上影線前勿進』，嚴禁躁進，靜待次日回測消化！"
         elif unresolved_blacks:
@@ -462,6 +483,10 @@ def calculate_three_tier_entry(
         elif is_imminent:
             caution_flaw = f"⚠️ 壓力臨頭 (僅距+{room_pct}%)"
             caution_hint = f"現價雖在進場區，但頭頂正上方僅距【{closest_res['name']}】約 {room_pct}%！做多避開7位置（壓力前勿進），嚴禁賭突破，寧等帶量突破後再進！"
+        elif dnb_violations:
+            first_v = str(dnb_violations[0][1]) if isinstance(dnb_violations[0], (list, tuple)) and len(dnb_violations[0]) > 1 else str(dnb_violations[0])
+            caution_flaw = f"⚠️ 做多禁忌 ({first_v[:12]})"
+            caution_hint = f"本檔觸犯老朱做多七不買禁忌：【{first_v}】！依紀律未化解前暫緩進場（0% 觀察），等帶量實質突破化解後再買！"
 
         # 情況 2: 現價尚未達到進場門檻 (低於 low)
         if cur_price < low:
@@ -728,6 +753,102 @@ def calculate_three_tier_entry(
     if signals_dict.get('ath_pullback_buy', False) and not has_any_risk_flaw and "創高無壓" not in stage_verdict:
         stage_verdict += "（👑 朱老師龍頭戰法：創歷史/波段新高後回測均線守穩，上方無任何解套賣壓，為回後買上漲勝率最高之首選型態！）"
 
+    # =========================================================================
+    # 8. 計算個股「當下建議買入倉位百分比 (%)」標籤 (一目了然判讀適不適合買入)
+    # =========================================================================
+    recommended_pct = 0
+    recommended_pct_range = "0%"
+    recommended_pct_reason = "觀望未達標"
+    pct_bg = "#1E293B"
+    pct_bd = "#475569"
+    pct_fg = "#CBD5E1"
+    pct_icon = "⏸️"
+
+    if current_stage == "TIER_2":
+        if not is_below_5ma and b2_info['status'] == 'ACTIVE':
+            recommended_pct = 60
+            recommended_pct_range = "60%~70%"
+            recommended_pct_reason = "B2標準重倉"
+            pct_bg = "#78350F"
+            pct_bd = "#F59E0B"
+            pct_fg = "#FDE68A"
+            pct_icon = "🔥"
+        elif not is_below_5ma and b2_info['status'] == 'CAUTION' and "輕度追價" in b2_info.get('status_text', ''):
+            recommended_pct = 30
+            recommended_pct_range = "30%"
+            recommended_pct_reason = "B2輕度追價減半"
+            pct_bg = "#451A03"
+            pct_bd = "#D97706"
+            pct_fg = "#FDE68A"
+            pct_icon = "⚠️"
+        elif is_below_5ma:
+            recommended_pct_reason = "破5MA觀望"
+        elif b2_info['status'] == 'MISSED':
+            recommended_pct_reason = "買點已過勿追"
+        else:
+            recommended_pct_reason = "瑕疵未除暫緩"
+    elif current_stage == "TIER_1":
+        if not is_below_5ma and b1_info['status'] == 'ACTIVE':
+            recommended_pct = 25
+            recommended_pct_range = "20%~30%"
+            recommended_pct_reason = "B1底部試單"
+            pct_bg = "#064E3B"
+            pct_bd = "#10B981"
+            pct_fg = "#A7F3D0"
+            pct_icon = "🟢"
+        elif not is_below_5ma and b1_info['status'] == 'CAUTION' and "輕度追價" in b1_info.get('status_text', ''):
+            recommended_pct = 15
+            recommended_pct_range = "10%~15%"
+            recommended_pct_reason = "B1試單減半"
+            pct_bg = "#064E3B"
+            pct_bd = "#10B981"
+            pct_fg = "#A7F3D0"
+            pct_icon = "🟢"
+        elif is_below_5ma:
+            recommended_pct_reason = "破5MA等紅K"
+        elif is_misprediction:
+            recommended_pct_reason = f"T+{bars_since_trigger}滯漲換股"
+        elif b1_info['status'] == 'CAUTION':
+            recommended_pct_reason = "壓力/瑕疵勿進" if is_imminent else "瑕疵未除觀望"
+        else:
+            recommended_pct_reason = "觀察等過B2頸線"
+    elif current_stage == "TIER_3":
+        if not is_below_5ma and b3_info['status'] == 'ACTIVE':
+            recommended_pct = 20
+            recommended_pct_range = "10%~20%"
+            recommended_pct_reason = "B3加碼/短打"
+            pct_bg = "#4C1D95"
+            pct_bd = "#8B5CF6"
+            pct_fg = "#DDD6FE"
+            pct_icon = "🚀"
+        elif not is_below_5ma and b3_info['status'] == 'CAUTION' and ("輕度追價" in b3_info.get('status_text', '') or "衝刺" in b3_info.get('status_text', '')):
+            recommended_pct = 10
+            recommended_pct_range = "10%"
+            recommended_pct_reason = "極短線追價"
+            pct_bg = "#2E1065"
+            pct_bd = "#A855F7"
+            pct_fg = "#E9D5FF"
+            pct_icon = "⚡"
+        elif is_below_5ma:
+            recommended_pct_reason = "破5MA防守勿買"
+        elif b3_info['status'] == 'MISSED':
+            recommended_pct_reason = "高檔嚴禁追高"
+        else:
+            recommended_pct_reason = "高檔瑕疵勿追"
+    elif current_stage == "FIRST_LEG_RALLY":
+        recommended_pct_reason = "單腳急拉等第2腳"
+    elif current_stage == "BOTTOMING":
+        recommended_pct_reason = "探底禁猜底"
+    elif current_stage in ["PULLBACK_CORRECTION", "PULLBACK_SUPPORT"]:
+        recommended_pct_reason = "破5MA禁接刀" if is_below_5ma else "回測等轉強紅K"
+
+    recommended_pct_text = f"建議買入：{recommended_pct_range} ({recommended_pct_reason})"
+    recommended_pct_pill_html = (
+        f"<span style='background:{pct_bg}; border:1px solid {pct_bd}; color:{pct_fg}; "
+        f"font-size:0.76rem; font-weight:800; padding:2px 8px; border-radius:4px; display:inline-block; white-space:nowrap;'>"
+        f"{pct_icon} 建議買入：{recommended_pct_range} ({recommended_pct_reason})</span>"
+    )
+
     return {
         "current_stage": current_stage,
         "current_price": round(c, 2),
@@ -736,6 +857,11 @@ def calculate_three_tier_entry(
         "stage_verdict": stage_verdict,
         "badge_html": badge_html,
         "badge_text": badge_text,
+        "recommended_pct": recommended_pct,
+        "recommended_pct_range": recommended_pct_range,
+        "recommended_pct_reason": recommended_pct_reason,
+        "recommended_pct_text": recommended_pct_text,
+        "recommended_pct_pill_html": recommended_pct_pill_html,
         "b1": b1_info,
         "b2": b2_info,
         "b3": b3_info,
@@ -954,10 +1080,11 @@ def render_three_tier_entry_dashboard(tier_info: dict):
                 <span style="font-size: 1.1rem; font-weight: bold; color: #FFFFFF;">🎯 老朱三層進場階梯戰術導航</span>
                 <span style="font-size: 0.85rem; color: #94A3B8; margin-left: 8px;">(進場區間 · 禁追天花板 · 盤中動態感知)</span>
             </div>
-            <div>
+            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                 <span style="font-size: 0.95rem; font-weight: bold; color: {theme_color}; background: {theme_bg}; border: 1px solid {theme_bd}; padding: 3px 10px; border-radius: 6px;">
                     {stage_name}
                 </span>
+                {tier_info.get('recommended_pct_pill_html', '')}
             </div>
         </div>
 

@@ -110,13 +110,16 @@ def analyze_stock_ambush_potential(df: pd.DataFrame, code: str, name: str = "", 
     # 判斷未來 5 天扣抵是否維持低檔有利上揚
     favorable_deduct_count = sum(1 for p in fut_20 if c_cur >= p) + sum(1 for p in fut_60 if c_cur >= p)
 
-    # 6. 狀態判定 (Stage Classification)
+    # 6. 狀態判定 (Stage Classification) — 嚴格淘汰跌破箱底或月季雙線皆下彎破線之空頭弱勢股
+    if c_cur < box_low * 1.005 or (not is_20ma_rising and not is_60ma_rising and c_cur < ma20):
+        return None
+
     # A. 今日帶量突破 (STAGE_BREAKOUT_TODAY)
-    is_today_breakout = (c_cur >= box_high * 0.995) and (c_cur >= o_cur) and (vol_ratio_5 >= 1.3 or v_cur >= 1.5 * vol_ma20) and (c_cur > ma5)
+    is_today_breakout = (c_cur >= box_high * 0.995) and (c_cur >= o_cur) and (vol_ratio_5 >= 1.3 or v_cur >= 1.5 * vol_ma20) and (c_cur > ma5) and is_20ma_rising
     # B. 蓄勢待發·臨門一腳 (STAGE_READY)
-    is_ready_to_launch = (bandwidth <= 3.8 or bw_3 <= 2.2) and (amplitude <= 13.0) and (dist_to_box_high <= 3.0) and is_20ma_rising
+    is_ready_to_launch = (bandwidth <= 3.8 or bw_3 <= 2.2) and (amplitude <= 13.0) and (dist_to_box_high <= 3.0) and is_20ma_rising and (c_cur >= ma20 * 0.995)
     # C. 耐心潛伏·深蹲蓄勢 (STAGE_ACCUMULATING)
-    is_accumulating = (bandwidth <= 4.5 or bw_3 <= 3.0) and (amplitude <= 14.0) and (squeeze_days >= 15)
+    is_accumulating = (bandwidth <= 4.5 or bw_3 <= 3.0) and (amplitude <= 14.0) and (squeeze_days >= 15) and (is_20ma_rising or is_60ma_rising)
 
     if not (is_today_breakout or is_ready_to_launch or is_accumulating):
         return None
@@ -140,17 +143,23 @@ def analyze_stock_ambush_potential(df: pd.DataFrame, code: str, name: str = "", 
 
     if is_today_breakout:
         stage = "STAGE_BREAKOUT_TODAY"
-        stage_text = "🚀 今日放量突破 · 飆股正式起跑"
+        recommended_pct = 25
+        recommended_pct_text = "20%~30% (突破起漲試單·過頸線確立升至60%)"
+        stage_text = "🚀 今日放量突破 · 飆股正式起跑【建議買入：20%~30%】"
         stage_color = "#FF4D4F"
         score = max(score, 90.0)
     elif is_ready_to_launch:
         stage = "STAGE_READY"
-        stage_text = "⚡ 臨門一腳 · 隨時放量噴出"
+        recommended_pct = 10
+        recommended_pct_text = "0% (等帶量突破) / 積極 10%~20% (B1輕倉試單)"
+        stage_text = "⚡ 臨門一腳 · 隨時放量噴出【建議買入：0%~20% (觀察/輕倉試單)】"
         stage_color = "#FAAD14"
         score = max(score, 80.0)
     else:
         stage = "STAGE_ACCUMULATING"
-        stage_text = "📦 耐心潛伏 · 主力深蹲吃貨"
+        recommended_pct = 0
+        recommended_pct_text = "0% (盤整觀察·等帶量長紅突破箱頂)"
+        stage_text = "📦 耐心潛伏 · 主力深蹲吃貨【建議買入：0% (觀察等突破)】"
         stage_color = "#10B981"
 
     # 籌碼輔助 (若有)
@@ -160,18 +169,19 @@ def analyze_stock_ambush_potential(df: pd.DataFrame, code: str, name: str = "", 
         if mf_val > 0:
             score += 5.0
 
+    c_round = round(c_cur, 2)
     # 實戰操作指引
     if stage == "STAGE_BREAKOUT_TODAY":
-        action_guide = f"今日帶量衝破箱頂 {box_high} 元！屬朱老師 CH06 均線糾結起漲第一根，若開盤未達漲停可順勢進場，已鎖死者切勿追高，等次日回測 5MA。"
+        action_guide = f"【建議買入：20%~30%】今日帶量衝破箱頂 {box_high} 元！屬朱老師 CH06 均線糾結起漲第一根，若未達禁追上限可順勢進場，已鎖死者切勿追高，等次日回測 5MA。"
     elif stage == "STAGE_READY":
-        action_guide = f"四線收斂僅 {bandwidth}%，距箱頂 {box_high} 元僅 {dist_to_box_high}%！扣抵條件極佳，建議於現價 {c_cur} 附近輕倉 20%~30% 提前伏擊，帶量衝過 {box_high} 元立即加碼！"
+        action_guide = f"【建議買入：0% (等過壓) / 10%~20% (積極試單)】四線收斂僅 {bandwidth}%，距箱頂 {box_high} 元僅 {dist_to_box_high}%！標準紀律 0% 等放量衝過 {box_high} 元再買，積極者僅宜 10%~20% 極輕倉嚴守箱底 {box_low} 元。"
     else:
-        action_guide = f"四線平躺糾結已維持 {squeeze_days} 天，40天箱型振幅僅 {amplitude}%，主力洗盤充分。可於箱底 {box_low} ~ 區間中軸建立底倉耐心守株待兔。"
+        action_guide = f"【建議買入：0% (觀察等突破)】四線平躺糾結已維持 {squeeze_days} 天，40天箱型振幅僅 {amplitude}%。依 CH01 盤整中不進場鐵律，先列觀察股（0%），等帶量長紅突破 {box_high} 元再啟動買進。"
 
     return {
         "code": code,
         "name": name,
-        "close": c_cur,
+        "close": c_round,
         "bandwidth": bandwidth,
         "bandwidth_3": bw_3,
         "amplitude": amplitude,
@@ -186,6 +196,8 @@ def analyze_stock_ambush_potential(df: pd.DataFrame, code: str, name: str = "", 
         "stage": stage,
         "stage_text": stage_text,
         "stage_color": stage_color,
+        "recommended_pct": recommended_pct,
+        "recommended_pct_text": recommended_pct_text,
         "ambush_score": round(score, 1),
         "action_guide": action_guide,
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -198,13 +210,37 @@ def scan_ambush_pool(limit: int = 50) -> list:
     snapshot_path = os.path.join(DATA_DIR, "screener_snapshot.pkl")
     stocks_to_scan = []
 
+    # 建立股票代碼對應中文名稱表，避免快取補齊標的名稱空白
+    name_map = {}
+    for map_fname in ["tw_stock_list.json", "tw_full_stock_map.json"]:
+        map_path = os.path.join(DATA_DIR, map_fname)
+        if os.path.exists(map_path):
+            try:
+                with open(map_path, 'r', encoding='utf-8') as mf:
+                    mdata = json.load(mf)
+                if isinstance(mdata, list):
+                    for it in mdata:
+                        if it.get('code') and it.get('name'):
+                            name_map[str(it['code']).strip()] = str(it['name']).strip()
+                elif isinstance(mdata, dict):
+                    for k, v in mdata.items():
+                        c_k = str(k).strip()
+                        if isinstance(v, dict) and v.get('name'):
+                            name_map[c_k] = str(v['name']).strip()
+                        elif isinstance(v, str) and v.strip():
+                            name_map[c_k] = v.strip()
+            except Exception:
+                pass
+
     # 1. 優先從 screener_snapshot 或 cache 載入
     if os.path.exists(snapshot_path):
         try:
             with open(snapshot_path, 'rb') as f:
                 snap_list = pickle.load(f)
             for item in snap_list:
-                stocks_to_scan.append((item.get('code'), item.get('name')))
+                c_str = str(item.get('code', '')).strip()
+                if c_str and not c_str.startswith('^'):
+                    stocks_to_scan.append((c_str, item.get('name') or name_map.get(c_str, "")))
         except Exception:
             pass
 
@@ -213,9 +249,9 @@ def scan_ambush_pool(limit: int = 50) -> list:
         try:
             for f in os.listdir(CACHE_DIR):
                 if f.endswith('_6mo.pkl') or f.endswith('_1y.pkl'):
-                    code = f.split('.')[0]
-                    if not any(s[0] == code for s in stocks_to_scan):
-                        stocks_to_scan.append((code, ""))
+                    code = f.split('.')[0].strip()
+                    if code and not code.startswith('^') and not any(s[0] == code for s in stocks_to_scan):
+                        stocks_to_scan.append((code, name_map.get(code, "")))
         except Exception:
             pass
 
@@ -241,7 +277,16 @@ def scan_ambush_pool(limit: int = 50) -> list:
             if df is not None:
                 break
 
-        if df is not None:
+        if df is not None and not df.empty:
+            if 'Date' in df.columns:
+                try:
+                    last_dt = pd.to_datetime(df['Date'].iloc[-1])
+                    if hasattr(last_dt, 'tz_localize') and last_dt.tzinfo is not None:
+                        last_dt = last_dt.tz_localize(None)
+                    if (datetime.now() - last_dt).days > 10:
+                        continue
+                except Exception:
+                    pass
             res = analyze_stock_ambush_potential(df, code, name)
             if res:
                 results.append(res)
