@@ -842,6 +842,47 @@ def calculate_three_tier_entry(
     elif current_stage in ["PULLBACK_CORRECTION", "PULLBACK_SUPPORT"]:
         recommended_pct_reason = "破5MA禁接刀" if is_below_5ma else "回測等轉強紅K"
 
+    # 補充判定：CH06「回後買上漲 (20%~30%)」、「月線上揚抗跌轉強試單 (10%~20%)」與「帶量重返月線短打 (10%)」
+    if recommended_pct == 0 and not is_below_5ma and len(df) >= 5:
+        _o_cur = float(latest.get('Open', c))
+        _prev_c = float(df['Close'].iloc[-2])
+        _prev_h = float(df['High'].iloc[-2])
+        _chg_pct = ((c - _prev_c) / (_prev_c + 1e-9)) * 100
+        _s10 = float(df['SMA_10'].iloc[-1]) if ('SMA_10' in df and pd.notna(df['SMA_10'].iloc[-1])) else sma5
+        _s20 = float(df['SMA_20'].iloc[-1]) if ('SMA_20' in df and pd.notna(df['SMA_20'].iloc[-1])) else c
+        _s20_p = float(df['SMA_20'].iloc[-4]) if ('SMA_20' in df and pd.notna(df['SMA_20'].iloc[-4])) else _s20
+        _is_20_up = (c >= _s20) and (_s20 >= _s20_p)
+        _is_3_bull = (sma5 > _s10 > _s20) and _is_20_up
+        _is_solid_red = (c > _o_cur) and (_chg_pct >= 2.0) and (not has_long_upper_shadow)
+        _pass_prev_h = (c > _prev_h)
+        _wave_hi = max(b1_surge_peak, b2_surge_peak, b2_p if b2_p < 999999 else 0.0)
+        _room_wave = ((_wave_hi - c) / c * 100) if _wave_hi > c else 99.0
+
+        if _is_3_bull and _is_solid_red and _pass_prev_h and up_days <= 3 and _room_wave >= 3.0 and _chg_pct <= 9.2:
+            recommended_pct = 25
+            recommended_pct_range = "20%~30%"
+            recommended_pct_reason = "回後買上漲試單"
+            pct_bg = "#064E3B"
+            pct_bd = "#10B981"
+            pct_fg = "#A7F3D0"
+            pct_icon = "🟢"
+        elif _is_20_up and _is_solid_red and _pass_prev_h and up_days <= 3 and _chg_pct <= 9.2:
+            recommended_pct = 15
+            recommended_pct_range = "10%~20%"
+            recommended_pct_reason = "月線上揚輕倉試單"
+            pct_bg = "#3F2E05"
+            pct_bd = "#F59E0B"
+            pct_fg = "#FDE68A"
+            pct_icon = "🟡"
+        elif (c >= _s20) and (c > _o_cur) and (_chg_pct >= 3.5) and (not is_eliminated) and up_days <= 3 and not _is_20_up:
+            recommended_pct = 10
+            recommended_pct_range = "10%"
+            recommended_pct_reason = "重返月線極短打"
+            pct_bg = "#1E293B"
+            pct_bd = "#38BDF8"
+            pct_fg = "#BAE6FD"
+            pct_icon = "⚡"
+
     recommended_pct_text = f"建議買入：{recommended_pct_range} ({recommended_pct_reason})"
     recommended_pct_pill_html = (
         f"<span style='background:{pct_bg}; border:1px solid {pct_bd}; color:{pct_fg}; "

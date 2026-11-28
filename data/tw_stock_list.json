@@ -1504,5 +1504,47 @@
     "name": "佳世達",
     "market": "TW",
     "industry": "電腦及週邊"
+  },
+  {
+    "code": "8415",
+    "name": "大國鋼",
+    "market": "TWO",
+    "industry": "鋼鐵扣件"
+  },
+  {
+    "code": "6614",
+    "name": "資拓宏宇",
+    "market": "TW",
+    "industry": "資服AI雲端"
+  },
+  {
+    "code": "2471",
+    "name": "資通",
+    "market": "TW",
+    "industry": "資訊軟體"
+  },
+  {
+    "code": "5457",
+    "name": "宣德",
+    "market": "TWO",
+    "industry": "連接器"
+  },
+  {
+    "code": "7765",
+    "name": "中華資安",
+    "market": "TW",
+    "industry": "資安服務"
+  },
+  {
+    "code": "2597",
+    "name": "潤弘",
+    "market": "TW",
+    "industry": "營建工程"
+  },
+  {
+    "code": "3491",
+    "name": "昇達科",
+    "market": "TWO",
+    "industry": "低軌衛星"
   }
 ]
